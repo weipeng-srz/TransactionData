@@ -1,0 +1,68 @@
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
+
+# Logs and temporary files
+*.log
+tmp/
+.cache/
+
+# Go build and test artifacts
+/bin/
+*.test
+*.prof
+*.pprof
+*.coverprofile
+coverage.out
+
+# Project binaries
+/stock-ticks
+/stock-ticks.exe
+/stock-ticks-*
+/stock-news
+/stock-news.exe
+/stock-news-*
+/stockticks
+/stockticks.exe
+/stockticks-*
+
+# Generated datasets
+/data.csv
+/data.tar.gz
+/news.csv
+/result/
+
+# Web dependencies and generated output
+/web/node_modules/
+/web/.next/
+/web/.vinext/
+/web/.vite/
+/web/.turbo/
+/web/.vercel/
+/web/.wrangler/
+/web/out/
+/web/build/
+/web/dist/
+/web/coverage/
+/web/outputs/
+/web/work/
+/web/next-env.d.ts
+/web/*.tsbuildinfo
