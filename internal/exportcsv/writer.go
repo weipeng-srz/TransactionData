@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"stockticks/internal/marketdata"
-	"stockticks/internal/stock"
+	"github.com/weipeng-srz/TransactionData/internal/marketdata"
+	"github.com/weipeng-srz/TransactionData/internal/stock"
 )
 
 type DailyTrades struct {

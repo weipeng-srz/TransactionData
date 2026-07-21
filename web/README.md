@@ -1,122 +1,60 @@
-# TickLens 行情、基本面与舆情工作台
+# TickLens Web
 
-TickLens 可以输入股票名称或代码，由页面解析沪深 A 股后并行获取最近90个完整交易日、估值与分红、历史财务报表和相关新闻。任一路先完成都会立即更新对应区域，无需等待其他数据源。页面默认用最近 8 个单季度回答增长趋势、利润现金质量、指标改善/恶化和估值匹配四个问题，并在当前浏览器保留最近查询记录。
+这是 TickLens 的 Web 研究工作台，基于 Next.js App Router、React、vinext、Vite 和 Cloudflare Workers。它通过服务端路由访问公开行情、财务与新闻数据，并使用 D1 保存研究状态、价格提醒和匿名聚合遥测。
 
-主图支持 MA5/10/20、EMA12/26、BOLL、VWAP、神奇九转与 B/S 组合指引；副图支持 VOL（含 MV5/MV10）、MACD、KDJ、RSI。右侧 K 线研判会汇总趋势、动量、ATR、量能、近20期支撑压力和最近组合信号。
+项目总览、Go 命令和数据口径请先阅读仓库根目录的 [`README.md`](../README.md)。
 
-研究工作区还提供以下能力：
+## 环境要求
 
-- 行情请求期间保留上一份成功数据，并显示待加载标的、失败来源和一键重试，避免把旧图误认为新股票数据。
-- 将新闻、财报和分红日期叠加到 K 线，按 5/10/20 个交易日统计组合信号的历史胜率、平均收益和最差逆向波动。
-- 本地自选股对比、价格越界提醒与行情/新闻/财报更新时间，数据仅保存在当前浏览器。
-- 保存或恢复当前研究视图、复制可分享链接、导出 Markdown 研究报告，以及使用浏览器打印为 PDF。
-- 页面内快捷导航、移动端研判卡片折叠、键盘可识别的按钮选中状态和更大的触控区域。
+- Node.js 22.13+
+- pnpm 10
 
-## Prerequisites
-
-- Node.js `>=22.13.0`
-- Go 1.21 或更高版本（使用股票代码自动取数时）
-
-## Quick Start
+## 本地运行
 
 ```bash
-cd ..
-CGO_ENABLED=0 go build -trimpath -o stock-ticks .
-CGO_ENABLED=0 go build -trimpath -o stock-news ./cmd/stock-news
-cd web
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-打开终端显示的本地地址（当前配置通常是 `http://localhost:3000`）。输入股票名称或代码后按回车或点击“获取行情 + 基本面 + 新闻”。名称会先解析为沪深 A 股代码，随后页面并行获取行情、基本面与新闻；每一路完成后都会立即更新对应区域。成功查询过的股票会保存在当前浏览器的“最近查询”列表中，可点击再次查询或清空。行情与新闻自动取数接口在本地开发服务中调用项目根目录的两个二进制文件；基本面通过站点 API 获取公开估值、分红与财务数据。
+打开终端显示的本地地址。本地预览使用固定的 `local-preview` 用户键模拟研究状态和提醒存储；不需要登录，也不需要预先构建 Go 命令。
 
-股息率 TTM 使用估值日向前 12 个月内已经实施的税前现金分红合计除以估值日收盘价，并同时展示每股现金分红金额与实施次数。财报诊断支持最近 8/12 季度、近 5/10 年，支持单季度、累计、TTM 以及绝对值、同比、环比和占营收比例切换。流量指标统一在数据层换算：Q2/Q3/Q4 单季度值由同一会计年度累计值差分，TTM 为最近四个单季度之和；资产负债指标使用报告期末值。页面同时提供收入与利润、盈利能力、现金流质量、资产质量图表，规则异常信号、可展开指标矩阵、CSV 导出和可追溯的四段式结论。
+## 常用命令
 
-当前详细财报口径为合并报表与正式定期报告。规则引擎只提示需要核查的方向，不据此断言财务造假或给出目标价。
-
-新闻区域会显示正面、中性、负面数量、综合情绪分、检索入口、发布时间、标题、摘要、关键词依据和原文链接，并可按情绪筛选。关键词情绪用于初筛，不理解反讽、否定关系和复杂上下文，请结合原文人工核验。
-
-新版 CSV 会提供原始成交金额、按日股本、原始性质代码和交易时段；旧版 CSV 仍可读取，但资金流会被明确标记为前复权金额代理。
-
-主力行为代理综合主动买卖净额、大额成交净额、收盘相对 VWAP、日内位置、换手、量比和尾盘方向。B/S 指引综合九转、MACD、KDJ、RSI、MA5 与 BOLL 的规则信号。两者都不包含 Level-2 委托、撤单或订单链路，因此仅用于研究，不构成投资建议。
-
-This starter does not use `wrangler.jsonc`.
-
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+pnpm dev          # 启动开发服务
+pnpm build        # 生成 Cloudflare Worker 兼容产物
+pnpm lint         # ESLint 检查
+pnpm test         # 构建并运行全部 Node 测试
+pnpm db:generate  # 根据 db/schema.ts 生成 D1 迁移
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## 目录
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+```text
+web/
+├── app/
+│   ├── api/          # 行情、财务、新闻、提醒和研究状态 API
+│   ├── components/   # 图表与研究界面组件
+│   ├── lib/          # 数据解析、指标、存储与远端数据客户端
+│   ├── alerts/       # 桌面行情监控页
+│   └── page.tsx      # 主工作台
+├── db/               # Drizzle/D1 schema 与连接封装
+├── drizzle/          # 可部署的 D1 迁移
+├── plugins/          # 构建期 Sites 插件
+├── public/           # 图标与社交预览图
+├── tests/            # Node 测试
+└── worker/           # Cloudflare Worker 入口与定时任务
+```
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## 数据与状态
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+- 行情、财务和新闻由服务端 API 从公开数据源实时获取。
+- 最近查询、部分界面偏好和离线回退保存在浏览器本地。
+- D1 中的 `research_states`、`price_alerts`、`telemetry_daily` 分别保存研究状态、价格提醒和按日聚合事件计数。
+- 托管环境通过 `oai-authenticated-user-email` 请求头识别用户；数据库中只保存其 SHA-256 派生键，不保存邮箱原文。
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+## 构建与托管
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+`.openai/hosting.json` 声明 Sites 项目和逻辑 D1 绑定；`plugins/sites-vite-plugin.ts` 会在构建后把托管元数据与迁移复制到 `dist/.openai/`。Fork 或独立部署时，应使用自己的托管项目、数据库和访问策略，不要假定上游项目资源可复用。
 
-## Useful Commands
-
-- `pnpm dev`: 启动本地开发服务（含股票代码自动取数）
-- `pnpm build`: 验证 vinext 构建产物
-- `pnpm test`: 构建并运行解析、指标、接口校验和服务端渲染测试
-- `pnpm lint`: 运行 ESLint
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+不要提交 `.env*`、`.dev.vars*`、`.wrangler/`、`dist/` 或任何访问凭据。

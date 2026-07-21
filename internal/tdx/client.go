@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"stockticks/internal/marketdata"
+	"github.com/weipeng-srz/TransactionData/internal/marketdata"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"stockticks/internal/marketdata"
+	"github.com/weipeng-srz/TransactionData/internal/marketdata"
 )
 
 func TestWrite(t *testing.T) {

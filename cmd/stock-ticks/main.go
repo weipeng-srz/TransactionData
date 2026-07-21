@@ -14,11 +14,11 @@ import (
 	"syscall"
 	"time"
 
-	"stockticks/internal/companydata"
-	"stockticks/internal/exportcsv"
-	"stockticks/internal/marketdata"
-	"stockticks/internal/stock"
-	"stockticks/internal/tdx"
+	"github.com/weipeng-srz/TransactionData/internal/companydata"
+	"github.com/weipeng-srz/TransactionData/internal/exportcsv"
+	"github.com/weipeng-srz/TransactionData/internal/marketdata"
+	"github.com/weipeng-srz/TransactionData/internal/stock"
+	"github.com/weipeng-srz/TransactionData/internal/tdx"
 )
 
 const (

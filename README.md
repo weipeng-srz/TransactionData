@@ -1,141 +1,138 @@
-# A 股 Level-1 历史分笔导出工具
+<div align="center">
 
-这是一个纯 Go 命令行应用。输入一只沪深 A 股代码后，它会从通达信免费行情服务器下载最近 90 个**已经结束的交易日**的 Level-1 分笔成交，同时保留原始成交价格与前复权价格，并写入每个交易日适用的复权因子和流通 A 股本。北京时间16:00后会包含当天，否则从前一个完整交易日开始。
+# TickLens
 
-## 构建
+面向沪深 A 股的开源市场研究工作台与数据导出工具
 
-需要 Go 1.21 或更高版本：
+[![CI](https://github.com/weipeng-srz/TransactionData/actions/workflows/ci.yml/badge.svg)](https://github.com/weipeng-srz/TransactionData/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
-```bash
-CGO_ENABLED=0 go build -trimpath -o stock-ticks .
-```
+</div>
 
-Windows：
+![TickLens 市场研究工作台](./web/public/og-apple.png)
 
-```powershell
-$env:CGO_ENABLED=0
-go build -trimpath -o stock-ticks.exe .
-```
+TickLens 把行情、基本面、新闻舆情、技术指标、信号回测和价格提醒放进同一个研究界面，并提供两个可独立运行的 Go 命令，用于导出历史 Level-1 分笔成交和股票相关新闻。
 
-也可以在 macOS 或 Linux 上交叉编译：
+> [!WARNING]
+> 本项目仅用于学习、数据工程和量化研究，不构成投资建议、收益承诺或交易依据。公开免费数据源可能延迟、限流、变更或出错，请在重要决策前交叉核验。
 
-```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o stock-ticks-linux-amd64 .
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o stock-ticks-windows-amd64.exe .
-CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -o stock-ticks-darwin-arm64 .
-```
+## 功能
 
-## 使用
+### Web 研究工作台
 
-交互方式：
+- 输入股票名称或代码，并行获取行情、估值、分红、财务报表和新闻；任一数据源完成后立即更新对应区域。
+- 支持多周期 K 线、MA/EMA/BOLL/VWAP、MACD/KDJ/RSI、神奇九转与组合 B/S 研究信号。
+- 展示财务趋势、现金流质量、资产质量、估值匹配和规则异常提示。
+- 提供新闻情绪初筛、事件标注、信号回测、风险指标、自选股和价格越界提醒。
+- 支持明暗主题、基础/专业视图、研究状态保存、Markdown 报告导出和桌面行情监控页。
 
-```bash
-./stock-ticks
-```
+### Go 数据工具
 
-也可以直接传入股票代码：
+- `stock-ticks`：导出最近若干完整交易日的通达信 Level-1 历史分笔，并补充前复权因子与流通 A 股本。
+- `stock-news`：聚合东方财富、新浪和中国新闻网的股票相关新闻，去重后进行基础中文情绪分析。
+- CSV 均采用临时文件写完再原子替换，避免中断时留下不完整结果。
 
-```bash
-./stock-ticks 600000
-./stock-ticks -code 000001.SZ
-```
+## 快速开始
 
-默认抓取90个完整交易日，并写入当前执行目录的 `data.csv`。可通过参数调整：
+### 运行 Web 工作台
+
+需要 Node.js 22.13+、pnpm 10 和 Git：
 
 ```bash
-./stock-ticks -code 600000 -days 90 -output ./result/data.csv
+git clone https://github.com/weipeng-srz/TransactionData.git
+cd TransactionData
+make setup
+make dev
 ```
 
-通过 `./stock-ticks -h` 查看全部选项。程序只有在数据完整下载并写完后才会替换目标 CSV；下载中断不会留下半份文件。
+打开终端显示的本地地址。Web 版本通过服务端 API 获取公开行情、财务与新闻数据，本地运行不要求预先构建 Go 命令。
 
-## CSV 字段
-
-CSV 使用 UTF-8 编码。第一行是只出现一次的文件元数据：
-
-- 股票代码
-- 股票名称（东方财富证券简称）
-- 最新交易日适用的流通 A 股本及其生效日
-- 价格口径、成交数据级别、时间精度、数据序号口径和成交金额口径
-
-随后每个交易日有一行 `#DAY` 上下文，包含交易日期、当天适用的前复权因子、流通 A 股本及股本生效日。这样可以按日正确计算换手率，又不必在每笔成交中重复股本数据。
-
-成交明细表包含：
-
-- 交易日期、成交时间、文件内单日数据序号
-- 原始成交价格、前复权成交价格、成交量、按原始价格计算的成交金额
-- 解析后的性质、原始性质代码、交易时段
-
-程序使用新浪前复权因子，按 `前复权成交价 = 原始成交价 ÷ 前复权因子` 输出；资金流和大额成交分析应使用原始成交金额，前复权价格用于连续 K 线。流通 A 股本来自东方财富历史股本结构。
-
-通达信历史分笔只提供分钟级时间，同一分钟可能存在多条记录。`数据序号` 仅表示数据源返回后在文件中的单日顺序，不是交易所成交序号或订单号。程序将原始性质代码转换为买盘、卖盘、中性盘或其他，并同时保留原始代码供校验。15:00 后的记录会单独标记为盘后交易。
-
-## 数据口径与限制
-
-本程序使用通达信 7709 免费行情协议，只支持沪深市场。它提供的是 **Level-1 历史分笔成交**，不是真正的交易所 Level-2 数据：
-
-- 一行数据可能汇总多笔真实成交，不能理解为一张交易所原始订单。
-- 不包含逐笔委托、撤单、成交序号、买方订单号和卖方订单号。
-- 买卖性质来自通达信行情标记，只适合做大单倾向代理分析。
-- “主力行为”只能表达为概率代理和置信度，不能仅凭主动净额认定真实机构意图。
-- 股票名称取自东方财富股本结构响应中的证券简称；旧版 CSV 没有名称时，Web 页面会继续只显示股票代码。
-- 北交所历史分笔暂不可靠支持，程序会明确拒绝北交所代码。
-- 免费服务器可能变更、限流或临时不可用，也没有服务等级保证。
-- 新浪和东方财富的公开接口并非带服务等级保证的正式数据 API；前复权或流通股本数据缺失时程序会停止导出，避免生成口径不完整的 CSV。
-
-如果业务要求真正 Level-2 逐笔成交和逐笔委托，需要以后接入有权限的券商 QMT 或持牌数据服务商。
-
-项目仅用于学习和研究，不构成投资建议。使用前请确认符合数据提供方条款以及当地法律法规。TDX 协议实现的开源归属说明见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
-
-## 舆情新闻采集模块
-
-`stock-news` 是一个可独立打包、独立运行的纯 Go 命令。输入沪深北股票代码后，它会先查询证券简称，再并行检索东方财富财经/股票内容、新浪新闻/财经内容和中国新闻网全站内容，过滤与目标股票无关的结果、按标题去重，并输出基础中文情绪倾向。
-
-构建：
+如果系统没有 Make：
 
 ```bash
-CGO_ENABLED=0 go build -trimpath -o stock-news ./cmd/stock-news
-```
-
-Windows：
-
-```powershell
-$env:CGO_ENABLED=0
-go build -trimpath -o stock-news.exe ./cmd/stock-news
-```
-
-使用股票代码运行：
-
-```bash
-./stock-news 600000
-./stock-news -code 000001.SZ
-```
-
-默认每个检索入口最多读取 20 条新闻，并写入当前执行目录的 `news.csv`。可调整上限、超时和输出路径：
-
-```bash
-./stock-news -code 600000 -limit 30 -timeout 15s -output ./result/news.csv
-```
-
-证券简称接口不可用时，可以手工指定简称后继续运行：
-
-```bash
-./stock-news -code 600000 -name 浦发银行
-```
-
-`news.csv` 包含股票代码、股票名称、检索入口、频道、媒体来源、发布时间、相关性得分、情绪倾向、情绪得分、命中的正负向词、标题、摘要、原文链接和采集时间。只有全部检索入口都失败时程序才会终止；单个入口临时不可用会输出警告并保存其他入口的结果。CSV 采用临时文件写完后再替换，采集中断不会留下半份文件。
-
-情绪分析是本地关键词规则模型，适合快速初筛，不理解反讽、否定关系和复杂上下文，也不能替代人工研判或专业 NLP 模型。各公开检索入口可能调整接口、限流或要求验证，程序不会绕过网站访问控制；请控制运行频率，并遵守各站点条款和 robots 规则。
-
-## Web 行情工作台
-
-先构建根目录的两个命令，再启动 Web：
-
-```bash
-CGO_ENABLED=0 go build -trimpath -o stock-ticks .
-CGO_ENABLED=0 go build -trimpath -o stock-news ./cmd/stock-news
 cd web
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-打开终端提示的本地地址。页面可直接输入股票代码，并行调用两个后台应用获取最近90个完整交易日和相关新闻；任一路完成后都会立即更新对应页面区域。页面展示多周期 K 线、神奇九转、B/S 组合指引、常用技术指标、K 线研判、Level-1 主力行为代理和舆情资讯。
+### 构建 Go 命令
+
+需要 Go 1.21+：
+
+```bash
+make build-go
+./bin/stock-ticks -code 600000 -days 90 -output ./result/data.csv
+./bin/stock-news -code 600000 -limit 30 -output ./result/news.csv
+```
+
+Windows PowerShell：
+
+```powershell
+$env:CGO_ENABLED=0
+go build -trimpath -o bin/stock-ticks.exe ./cmd/stock-ticks
+go build -trimpath -o bin/stock-news.exe ./cmd/stock-news
+```
+
+两个命令都支持交互输入股票代码；使用 `-h` 查看完整参数。
+
+## 项目结构
+
+```text
+.
+├── cmd/
+│   ├── stock-ticks/       # 历史分笔导出命令
+│   └── stock-news/        # 新闻聚合命令
+├── internal/              # Go 内部数据源、解析与 CSV 模块
+├── web/                   # Next.js/vinext Web 工作台与 Cloudflare Worker
+├── docs/                  # 架构、数据格式和数据源说明
+├── .github/               # CI、Dependabot、Issue 与 PR 模板
+├── Makefile               # 统一开发入口
+└── README.md
+```
+
+更完整的依赖关系和数据流见 [`docs/architecture.md`](./docs/architecture.md)。
+
+## 数据说明
+
+`stock-ticks` 输出的是免费行情协议提供的 **Level-1 历史分笔**，不是交易所 Level-2 逐笔委托：
+
+- 一行可能聚合多笔真实成交；
+- 不包含逐笔委托、撤单、交易所成交序号或买卖双方订单号；
+- 买卖性质只能用作方向代理，不能据此识别真实机构行为；
+- 历史分笔时间精度为分钟，同一分钟可能有多条记录。
+
+详细字段、计算口径和兼容说明见 [`docs/data-formats.md`](./docs/data-formats.md)。数据来源、限制和合规边界见 [`docs/data-sources.md`](./docs/data-sources.md)。
+
+## 开发与验证
+
+```bash
+make check       # Go 格式与静态检查、前端 lint、全部构建和测试
+make build       # 构建两个 Go 命令和 Web 应用
+make test-go     # 只运行 Go 测试
+make test-web    # 只运行 Web 构建与测试
+```
+
+所有 Pull Request 都会通过 GitHub Actions 运行相同的核心检查。贡献前请阅读 [`CONTRIBUTING.md`](./CONTRIBUTING.md)。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [`docs/architecture.md`](./docs/architecture.md) | 系统边界、目录职责和主要数据流 |
+| [`docs/data-formats.md`](./docs/data-formats.md) | 两类 CSV 的字段与计算口径 |
+| [`docs/data-sources.md`](./docs/data-sources.md) | 外部数据源、限制、隐私和合规说明 |
+| [`web/README.md`](./web/README.md) | Web 子项目开发、测试与部署约定 |
+| [`SECURITY.md`](./SECURITY.md) | 私密漏洞报告方式 |
+| [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) | 第三方实现归属与许可证 |
+
+## 贡献
+
+Bug 报告、功能建议、文档改进和测试补充都很欢迎。较大的数据源、格式或架构变更请先创建 Issue 讨论，以便保持兼容性和数据口径一致。
+
+请遵守 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)，安全问题请不要公开披露。
+
+## License
+
+本项目按 [MIT License](./LICENSE) 开源。第三方归属见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。

@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode"
 
-	"stockticks/internal/stock"
+	"github.com/weipeng-srz/TransactionData/internal/stock"
 )
 
 const (

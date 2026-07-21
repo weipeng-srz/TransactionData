@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"stockticks/internal/news"
-	"stockticks/internal/stock"
+	"github.com/weipeng-srz/TransactionData/internal/news"
+	"github.com/weipeng-srz/TransactionData/internal/stock"
 )
 
 func main() {

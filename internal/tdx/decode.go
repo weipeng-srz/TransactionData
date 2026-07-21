@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"stockticks/internal/marketdata"
+	"github.com/weipeng-srz/TransactionData/internal/marketdata"
 )
 
 func decodeHistoryTrades(body []byte, date string) ([]marketdata.Trade, error) {

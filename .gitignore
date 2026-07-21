@@ -25,6 +25,12 @@ Thumbs.db
 tmp/
 .cache/
 
+# Local code-intelligence metadata
+/.gitnexus/
+/.claude/
+/AGENTS.md
+/CLAUDE.md
+
 # Go build and test artifacts
 /bin/
 *.test
