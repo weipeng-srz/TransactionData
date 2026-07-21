@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   backtestGuideSignals,
   buildChartEvents,
+  calculateRiskMetrics,
   evaluatePriceAlerts,
   parsePriceAlerts,
   parseWatchlist,
@@ -50,6 +51,20 @@ test("backtests de-duplicated B/S guide signals across multiple horizons", () =>
   assert.equal(result.horizons[0].winRate, 50);
   assert.ok(result.horizons[0].worstAdverseMove < 0);
   assert.equal(result.horizons[2].samples, 1);
+  assert.match(result.executionModel, /后一根K线开盘/);
+  assert.equal(result.roundTripCostPct, 0.25);
+  assert.ok(result.horizons[0].winRateLow <= result.horizons[0].winRate);
+  assert.ok(result.horizons[0].winRateHigh >= result.horizons[0].winRate);
+});
+
+test("calculates portfolio-style risk and benchmark-relative metrics", () => {
+  const benchmark = candles.map((candle, index) => ({ ...candle, close: 10 + index * 0.5 }));
+  const risk = calculateRiskMetrics(candles, benchmark);
+  assert.ok(risk.totalReturn > 0);
+  assert.ok(risk.annualizedVolatility >= 0);
+  assert.ok(risk.maxDrawdown <= 0);
+  assert.ok(risk.excessReturn > 0);
+  assert.ok(risk.beta != null);
 });
 
 test("builds news, report and dividend events for the selected stock", () => {

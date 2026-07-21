@@ -15,7 +15,7 @@ export default function SignalBacktestCard({ backtest }: { backtest: SignalBackt
         <div className="backtest-hero">
           <span>{primary ? `${primary.periods}期信号胜率` : "信号胜率"}</span>
           <strong className={(primary?.winRate ?? 0) >= 50 ? "is-up" : "is-down"}>{formatPercent(primary?.winRate ?? null)}</strong>
-          <small>B {backtest.buySignals} · S {backtest.sellSignals} · 连续同向信号已去重</small>
+          <small>B {backtest.buySignals} · S {backtest.sellSignals} · 跳过 {backtest.skippedSignals} · 95%区间 {formatRange(primary?.winRateLow ?? null, primary?.winRateHigh ?? null)}</small>
         </div>
         <div className="backtest-table-wrap">
           <table className="backtest-table">
@@ -35,9 +35,23 @@ export default function SignalBacktestCard({ backtest }: { backtest: SignalBackt
           </table>
         </div>
       </div>
-      <p className="method-note">按信号收盘价到未来 5/10/20 根 K 线收盘价计算方向收益；未计手续费、滑点、停牌和涨跌停成交约束，样本少时不应外推。</p>
+      {primary ? (
+        <div className="backtest-risk-grid" aria-label={`${primary.periods}期回测风险指标`}>
+          <Metric label="期望收益" value={formatPercent(primary.expectancy)} tone={primary.expectancy} />
+          <Metric label="盈亏比" value={formatRatio(primary.payoffRatio)} />
+          <Metric label="Profit Factor" value={formatRatio(primary.profitFactor)} />
+          <Metric label="信号序列回撤" value={formatPercent(primary.maxDrawdown)} tone={primary.maxDrawdown} />
+          <Metric label="最大连亏" value={`${primary.maxLossStreak} 次`} />
+          <Metric label="相对沪深300" value={formatPercent(primary.averageExcessReturn)} tone={primary.averageExcessReturn} />
+        </div>
+      ) : null}
+      <p className="method-note">{backtest.executionModel}；方向收益已扣除约 {backtest.roundTripCostPct.toFixed(2)}% 交易摩擦，并跳过无量或单边涨跌停开盘样本。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
     </section>
   );
+}
+
+function Metric({ label, value, tone: metricTone }: { label: string; value: string; tone?: number | null }) {
+  return <div><span>{label}</span><strong className={metricTone == null ? "" : tone(metricTone)}>{value}</strong></div>;
 }
 
 function formatPercent(value: number | null): string {
@@ -48,3 +62,6 @@ function formatPercent(value: number | null): string {
 function tone(value: number | null): string {
   return (value ?? 0) > 0 ? "is-up" : (value ?? 0) < 0 ? "is-down" : "";
 }
+
+function formatRatio(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(2)}x`; }
+function formatRange(low: number | null, high: number | null): string { return low == null || high == null ? "—" : `${low.toFixed(0)}–${high.toFixed(0)}%`; }

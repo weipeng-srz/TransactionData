@@ -151,7 +151,12 @@ test("production financial route returns recent reports", async () => {
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
     const reportName = url.searchParams.get("reportName");
-    assert.equal(url.searchParams.get("columns"), "ALL");
+    if (reportName === "RPT_VALUEANALYSIS_DET") {
+      assert.match(url.searchParams.get("columns") ?? "", /PE_TTM/);
+      assert.equal(url.searchParams.get("pageSize"), "1250");
+    } else {
+      assert.equal(url.searchParams.get("columns"), "ALL");
+    }
     if (reportName === "RPT_F10_FINANCE_MAINFINADATA") {
       assert.match(url.searchParams.get("filter") ?? "", /000001\.SZ/);
       return new Response(JSON.stringify(responsePayload), { status: 200 });

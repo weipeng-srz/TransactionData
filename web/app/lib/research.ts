@@ -19,13 +19,44 @@ export type BacktestHorizon = {
   averageReturn: number | null;
   medianReturn: number | null;
   worstAdverseMove: number | null;
+  bestFavorableMove: number | null;
+  expectancy: number | null;
+  payoffRatio: number | null;
+  profitFactor: number | null;
+  maxDrawdown: number | null;
+  maxLossStreak: number;
+  averageExcessReturn: number | null;
+  winRateLow: number | null;
+  winRateHigh: number | null;
 };
 
 export type SignalBacktest = {
   totalSignals: number;
   buySignals: number;
   sellSignals: number;
+  skippedSignals: number;
+  roundTripCostPct: number;
+  executionModel: string;
   horizons: BacktestHorizon[];
+};
+
+export type RiskMetrics = {
+  samples: number;
+  totalReturn: number | null;
+  annualizedReturn: number | null;
+  annualizedVolatility: number | null;
+  downsideVolatility: number | null;
+  maxDrawdown: number | null;
+  currentDrawdown: number | null;
+  sharpe: number | null;
+  sortino: number | null;
+  valueAtRisk95: number | null;
+  expectedShortfall95: number | null;
+  benchmarkReturn: number | null;
+  excessReturn: number | null;
+  beta: number | null;
+  alphaAnnualized: number | null;
+  correlation: number | null;
 };
 
 export type WatchlistItem = {
@@ -37,6 +68,9 @@ export type WatchlistItem = {
   pb: number | null;
   dividendYieldTtm: number | null;
   sentiment: NewsSentiment | null;
+  momentum20: number | null;
+  annualizedVolatility: number | null;
+  maxDrawdown: number | null;
   updatedAt: string;
 };
 
@@ -48,6 +82,17 @@ export type PriceAlert = {
   target: number;
   createdAt: string;
   triggeredAt: string;
+  lastPrice?: number | null;
+  lastCheckedAt?: string;
+};
+
+export type ChartAnnotation = {
+  id: string;
+  code: string;
+  date: string;
+  price?: number | null;
+  text: string;
+  createdAt: string;
 };
 
 export type SavedWorkspace = {
@@ -65,7 +110,10 @@ export function backtestGuideSignals(
   candles: Candle[],
   indicators: IndicatorSet,
   periods: number[] = [5, 10, 20],
+  options: { benchmark?: Candle[]; roundTripCostPct?: number } = {},
 ): SignalBacktest {
+  const roundTripCostPct = Number.isFinite(options.roundTripCostPct) ? Math.max(0, options.roundTripCostPct ?? 0) : 0.25;
+  const benchmarkByDate = new Map((options.benchmark ?? []).map((candle) => [candle.date, candle]));
   const signals: Array<{ index: number; direction: "buy" | "sell" }> = [];
   let previous: { index: number; direction: "buy" | "sell" } | null = null;
   indicators.guidePoints.forEach((guide, index) => {
@@ -76,24 +124,46 @@ export function backtestGuideSignals(
     previous = signal;
   });
 
+  const skippedSignalIndexes = new Set<number>();
   const horizons = [...new Set(periods)]
     .filter((value) => Number.isInteger(value) && value > 0)
     .sort((left, right) => left - right)
     .map((horizon): BacktestHorizon => {
       const outcomes = signals.flatMap((signal) => {
         const target = candles[signal.index + horizon];
-        const entry = candles[signal.index];
-        if (!entry || !target || entry.close <= 0) return [];
+        const signalCandle = candles[signal.index];
+        const entry = candles[signal.index + 1];
+        if (!signalCandle || !entry || !target || entry.open <= 0 || entry.volume <= 0) {
+          skippedSignalIndexes.add(signal.index);
+          return [];
+        }
+        const gapPct = signalCandle.close > 0 ? ((entry.open / signalCandle.close) - 1) * 100 : 0;
+        if ((signal.direction === "buy" && gapPct >= 9.8) || (signal.direction === "sell" && gapPct <= -9.8)) {
+          skippedSignalIndexes.add(signal.index);
+          return [];
+        }
         const direction = signal.direction === "buy" ? 1 : -1;
-        const strategyReturn = ((target.close / entry.close) - 1) * 100 * direction;
+        const grossReturn = ((target.close / entry.open) - 1) * 100 * direction;
+        const strategyReturn = grossReturn - roundTripCostPct;
         const path = candles.slice(signal.index + 1, signal.index + horizon + 1);
         const worstAdverseMove = signal.direction === "buy"
-          ? Math.min(0, ...path.map((candle) => ((candle.low / entry.close) - 1) * 100))
-          : Math.min(0, ...path.map((candle) => ((entry.close / candle.high) - 1) * 100));
-        return [{ strategyReturn, worstAdverseMove }];
+          ? Math.min(0, ...path.map((candle) => ((candle.low / entry.open) - 1) * 100))
+          : Math.min(0, ...path.map((candle) => ((entry.open / candle.high) - 1) * 100));
+        const bestFavorableMove = signal.direction === "buy"
+          ? Math.max(0, ...path.map((candle) => ((candle.high / entry.open) - 1) * 100))
+          : Math.max(0, ...path.map((candle) => ((entry.open / candle.low) - 1) * 100));
+        const benchmarkEntry = benchmarkByDate.get(entry.date);
+        const benchmarkTarget = benchmarkByDate.get(target.date);
+        const benchmarkReturn = benchmarkEntry && benchmarkTarget && benchmarkEntry.open > 0
+          ? ((benchmarkTarget.close / benchmarkEntry.open) - 1) * 100 * direction
+          : null;
+        return [{ strategyReturn, worstAdverseMove, bestFavorableMove, excessReturn: benchmarkReturn == null ? null : strategyReturn - benchmarkReturn }];
       });
       const returns = outcomes.map((item) => item.strategyReturn);
       const wins = returns.filter((value) => value > 0).length;
+      const positive = returns.filter((value) => value > 0);
+      const negative = returns.filter((value) => value < 0);
+      const winInterval = wilsonInterval(wins, outcomes.length);
       return {
         periods: horizon,
         samples: outcomes.length,
@@ -102,6 +172,15 @@ export function backtestGuideSignals(
         averageReturn: outcomes.length ? average(returns) : null,
         medianReturn: outcomes.length ? median(returns) : null,
         worstAdverseMove: outcomes.length ? Math.min(...outcomes.map((item) => item.worstAdverseMove)) : null,
+        bestFavorableMove: outcomes.length ? Math.max(...outcomes.map((item) => item.bestFavorableMove)) : null,
+        expectancy: outcomes.length ? average(returns) : null,
+        payoffRatio: positive.length && negative.length ? average(positive) / Math.abs(average(negative)) : null,
+        profitFactor: positive.length && negative.length ? positive.reduce((sum, value) => sum + value, 0) / Math.abs(negative.reduce((sum, value) => sum + value, 0)) : null,
+        maxDrawdown: outcomes.length ? returnSequenceDrawdown(returns) : null,
+        maxLossStreak: maxLossStreak(returns),
+        averageExcessReturn: averageNullable(outcomes.map((item) => item.excessReturn)),
+        winRateLow: winInterval?.[0] ?? null,
+        winRateHigh: winInterval?.[1] ?? null,
       };
     });
 
@@ -109,7 +188,55 @@ export function backtestGuideSignals(
     totalSignals: signals.length,
     buySignals: signals.filter((signal) => signal.direction === "buy").length,
     sellSignals: signals.filter((signal) => signal.direction === "sell").length,
+    skippedSignals: skippedSignalIndexes.size,
+    roundTripCostPct,
+    executionModel: "信号后一根K线开盘成交，固定观察期收盘退出",
     horizons,
+  };
+}
+
+export function calculateRiskMetrics(candles: Candle[], benchmark: Candle[] = [], periodsPerYear = 252): RiskMetrics {
+  const returns = simpleReturns(candles);
+  const benchmarkByDate = new Map(benchmark.map((candle, index) => [candle.date, { candle, index }]));
+  const paired = candles.slice(1).flatMap((candle, index) => {
+    const previous = candles[index];
+    const currentBenchmark = benchmarkByDate.get(candle.date);
+    if (!previous || !currentBenchmark || currentBenchmark.index < 1) return [];
+    const previousBenchmark = benchmark[currentBenchmark.index - 1];
+    if (!previous.close || !previousBenchmark?.close) return [];
+    return [[(candle.close / previous.close) - 1, (currentBenchmark.candle.close / previousBenchmark.close) - 1] as const];
+  });
+  const totalReturn = candles.length > 1 && candles[0].close > 0 ? ((candles.at(-1)!.close / candles[0].close) - 1) * 100 : null;
+  const years = returns.length / periodsPerYear;
+  const annualizedReturn = totalReturn != null && years > 0 ? ((1 + totalReturn / 100) ** (1 / years) - 1) * 100 : null;
+  const dailyMean = returns.length ? average(returns) : null;
+  const dailyStd = standardDeviation(returns);
+  const downside = standardDeviation(returns.filter((value) => value < 0));
+  const drawdowns = drawdownSeries(candles.map((candle) => candle.close));
+  const sorted = [...returns].sort((left, right) => left - right);
+  const tailCount = Math.max(1, Math.ceil(sorted.length * 0.05));
+  const benchmarkReturn = benchmark.length > 1 && benchmark[0].close > 0 ? ((benchmark.at(-1)!.close / benchmark[0].close) - 1) * 100 : null;
+  const covarianceValue = covariance(paired.map((item) => item[0]), paired.map((item) => item[1]));
+  const benchmarkVariance = variance(paired.map((item) => item[1]));
+  const beta = covarianceValue != null && benchmarkVariance != null && benchmarkVariance > 0 ? covarianceValue / benchmarkVariance : null;
+  const benchmarkMean = paired.length ? average(paired.map((item) => item[1])) : null;
+  return {
+    samples: returns.length,
+    totalReturn,
+    annualizedReturn,
+    annualizedVolatility: dailyStd == null ? null : dailyStd * Math.sqrt(periodsPerYear) * 100,
+    downsideVolatility: downside == null ? null : downside * Math.sqrt(periodsPerYear) * 100,
+    maxDrawdown: drawdowns.length ? Math.min(...drawdowns) * 100 : null,
+    currentDrawdown: drawdowns.length ? drawdowns.at(-1)! * 100 : null,
+    sharpe: dailyMean != null && dailyStd ? (dailyMean / dailyStd) * Math.sqrt(periodsPerYear) : null,
+    sortino: dailyMean != null && downside ? (dailyMean / downside) * Math.sqrt(periodsPerYear) : null,
+    valueAtRisk95: sorted.length ? sorted[Math.max(0, tailCount - 1)] * 100 : null,
+    expectedShortfall95: sorted.length ? average(sorted.slice(0, tailCount)) * 100 : null,
+    benchmarkReturn,
+    excessReturn: totalReturn != null && benchmarkReturn != null ? totalReturn - benchmarkReturn : null,
+    beta,
+    alphaAnnualized: beta != null && dailyMean != null && benchmarkMean != null ? (dailyMean - beta * benchmarkMean) * periodsPerYear * 100 : null,
+    correlation: paired.length > 2 ? correlation(paired.map((item) => item[0]), paired.map((item) => item[1])) : null,
   };
 }
 
@@ -175,9 +302,12 @@ export function parseWatchlist(value: unknown): WatchlistItem[] {
       pb: nullableNumber(candidate.pb),
       dividendYieldTtm: nullableNumber(candidate.dividendYieldTtm),
       sentiment: candidate.sentiment === "正面" || candidate.sentiment === "中性" || candidate.sentiment === "负面" ? candidate.sentiment : null,
+      momentum20: nullableNumber(candidate.momentum20),
+      annualizedVolatility: nullableNumber(candidate.annualizedVolatility),
+      maxDrawdown: nullableNumber(candidate.maxDrawdown),
       updatedAt: String(candidate.updatedAt ?? ""),
     }];
-  }).slice(0, 12);
+  }).slice(0, 20);
 }
 
 export function parsePriceAlerts(value: unknown): PriceAlert[] {
@@ -197,6 +327,8 @@ export function parsePriceAlerts(value: unknown): PriceAlert[] {
       target,
       createdAt: String(candidate.createdAt ?? ""),
       triggeredAt: String(candidate.triggeredAt ?? ""),
+      lastPrice: nullableNumber(candidate.lastPrice),
+      lastCheckedAt: String(candidate.lastCheckedAt ?? ""),
     }];
   }).slice(0, 30);
 }
@@ -296,6 +428,86 @@ function median(values: number[]): number {
   const sorted = [...values].sort((left, right) => left - right);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function averageNullable(values: Array<number | null>): number | null {
+  const numbers = values.filter((value): value is number => value != null && Number.isFinite(value));
+  return numbers.length ? average(numbers) : null;
+}
+
+function wilsonInterval(wins: number, samples: number): [number, number] | null {
+  if (!samples) return null;
+  const z = 1.96;
+  const probability = wins / samples;
+  const denominator = 1 + (z * z) / samples;
+  const center = (probability + (z * z) / (2 * samples)) / denominator;
+  const margin = (z / denominator) * Math.sqrt((probability * (1 - probability)) / samples + (z * z) / (4 * samples * samples));
+  return [Math.max(0, center - margin) * 100, Math.min(1, center + margin) * 100];
+}
+
+function returnSequenceDrawdown(returns: number[]): number {
+  let equity = 1;
+  let peak = 1;
+  let worst = 0;
+  for (const value of returns) {
+    equity *= 1 + value / 100;
+    peak = Math.max(peak, equity);
+    worst = Math.min(worst, ((equity / peak) - 1) * 100);
+  }
+  return worst;
+}
+
+function maxLossStreak(returns: number[]): number {
+  let current = 0;
+  let maximum = 0;
+  returns.forEach((value) => {
+    current = value < 0 ? current + 1 : 0;
+    maximum = Math.max(maximum, current);
+  });
+  return maximum;
+}
+
+function simpleReturns(candles: Candle[]): number[] {
+  return candles.slice(1).flatMap((candle, index) => {
+    const previous = candles[index];
+    return previous?.close > 0 ? [(candle.close / previous.close) - 1] : [];
+  });
+}
+
+function drawdownSeries(values: number[]): number[] {
+  let peak = Number.NEGATIVE_INFINITY;
+  return values.map((value) => {
+    peak = Math.max(peak, value);
+    return peak > 0 ? (value / peak) - 1 : 0;
+  });
+}
+
+function variance(values: number[]): number | null {
+  if (values.length < 2) return null;
+  const mean = average(values);
+  return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+}
+
+function standardDeviation(values: number[]): number | null {
+  const value = variance(values);
+  return value == null ? null : Math.sqrt(value);
+}
+
+function covariance(left: number[], right: number[]): number | null {
+  const length = Math.min(left.length, right.length);
+  if (length < 2) return null;
+  const leftSlice = left.slice(0, length);
+  const rightSlice = right.slice(0, length);
+  const leftMean = average(leftSlice);
+  const rightMean = average(rightSlice);
+  return leftSlice.reduce((sum, value, index) => sum + (value - leftMean) * (rightSlice[index] - rightMean), 0) / (length - 1);
+}
+
+function correlation(left: number[], right: number[]): number | null {
+  const covarianceValue = covariance(left, right);
+  const leftDeviation = standardDeviation(left);
+  const rightDeviation = standardDeviation(right);
+  return covarianceValue == null || !leftDeviation || !rightDeviation ? null : covarianceValue / (leftDeviation * rightDeviation);
 }
 
 function formatPercent(value: number | null): string {

@@ -79,11 +79,13 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
     return periods.filter((period) => period.quarter === 4).slice(0, years).reverse();
   }, [dataset.analysis.periods, range]);
   const latest = visiblePeriods.at(-1) ?? dataset.analysis.periods[0];
+  const priorPeriod = visiblePeriods.at(-2) ?? dataset.analysis.periods[1];
   const effectiveMode: FinancialViewMode = range.endsWith("y") ? "cumulative" : mode;
   const signals = useMemo(() => buildSignals(dataset.analysis.periods), [dataset.analysis.periods]);
   const conclusions = latest ? buildConclusions(latest, dataset) : [];
   const labels = visiblePeriods.map(shortPeriodLabel);
   const selectedProfitLabel = profitKey === "parentNetProfit" ? "归母净利润" : "扣非净利润";
+  const advancedQuality = latest ? calculateAdvancedQuality(latest, priorPeriod, dataset) : null;
 
   const metricValues = (key: keyof FinancialMetrics) => visiblePeriods.map((period) => displayValue(period, effectiveMode, displayMode, key));
   const absoluteValues = (key: keyof FinancialMetrics) => visiblePeriods.map((period) => period[effectiveMode][key]);
@@ -172,14 +174,19 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
             <div className="valuation-support-copy">
               <span>业绩与估值匹配</span>
               <strong>{valuationVerdict(latest, dataset)}</strong>
-              <small>仅作历史财务与当前估值对照，不构成目标价判断</small>
+              <small>{dataset.snapshot.valuationHistoryCount >= 20 ? `分位基于 ${dataset.snapshot.valuationHistoryFrom} 至今 ${dataset.snapshot.valuationHistoryCount} 个交易日` : "仅作历史财务与当前估值对照，不构成目标价判断"}</small>
             </div>
             <ValuationMetric label="收盘价" value={formatPrice(dataset.snapshot.closePrice)} />
             <ValuationMetric label="PE TTM" value={formatMultiple(dataset.snapshot.peTtm)} />
+            <ValuationMetric label="PE历史分位" value={formatPercentile(dataset.snapshot.peTtmPercentile)} tone={dataset.snapshot.peTtmPercentile == null ? null : 50 - dataset.snapshot.peTtmPercentile} />
             <ValuationMetric label="PB MRQ" value={formatMultiple(dataset.snapshot.pb)} />
+            <ValuationMetric label="PB历史分位" value={formatPercentile(dataset.snapshot.pbPercentile)} tone={dataset.snapshot.pbPercentile == null ? null : 50 - dataset.snapshot.pbPercentile} />
             <ValuationMetric label="PS TTM" value={formatMultiple(dataset.snapshot.psTtm)} />
             <ValuationMetric label="TTM利润同比" value={formatPercent(latest.ttmYoY.parentNetProfit)} tone={latest.ttmYoY.parentNetProfit} />
             <ValuationMetric label="股息率 TTM" value={formatPercent(dataset.snapshot.dividendYieldTtm, false)} />
+            <ValuationMetric label="FCF收益率" value={formatPercent(advancedQuality?.freeCashFlowYield ?? null, false)} tone={advancedQuality?.freeCashFlowYield ?? null} />
+            <ValuationMetric label="应计利润率" value={formatPercent(advancedQuality?.accrualRatio ?? null, false)} tone={advancedQuality?.accrualRatio == null ? null : -advancedQuality.accrualRatio} />
+            <ValuationMetric label="杜邦ROE" value={formatPercent(advancedQuality?.dupontRoe ?? null, false)} tone={advancedQuality?.dupontRoe ?? null} />
           </div>
 
           <div className="finance-chart-grid">
@@ -209,6 +216,7 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
                 ))}
               </div>
               <p className="finance-rule-note">规则仅提示需要核查的方向，不据此断言财务造假或投资结论。</p>
+              {advancedQuality ? <dl className="dupont-readout"><div><dt>净利率</dt><dd>{formatPercent(advancedQuality.netMargin, false)}</dd></div><div><dt>资产周转</dt><dd>{formatRatio(advancedQuality.assetTurnover)}</dd></div><div><dt>权益乘数</dt><dd>{formatRatio(advancedQuality.equityMultiplier)}</dd></div></dl> : null}
             </section>
           </div>
 
@@ -245,6 +253,26 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
       ) : null}
     </section>
   );
+}
+
+function calculateAdvancedQuality(latest: FinancialAnalysisPeriod, previous: FinancialAnalysisPeriod | undefined, dataset: FinancialDataset) {
+  const averageAssets = averageAvailable(latest.balance.totalAssets, previous?.balance.totalAssets ?? null);
+  const averageEquity = averageAvailable(latest.balance.parentEquity, previous?.balance.parentEquity ?? null);
+  const revenue = latest.ttm.revenue;
+  const profit = latest.ttm.parentNetProfit;
+  const cashFlow = latest.ttm.operatingCashFlow;
+  const assetTurnover = ratio(revenue, averageAssets);
+  const equityMultiplier = ratio(averageAssets, averageEquity);
+  const netMargin = ratio(profit, revenue);
+  const dupontRoe = netMargin == null || assetTurnover == null || equityMultiplier == null ? null : netMargin * assetTurnover * equityMultiplier * 100;
+  const accrualRatio = profit == null || cashFlow == null || !averageAssets ? null : ((profit - cashFlow) / averageAssets) * 100;
+  const freeCashFlowYield = latest.ttm.freeCashFlow == null || !dataset.snapshot.totalMarketCap ? null : (latest.ttm.freeCashFlow / dataset.snapshot.totalMarketCap) * 100;
+  return { assetTurnover, equityMultiplier, netMargin: netMargin == null ? null : netMargin * 100, dupontRoe, accrualRatio, freeCashFlowYield };
+}
+
+function averageAvailable(left: number | null, right: number | null): number | null {
+  const values = [left, right].filter((value): value is number => value != null && Number.isFinite(value));
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
 function FilterGroup({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: string[][]; onChange: (value: string) => void; disabled?: boolean }) {
@@ -440,5 +468,6 @@ function formatPercent(value: number | null, signed = true): string { return val
 function formatDelta(value: number | null, unit: string): string { if (value == null || !Number.isFinite(value)) return "—"; return `${value >= 0 ? "+" : ""}${formatNumber(value, 2)}${unit ? ` ${unit}` : ""}`; }
 function formatRatio(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 2)}×`; }
 function formatMultiple(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 2)}×`; }
+function formatPercentile(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 0)}%`; }
 function formatPrice(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `¥${formatNumber(value, 2)}`; }
 function formatNumber(value: number, digits: number): string { return new Intl.NumberFormat("zh-CN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value); }

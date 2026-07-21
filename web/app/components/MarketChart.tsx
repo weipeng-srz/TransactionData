@@ -3,18 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Candle, IndicatorSet, LowerIndicator } from "../lib/market";
 import { formatNumber } from "../lib/market";
-import type { ChartEvent } from "../lib/research";
+import type { ChartAnnotation, ChartEvent } from "../lib/research";
 
 type OverlayKey = "ma5" | "ma10" | "ma20" | "ema" | "boll" | "vwap" | "nineTurn" | "guides";
 
 type Props = {
   appearance: "light" | "dark";
   candles: Candle[];
+  benchmarkCandles?: Candle[];
   indicators: IndicatorSet;
   overlays: Record<OverlayKey, boolean>;
   lowerIndicator: LowerIndicator;
   range: { from: number; to: number };
   events: ChartEvent[];
+  annotations: ChartAnnotation[];
   onRangeChange: (range: { from: number; to: number }) => void;
   onHover: (index: number | null) => void;
 };
@@ -58,6 +60,7 @@ const chartPalettes = {
   upGuide: "rgba(240, 68, 68, .48)",
   downGuide: "rgba(26, 156, 91, .48)",
   hover: "rgba(29, 29, 31, .32)",
+  benchmark: "#00a6a6",
   },
   dark: {
   grid: "rgba(235, 235, 245, .1)",
@@ -84,17 +87,20 @@ const chartPalettes = {
   upGuide: "rgba(255, 105, 97, .55)",
   downGuide: "rgba(50, 213, 131, .55)",
   hover: "rgba(235, 235, 245, .38)",
+  benchmark: "#64d2ff",
   },
 };
 
 export default function MarketChart({
   appearance,
   candles,
+  benchmarkCandles = [],
   indicators,
   overlays,
   lowerIndicator,
   range,
   events,
+  annotations,
   onRangeChange,
   onHover,
 }: Props) {
@@ -124,6 +130,16 @@ export default function MarketChart({
     events.forEach((event) => grouped.set(event.date, [...(grouped.get(event.date) ?? []), event]));
     return grouped;
   }, [events]);
+  const normalizedBenchmark = useMemo(() => {
+    const byDate = new Map(benchmarkCandles.map((candle) => [candle.date, candle]));
+    const basePrimary = candles.find((candle) => byDate.has(candle.date));
+    const baseBenchmark = basePrimary ? byDate.get(basePrimary.date) : null;
+    if (!basePrimary || !baseBenchmark || baseBenchmark.close <= 0) return candles.map(() => null);
+    return candles.map((candle) => {
+      const benchmark = byDate.get(candle.date);
+      return benchmark ? basePrimary.close * (benchmark.close / baseBenchmark.close) : null;
+    });
+  }, [benchmarkCandles, candles]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -173,6 +189,7 @@ export default function MarketChart({
       addOverlayValues(indicators.bollLower);
     }
     if (overlays.vwap) addOverlayValues(indicators.vwap);
+    if (normalizedBenchmark.some((value) => value != null)) addOverlayValues(normalizedBenchmark);
     let priceMin = Math.min(...priceValues);
     let priceMax = Math.max(...priceValues);
     const padding = Math.max((priceMax - priceMin) * 0.09, priceMax * 0.004);
@@ -289,6 +306,7 @@ export default function MarketChart({
       drawLine(indicators.bollLower, colors.boll, 1, true);
     }
     if (overlays.vwap) drawLine(indicators.vwap, colors.vwap, 1.15, true);
+    if (normalizedBenchmark.some((value) => value != null)) drawLine(normalizedBenchmark, colors.benchmark, 1.45, true);
 
     const renderedEventDates = new Set<string>();
     visible.forEach((candle, localIndex) => {
@@ -306,6 +324,31 @@ export default function MarketChart({
       context.textAlign = "center";
       context.font = "800 8px ui-monospace, SFMono-Regular, Menlo, monospace";
       context.fillText(dayEvents.length > 1 ? String(dayEvents.length) : primary.kind === "report" ? "F" : primary.kind === "dividend" ? "D" : "N", x, mainTop + 13);
+    });
+
+    const renderedAnnotationDates = new Set<string>();
+    visible.forEach((candle, localIndex) => {
+      const annotation = annotations.find((item) => item.date === candle.date);
+      if (!annotation || renderedAnnotationDates.has(candle.date)) return;
+      renderedAnnotationDates.add(candle.date);
+      const x = xFor(localIndex);
+      const annotationPrice = annotation.price != null && Number.isFinite(annotation.price) ? annotation.price : candle.close;
+      const y = yForPrice(Math.max(priceMin, Math.min(priceMax, annotationPrice)));
+      context.strokeStyle = colors.benchmark;
+      context.setLineDash([2, 4]);
+      context.beginPath();
+      context.moveTo(x, mainTop);
+      context.lineTo(x, mainBottom);
+      context.stroke();
+      context.setLineDash([]);
+      context.fillStyle = colors.benchmark;
+      context.beginPath();
+      context.arc(x, y, 7, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = colors.contrast;
+      context.textAlign = "center";
+      context.font = "800 8px ui-monospace, SFMono-Regular, Menlo, monospace";
+      context.fillText("A", x, y + 3);
     });
 
     if (overlays.nineTurn) {
@@ -482,7 +525,7 @@ export default function MarketChart({
     }
 
     layoutRef.current = { left, plotWidth, candleWidth, from: range.from, to: range.to, mainTop, mainBottom, priceMin, priceMax };
-  }, [candles, colors, eventsByDate, hover, indicators, lowerIndicator, overlays, range, size, visible]);
+  }, [annotations, candles, colors, eventsByDate, hover, indicators, lowerIndicator, normalizedBenchmark, overlays, range, size, visible]);
 
   useEffect(() => {
     draw();
@@ -516,7 +559,8 @@ export default function MarketChart({
       <canvas
         ref={canvasRef}
         role="img"
-        aria-label={`K线图，共 ${candles.length} 根，当前显示第 ${range.from + 1} 到 ${range.to + 1} 根，叠加 ${events.length} 个新闻或财务事件`}
+        aria-describedby="chart-accessible-summary"
+        aria-label={`K线图，共 ${candles.length} 根，当前显示第 ${range.from + 1} 到 ${range.to + 1} 根，叠加 ${events.length} 个新闻或财务事件、${annotations.length} 个研究标注`}
         tabIndex={0}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -583,7 +627,7 @@ export default function MarketChart({
           {eventsByDate.get(candles[hover.index].date)?.[0] ? <small className="chart-event-detail">{eventsByDate.get(candles[hover.index].date)?.[0].label}</small> : null}
         </div>
       ) : null}
-      <div className="chart-hint">滚轮缩放 · 拖拽平移 · ← → 定位</div>
+      <div className="chart-hint">滚轮缩放 · 拖拽平移 · ← → 定位{benchmarkCandles.length ? " · 青色虚线为沪深300归一化走势" : ""}</div>
       <button className="chart-nudge chart-nudge-left" type="button" onClick={() => shiftRange(-Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向前移动图表">
         ‹
       </button>

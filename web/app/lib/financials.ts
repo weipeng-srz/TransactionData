@@ -39,6 +39,11 @@ export type FundamentalSnapshot = {
   psTtm: number | null;
   pcfTtm: number | null;
   peg: number | null;
+  peTtmPercentile: number | null;
+  pbPercentile: number | null;
+  psTtmPercentile: number | null;
+  valuationHistoryCount: number;
+  valuationHistoryFrom: string;
   dividendYieldTtm: number | null;
   cashDividendPerShareTtm: number | null;
   dividendPaymentsTtm: number;
@@ -84,6 +89,11 @@ export function emptyFundamentalSnapshot(): FundamentalSnapshot {
     psTtm: null,
     pcfTtm: null,
     peg: null,
+    peTtmPercentile: null,
+    pbPercentile: null,
+    psTtmPercentile: null,
+    valuationHistoryCount: 0,
+    valuationHistoryFrom: "",
     dividendYieldTtm: null,
     cashDividendPerShareTtm: null,
     dividendPaymentsTtm: 0,
@@ -159,10 +169,19 @@ export function parseFinancialResponse(
 
 export function parseValuationResponse(value: unknown): FundamentalSnapshot {
   const rows = (value as { result?: { data?: unknown } } | null)?.result?.data;
-  const row = (Array.isArray(rows) ? rows : []).find((item) => item && typeof item === "object") as
+  const records = (Array.isArray(rows) ? rows : []).filter(
+    (item): item is EastMoneyFinancialRow => Boolean(item && typeof item === "object"),
+  );
+  const row = records[0] as
     | EastMoneyFinancialRow
     | undefined;
   if (!row) return emptyFundamentalSnapshot();
+  const percentile = (field: string): number | null => {
+    const current = toFiniteNumber(row[field]);
+    const history = records.map((item) => toFiniteNumber(item[field])).filter((item): item is number => item != null && item > 0);
+    if (current == null || current <= 0 || history.length < 20) return null;
+    return (history.filter((item) => item <= current).length / history.length) * 100;
+  };
   return {
     ...emptyFundamentalSnapshot(),
     asOfDate: toDate(row.TRADE_DATE),
@@ -177,6 +196,11 @@ export function parseValuationResponse(value: unknown): FundamentalSnapshot {
     psTtm: toFiniteNumber(row.PS_TTM),
     pcfTtm: toFiniteNumber(row.PCF_OCF_TTM),
     peg: toFiniteNumber(row.PEG_CAR),
+    peTtmPercentile: percentile("PE_TTM"),
+    pbPercentile: percentile("PB_MRQ"),
+    psTtmPercentile: percentile("PS_TTM"),
+    valuationHistoryCount: records.length,
+    valuationHistoryFrom: records.length ? toDate(records.at(-1)?.TRADE_DATE) : "",
   };
 }
 
@@ -254,9 +278,10 @@ export async function fetchFinancials(code: string): Promise<FinancialDataset> {
     fetchEastMoneyReport({
       reportName: "RPT_VALUEANALYSIS_DET",
       filter: `(SECURITY_CODE=\"${normalizedCode}\")`,
-      pageSize: 1,
+      pageSize: 1250,
       sortColumns: "TRADE_DATE",
       label: "估值",
+      columns: "TRADE_DATE,BOARD_NAME,CLOSE_PRICE,TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A,TOTAL_SHARES,PE_TTM,PE_LAR,PB_MRQ,PS_TTM,PCF_OCF_TTM,PEG_CAR",
     }),
     fetchEastMoneyReport({
       reportName: "RPT_SHAREBONUS_DET",
@@ -316,16 +341,18 @@ async function fetchEastMoneyReport({
   pageSize,
   sortColumns,
   label,
+  columns = "ALL",
 }: {
   reportName: string;
   filter: string;
   pageSize: number;
   sortColumns: string;
   label: string;
+  columns?: string;
 }): Promise<unknown> {
   const endpoint = new URL(financialDataEndpoint);
   endpoint.searchParams.set("reportName", reportName);
-  endpoint.searchParams.set("columns", "ALL");
+  endpoint.searchParams.set("columns", columns);
   endpoint.searchParams.set("filter", filter);
   endpoint.searchParams.set("pageNumber", "1");
   endpoint.searchParams.set("pageSize", String(pageSize));
