@@ -169,14 +169,17 @@ function MinuteCandlestickChart({
     }
 
     const { left, right, top, priceBottom, volumeTop, bottom, plotWidth, min, max, x, y } = plot;
+    const plotRight = left + plotWidth;
     context.font = "11px ui-monospace, Menlo, monospace";
     context.fillStyle = text;
     context.strokeStyle = grid;
     context.lineWidth = 1;
-    context.textAlign = "right";
-    context.fillText("价格", left - 8, top - 7);
-    context.textAlign = "left";
-    context.fillText("涨跌幅", left + plotWidth + 9, top - 7);
+    context.beginPath();
+    context.moveTo(left - 0.5, top);
+    context.lineTo(left - 0.5, priceBottom);
+    context.moveTo(plotRight + 0.5, top);
+    context.lineTo(plotRight + 0.5, priceBottom);
+    context.stroke();
     for (let step = 0; step <= 4; step += 1) {
       const lineY = top + ((priceBottom - top) / 4) * step;
       const tickPrice = max - ((max - min) / 4) * step;
@@ -185,20 +188,28 @@ function MinuteCandlestickChart({
       context.moveTo(left, lineY + 0.5);
       context.lineTo(left + plotWidth, lineY + 0.5);
       context.stroke();
+      context.fillStyle = text;
       context.textAlign = "right";
-      context.fillText(tickPrice.toFixed(3), left - 8, lineY + 4);
+      context.fillText(tickPrice.toFixed(3), left - 13, lineY + 4);
+      context.fillStyle = Math.abs(tickChangePct) < 0.005 ? text : tickChangePct > 0 ? up : down;
       context.textAlign = "left";
-      context.fillText(`${tickChangePct > 0 ? "+" : ""}${tickChangePct.toFixed(2)}%`, left + plotWidth + 9, lineY + 4);
+      context.fillText(`${tickChangePct > 0 ? "+" : ""}${tickChangePct.toFixed(2)}%`, plotRight + 13, lineY + 4);
     }
 
     const previousY = y(previousClose);
-    context.strokeStyle = text;
-    context.setLineDash([4, 4]);
+    context.strokeStyle = accent;
+    context.globalAlpha = 0.42;
+    context.setLineDash([5, 5]);
     context.beginPath();
     context.moveTo(left, previousY);
-    context.lineTo(left + plotWidth, previousY);
+    context.lineTo(plotRight, previousY);
     context.stroke();
     context.setLineDash([]);
+    context.globalAlpha = 1;
+    context.fillStyle = text;
+    context.textAlign = "right";
+    context.font = "600 9px system-ui";
+    context.fillText("昨收 · 0.00%", plotRight - 8, previousY - 6);
 
     const candleWidth = Math.max(1, Math.min(6, (plotWidth / candles.length) * 0.66));
     candles.forEach((item, index) => {
@@ -262,15 +273,24 @@ function MinuteCandlestickChart({
       context.stroke();
       context.setLineDash([]);
       const hoverChangePct = previousClose > 0 ? ((hover.price - previousClose) / previousClose) * 100 : 0;
+      const leftBadgeX = 7;
+      const leftBadgeWidth = left - 17;
+      const rightBadgeX = plotRight + 8;
+      const rightBadgeWidth = right - 16;
       context.fillStyle = surface;
-      context.fillRect(2, hover.y - 9, left - 5, 18);
-      context.fillRect(left + plotWidth + 3, hover.y - 9, right - 6, 18);
+      context.fillRect(leftBadgeX, hover.y - 10, leftBadgeWidth, 20);
+      context.fillRect(rightBadgeX, hover.y - 10, rightBadgeWidth, 20);
+      context.strokeStyle = accent;
+      context.globalAlpha = 0.55;
+      context.strokeRect(leftBadgeX + 0.5, hover.y - 9.5, leftBadgeWidth - 1, 19);
+      context.strokeRect(rightBadgeX + 0.5, hover.y - 9.5, rightBadgeWidth - 1, 19);
+      context.globalAlpha = 1;
       context.fillStyle = accent;
       context.textAlign = "right";
       context.font = "700 10px ui-monospace, Menlo, monospace";
-      context.fillText(hover.price.toFixed(3), left - 7, hover.y + 4);
+      context.fillText(hover.price.toFixed(3), leftBadgeX + leftBadgeWidth - 7, hover.y + 4);
       context.textAlign = "left";
-      context.fillText(`${hoverChangePct > 0 ? "+" : ""}${hoverChangePct.toFixed(2)}%`, left + plotWidth + 7, hover.y + 4);
+      context.fillText(`${hoverChangePct > 0 ? "+" : ""}${hoverChangePct.toFixed(2)}%`, rightBadgeX + 7, hover.y + 4);
     }
   }, [candles, guidePoints, hover, plot, previousClose, size]);
 
@@ -334,9 +354,9 @@ function MinuteCandlestickChart({
 }
 
 function calculatePlot(candles: RealtimeMinuteCandle[], previousClose: number, size: { width: number; height: number }) {
-  const left = 58;
-  const right = 68;
-  const top = 20;
+  const left = 72;
+  const right = 82;
+  const top = 24;
   const priceBottom = Math.round(size.height * 0.72);
   const volumeTop = priceBottom + 24;
   const bottom = size.height - 24;
