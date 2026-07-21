@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  normalizeRealtimeRequest,
+  parseMinuteKlineResponse,
+  parseQuoteResponse,
+} from "../app/lib/realtimeMarket.ts";
+
+test("normalizes supported realtime stock codes", () => {
+  assert.deepEqual(normalizeRealtimeRequest({ code: " sz000001 " }), { code: "000001" });
+  assert.deepEqual(normalizeRealtimeRequest({ code: "600000.SH" }), { code: "600000" });
+  assert.throws(() => normalizeRealtimeRequest({ code: "PingAn" }), /6 位/);
+});
+
+test("parses realtime quote and five-level order book", () => {
+  const quote = 'var hq_str_sz000001="平安银行,10.990,10.980,10.870,11.130,10.860,10.860,10.870,124327163,1369501332.140,771500,10.860,775800,10.850,249500,10.840,188500,10.830,277300,10.820,57700,10.870,179000,10.880,183900,10.890,105500,10.900,40500,10.910,2026-07-21,11:30:00,00";';
+  const snapshot = parseQuoteResponse(quote);
+
+  assert.equal(snapshot.name, "平安银行");
+  assert.equal(snapshot.price, 10.87);
+  assert.equal(snapshot.date, "2026-07-21");
+  assert.equal(snapshot.time, "11:30:00");
+  assert.deepEqual(snapshot.bids[0], { level: 1, volume: 771500, price: 10.86 });
+  assert.deepEqual(snapshot.asks[0], { level: 1, volume: 57700, price: 10.87 });
+  assert.equal(snapshot.bids.length, 5);
+  assert.equal(snapshot.asks.length, 5);
+});
+
+test("parses JSONP minute candles and rejects malformed payloads", () => {
+  const jsonp = 'ticklens=([{"day":"2026-07-21 09:31:00","open":"10.990","high":"11.010","low":"10.980","close":"11.000","volume":"100000","amount":"1100000"},{"day":"2026-07-21 09:32:00","open":"11.000","high":"11.020","low":"10.990","close":"11.010","volume":"120000","amount":"1321200"}]);';
+  const candles = parseMinuteKlineResponse(jsonp);
+
+  assert.equal(candles.length, 2);
+  assert.deepEqual(candles[0], {
+    time: "2026-07-21 09:31:00",
+    open: 10.99,
+    high: 11.01,
+    low: 10.98,
+    close: 11,
+    volume: 100000,
+    amount: 1100000,
+  });
+  assert.throws(() => parseMinuteKlineResponse("not jsonp"), /异常内容/);
+});

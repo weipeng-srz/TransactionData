@@ -50,6 +50,8 @@ test("server-renders the TickLens market workbench", async () => {
   assert.match(html, /输入股票查看最近 8 个单季度/);
   assert.match(html, /研究记录与数据口径/);
   assert.match(html, /B\/S 信号回测/);
+  assert.match(html, /当前交易日 · 分钟 K 线与五档盘口/);
+  assert.match(html, /查询股票后显示实时行情/);
   assert.match(html, /行情监控/);
   assert.doesNotMatch(html, /预警队列/);
   assert.match(html, /分享当前研究/);

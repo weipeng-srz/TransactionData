@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import MarketChart from "./components/MarketChart";
+import RealtimeTradingPanel from "./components/RealtimeTradingPanel";
 import FinancialDashboard from "./components/FinancialDashboard";
 import ResearchDock from "./components/ResearchDock";
 import SignalBacktestCard from "./components/SignalBacktestCard";
@@ -46,6 +47,7 @@ import {
 import { buildEventStudies, buildFactorProfile } from "./lib/advancedResearch";
 import { readCachedText, writeCachedText } from "./lib/browserCache";
 import { reportTelemetry } from "./lib/telemetry";
+import type { RealtimeSnapshot } from "./lib/realtimeMarket";
 
 const timeframes: Array<{ key: Timeframe; label: string }> = [
   { key: "1d", label: "日K" },
@@ -157,6 +159,8 @@ export default function Home() {
     phase: "idle",
     detail: "输入股票后自动获取估值、分红与历史财报诊断",
   });
+  const [realtimeLoad, setRealtimeLoad] = useState<LoadState>({ phase: "idle", detail: "输入股票后自动获取当前交易日分钟 K 线与五档盘口" });
+  const [realtimeSnapshot, setRealtimeSnapshot] = useState<RealtimeSnapshot | null>(null);
   const [isDemo, setIsDemo] = useState(true);
   const [selectedCode, setSelectedCode] = useState("000001");
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
@@ -271,6 +275,29 @@ export default function Home() {
     return () => controller.abort();
   }, [benchmarkCode, isDemo]);
 
+  const refreshRealtime = useCallback(async (code: string, silent = false) => {
+    if (!/^\d{6}$/.test(code)) return;
+    if (!silent) setRealtimeLoad({ phase: "loading", detail: "正在获取当前交易日分钟 K 线与五档买卖盘…" });
+    try {
+      const response = await fetch("/api/realtime-market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }), cache: "no-store" });
+      const body = await response.json() as RealtimeSnapshot | { error?: unknown };
+      if (!response.ok) throw new Error(String((body as { error?: unknown }).error || "实时行情获取失败"));
+      const snapshot = body as RealtimeSnapshot;
+      if (snapshot.code !== code) return;
+      setRealtimeSnapshot(snapshot);
+      setRealtimeLoad({ phase: "success", detail: `${snapshot.date} ${snapshot.time} · ${snapshot.minuteCandles.length} 根分钟 K 线` });
+    } catch (reason) {
+      if (!silent) setRealtimeLoad({ phase: "error", detail: reason instanceof Error ? reason.message : "实时行情获取失败" });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!/^\d{6}$/.test(selectedCode)) return;
+    const initial = window.setTimeout(() => void refreshRealtime(selectedCode), 0);
+    const timer = window.setInterval(() => { if (!document.hidden) void refreshRealtime(selectedCode, true); }, 15_000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [isDemo, refreshRealtime, selectedCode]);
+
   useEffect(() => {
     const controller = new AbortController();
     const loadCloudState = async () => {
@@ -380,7 +407,9 @@ export default function Home() {
   );
   const latest = candles[candles.length - 1];
   const selectedName = dataset.stockNames[selectedCode] ?? "";
-  const directionClass = (latest?.change ?? 0) >= 0 ? "is-up" : "is-down";
+  const liveQuote = realtimeSnapshot?.code === selectedCode ? realtimeSnapshot : null;
+  const displayChange = liveQuote?.change ?? latest?.change ?? 0;
+  const directionClass = displayChange >= 0 ? "is-up" : "is-down";
   const busy = fetchingStock;
   const selectedNews = useMemo(() => {
     const matching = newsDataset.items.filter((item) => item.code === selectedCode);
@@ -483,6 +512,8 @@ export default function Home() {
     setFinancialLoad({ phase: "loading", detail: "识别完成后将并行获取基本面…" });
     setNewsDataset(emptyNewsDataset());
     setFinancialDataset(emptyFinancialDataset());
+    setRealtimeSnapshot(null);
+    setRealtimeLoad({ phase: "idle", detail: "输入股票后自动获取当前交易日分钟 K 线与五档盘口" });
     setNewsFilter("全部");
 
     const post = async (endpoint: string, payload: unknown, fallback: string) => {
@@ -685,6 +716,8 @@ export default function Home() {
     });
     setNewsDataset(emptyNewsDataset());
     setFinancialDataset(emptyFinancialDataset());
+    setRealtimeSnapshot(null);
+    setRealtimeLoad({ phase: "idle", detail: "输入股票后自动获取当前交易日分钟 K 线与五档盘口" });
     setNewsSourceLabel("等待查询");
     setFinancialSourceLabel("等待查询");
     setNewsLoad({ phase: "idle", detail: "输入股票代码或名称后自动获取最新新闻" });
@@ -958,11 +991,12 @@ export default function Home() {
           <span>当前标的</span>
           <strong>{selectedName || selectedCode}</strong>
           <small>{selectedCode} · {dataset.dataLevel}</small>
-          <b className={directionClass}>{latest ? formatNumber(latest.close, 3) : "—"}</b>
-          <em className={directionClass}>{latest ? `${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}</em>
+          <b className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</b>
+          <em className={directionClass}>{liveQuote ? `${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}% · 实时` : latest ? `${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}</em>
         </section>
 
         <nav className="workspace-nav" aria-label="工作台章节导航">
+          <a href="#realtime-trading"><span>实时</span><small>Live</small></a>
           <a href="#stock-market"><span>行情</span><small>Market</small></a>
           <a href="#kline-analysis"><span>研判</span><small>Insight</small></a>
           <a href="#signal-backtest"><span>回测</span><small>Backtest</small></a>
@@ -1111,17 +1145,17 @@ export default function Home() {
           <span className="date-span">{firstRow?.date ?? "—"} → {lastRow?.date ?? "—"}</span>
         </div>
         <div className="quote-price">
-          <strong className={directionClass}>{latest ? formatNumber(latest.close, 3) : "—"}</strong>
+          <strong className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</strong>
           <span className={directionClass}>
-            {latest ? `${latest.change >= 0 ? "+" : ""}${formatNumber(latest.change, 3)}  ${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}
+            {liveQuote ? `${liveQuote.change >= 0 ? "+" : ""}${formatNumber(liveQuote.change, 3)}  ${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}% · 实时` : latest ? `${latest.change >= 0 ? "+" : ""}${formatNumber(latest.change, 3)}  ${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}
           </span>
         </div>
         <div className="quote-stats">
-          <Stat label="开" value={latest ? formatNumber(latest.open, 3) : "—"} />
-          <Stat label="高" value={latest ? formatNumber(latest.high, 3) : "—"} />
-          <Stat label="低" value={latest ? formatNumber(latest.low, 3) : "—"} />
-          <Stat label="量" value={latest ? compactNumber(latest.volume) : "—"} />
-          <Stat label="额" value={latest ? compactNumber(latest.amount) : "—"} />
+          <Stat label="开" value={liveQuote ? formatNumber(liveQuote.open, 3) : latest ? formatNumber(latest.open, 3) : "—"} />
+          <Stat label="高" value={liveQuote ? formatNumber(liveQuote.high, 3) : latest ? formatNumber(latest.high, 3) : "—"} />
+          <Stat label="低" value={liveQuote ? formatNumber(liveQuote.low, 3) : latest ? formatNumber(latest.low, 3) : "—"} />
+          <Stat label="量" value={liveQuote ? compactNumber(liveQuote.volume) : latest ? compactNumber(latest.volume) : "—"} />
+          <Stat label="额" value={liveQuote ? compactNumber(liveQuote.amount) : latest ? compactNumber(latest.amount) : "—"} />
           <Stat label="换手" value={latest?.turnoverPct == null ? "—" : `${formatNumber(latest.turnoverPct, 2)}%`} />
         </div>
       </section>
@@ -1132,6 +1166,8 @@ export default function Home() {
           正在加载 {pendingQuery || "新股票"}；下方行情仍是 {selectedName || selectedCode} 的上一份成功数据，加载完成前不会替换。
         </div>
       ) : null}
+
+      <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} onRefresh={() => void refreshRealtime(selectedCode)} />
 
       <section className="workspace-grid" id="stock-market">
         <div className={`chart-card ${fetchingStock ? "is-stale" : ""}`}>
@@ -1151,7 +1187,7 @@ export default function Home() {
                   className={timeframe === key ? "active" : ""}
                   aria-pressed={timeframe === key}
                   disabled={dailyOnly && key !== "1d"}
-                  title={dailyOnly && key !== "1d" ? "当前HTTPS数据源为日K聚合；分钟级研究请使用本地分笔工具" : undefined}
+                  title={dailyOnly && key !== "1d" ? "历史行情数据源为日 K 聚合；当前交易日 1 分钟 K 线请查看上方实时行情区域" : undefined}
                   onClick={() => {
                     setTimeframe(key);
                     setRange(defaultRange(aggregateCandles(dataset.rows, selectedCode, key).length, key));
