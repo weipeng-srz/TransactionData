@@ -173,14 +173,22 @@ function MinuteCandlestickChart({
     context.fillStyle = text;
     context.strokeStyle = grid;
     context.lineWidth = 1;
+    context.textAlign = "right";
+    context.fillText("价格", left - 8, top - 7);
     context.textAlign = "left";
+    context.fillText("涨跌幅", left + plotWidth + 9, top - 7);
     for (let step = 0; step <= 4; step += 1) {
       const lineY = top + ((priceBottom - top) / 4) * step;
+      const tickPrice = max - ((max - min) / 4) * step;
+      const tickChangePct = previousClose > 0 ? ((tickPrice - previousClose) / previousClose) * 100 : 0;
       context.beginPath();
       context.moveTo(left, lineY + 0.5);
       context.lineTo(left + plotWidth, lineY + 0.5);
       context.stroke();
-      context.fillText((max - ((max - min) / 4) * step).toFixed(3), left + plotWidth + 9, lineY + 4);
+      context.textAlign = "right";
+      context.fillText(tickPrice.toFixed(3), left - 8, lineY + 4);
+      context.textAlign = "left";
+      context.fillText(`${tickChangePct > 0 ? "+" : ""}${tickChangePct.toFixed(2)}%`, left + plotWidth + 9, lineY + 4);
     }
 
     const previousY = y(previousClose);
@@ -253,12 +261,16 @@ function MinuteCandlestickChart({
       context.lineTo(left + plotWidth, hover.y);
       context.stroke();
       context.setLineDash([]);
+      const hoverChangePct = previousClose > 0 ? ((hover.price - previousClose) / previousClose) * 100 : 0;
       context.fillStyle = surface;
+      context.fillRect(2, hover.y - 9, left - 5, 18);
       context.fillRect(left + plotWidth + 3, hover.y - 9, right - 6, 18);
       context.fillStyle = accent;
-      context.textAlign = "left";
+      context.textAlign = "right";
       context.font = "700 10px ui-monospace, Menlo, monospace";
-      context.fillText(hover.price.toFixed(3), left + plotWidth + 7, hover.y + 4);
+      context.fillText(hover.price.toFixed(3), left - 7, hover.y + 4);
+      context.textAlign = "left";
+      context.fillText(`${hoverChangePct > 0 ? "+" : ""}${hoverChangePct.toFixed(2)}%`, left + plotWidth + 7, hover.y + 4);
     }
   }, [candles, guidePoints, hover, plot, previousClose, size]);
 
@@ -296,7 +308,7 @@ function MinuteCandlestickChart({
         ref={canvasRef}
         role="img"
         tabIndex={0}
-        aria-label={`当前交易日1分钟K线，共${candles.length}根；可用鼠标悬浮或方向键查看坐标`}
+        aria-label={`当前交易日1分钟K线，共${candles.length}根；左轴为价格，右轴为相对昨收涨跌幅；可用鼠标悬浮或方向键查看坐标`}
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHover(null)}
         onFocus={() => { if (!hover && candles.length) setHover(pointFromIndex(candles.length - 1)); }}
@@ -322,7 +334,7 @@ function MinuteCandlestickChart({
 }
 
 function calculatePlot(candles: RealtimeMinuteCandle[], previousClose: number, size: { width: number; height: number }) {
-  const left = 12;
+  const left = 58;
   const right = 68;
   const top = 20;
   const priceBottom = Math.round(size.height * 0.72);

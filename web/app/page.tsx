@@ -83,7 +83,7 @@ const workspaceStorageKey = "ticklens.saved-workspace.v1";
 const appearanceStorageKey = "ticklens.appearance.v1";
 const annotationsStorageKey = "ticklens.annotations.v1";
 const viewModeStorageKey = "ticklens.view-mode.v1";
-const maxRecentStocks = 8;
+const maxRecentStocks = 20;
 const requestTimeoutMs = 18_000;
 
 function defaultRange(length: number, timeframe: Timeframe) {

@@ -2,7 +2,7 @@
 
 这是 TickLens 的 Web 研究工作台，基于 Next.js App Router、React、vinext、Vite 和 Cloudflare Workers。它通过服务端路由访问公开行情、财务与新闻数据，并使用 D1 保存研究状态、价格提醒和匿名聚合遥测。
 
-项目总览、Go 命令和数据口径请先阅读仓库根目录的 [`README.md`](../README.md)。
+项目总览和数据口径请先阅读仓库根目录的 [`README.md`](../README.md)。
 
 ## 环境要求
 
@@ -16,7 +16,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-打开终端显示的本地地址。本地预览使用固定的 `local-preview` 用户键模拟研究状态和提醒存储；不需要登录，也不需要预先构建 Go 命令。
+打开终端显示的本地地址。本地预览使用固定的 `local-preview` 用户键模拟研究状态和提醒存储，不需要登录。
 
 ## 常用命令
 

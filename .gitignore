@@ -31,31 +31,6 @@ tmp/
 /AGENTS.md
 /CLAUDE.md
 
-# Go build and test artifacts
-/bin/
-*.test
-*.prof
-*.pprof
-*.coverprofile
-coverage.out
-
-# Project binaries
-/stock-ticks
-/stock-ticks.exe
-/stock-ticks-*
-/stock-news
-/stock-news.exe
-/stock-news-*
-/stockticks
-/stockticks.exe
-/stockticks-*
-
-# Generated datasets
-/data.csv
-/data.tar.gz
-/news.csv
-/result/
-
 # Web dependencies and generated output
 /web/node_modules/
 /web/.next/

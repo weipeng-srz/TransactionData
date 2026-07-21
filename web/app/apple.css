@@ -203,6 +203,7 @@ a:focus-visible {
 
 .sidebar-current b {
   margin-top: 10px;
+  min-width: 0;
   font-size: 25px;
   line-height: 1.1;
   font-weight: 650;
@@ -210,10 +211,15 @@ a:focus-visible {
 }
 
 .sidebar-current em {
-  position: absolute;
-  right: 16px;
-  bottom: 17px;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 2px;
+  padding: 4px 7px;
+  justify-self: start;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
   font-size: 12px;
+  line-height: 1.25;
   font-style: normal;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -2371,6 +2377,26 @@ body {
   .app-sidebar .workspace-nav::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--apple-border-strong); }
   .app-sidebar .workspace-nav a { min-height: 38px; padding-inline: 12px; }
   .app-sidebar .monitor-nav-link { margin-top: 4px; }
-  .app-sidebar .sidebar-recents { max-height: 146px; margin-top: 4px; overflow: hidden; }
+  .app-sidebar .sidebar-recents {
+    height: clamp(184px, 24vh, 236px);
+    max-height: none;
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .app-sidebar .sidebar-recents .sidebar-section-heading { flex: 0 0 auto; }
+  .app-sidebar .sidebar-recents .recent-query-list {
+    min-height: 0;
+    padding-right: 4px;
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: var(--apple-border-strong) transparent;
+    scrollbar-width: thin;
+  }
+  .app-sidebar .sidebar-recents .recent-query-list::-webkit-scrollbar { width: 4px; }
+  .app-sidebar .sidebar-recents .recent-query-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--apple-border-strong); }
   .app-sidebar .sidebar-footnote { margin-top: 7px; padding-top: 10px; font-size: 10px; }
 }
