@@ -54,6 +54,8 @@ export async function fetchRealtimeSnapshot(code: string): Promise<RealtimeSnaps
   minuteUrl.searchParams.set("scale", "1");
   minuteUrl.searchParams.set("ma", "no");
   minuteUrl.searchParams.set("datalen", "480");
+  const requestNonce = Date.now().toString();
+  minuteUrl.searchParams.set("_", requestNonce);
 
   const [minuteBody, quoteBody] = await Promise.all([
     fetchText(minuteUrl, "utf-8"),
@@ -124,7 +126,17 @@ export function parseMinuteKlineResponse(body: string): RealtimeMinuteCandle[] {
 async function fetchText(endpoint: string | URL, encoding: "utf-8" | "gbk"): Promise<string> {
   let response: Response;
   try {
-    response = await fetch(endpoint, { headers: { Accept: "*/*", Referer: "https://finance.sina.com.cn/", "User-Agent": "Mozilla/5.0 (compatible; TickLens/2.0)" }, signal: AbortSignal.timeout(10_000) });
+    response = await fetch(endpoint, {
+      cache: "no-store",
+      headers: {
+        Accept: "*/*",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        Referer: "https://finance.sina.com.cn/",
+        "User-Agent": "Mozilla/5.0 (compatible; TickLens/2.0)",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
   } catch (reason) {
     throw new Error(`实时行情网络请求失败：${reason instanceof Error ? reason.message : "连接异常"}`);
   }

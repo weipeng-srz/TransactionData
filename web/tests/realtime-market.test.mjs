@@ -6,6 +6,7 @@ import {
   parseMinuteKlineResponse,
   parseQuoteResponse,
 } from "../app/lib/realtimeMarket.ts";
+import { analyzeRealtimeSignals } from "../app/lib/realtimeSignals.ts";
 
 test("normalizes supported realtime stock codes", () => {
   assert.deepEqual(normalizeRealtimeRequest({ code: " sz000001 " }), { code: "000001" });
@@ -42,4 +43,28 @@ test("parses JSONP minute candles and rejects malformed payloads", () => {
     amount: 1100000,
   });
   assert.throws(() => parseMinuteKlineResponse("not jsonp"), /异常内容/);
+});
+
+test("builds realtime B/S guide points and marks the forming candle", () => {
+  const candles = Array.from({ length: 112 }, (_, index) => {
+    const open = 10 + Math.max(0, index - 1) * 0.01;
+    const close = 10 + index * 0.01;
+    const volume = 100000 + (index % 7) * 20000;
+    return {
+      time: `10:${String(index % 60).padStart(2, "0")}`,
+      open,
+      high: close + 0.03,
+      low: open - 0.03,
+      close,
+      volume,
+      amount: close * volume,
+    };
+  });
+  const analysis = analyzeRealtimeSignals(candles, "2026-07-21");
+
+  assert.ok(analysis.signalCount > 0);
+  assert.equal(analysis.guidePoints.length, candles.length);
+  assert.equal(analysis.latestSignal?.guide.type, "sell");
+  assert.equal(analysis.latestSignal?.guide.provisional, true);
+  assert.match(analysis.latestSignal?.guide.reasons.join(" ") ?? "", /九转/);
 });

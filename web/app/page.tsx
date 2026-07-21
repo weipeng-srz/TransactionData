@@ -201,6 +201,7 @@ export default function Home() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const requestControllerRef = useRef<AbortController | null>(null);
+  const realtimeControllerRef = useRef<AbortController | null>(null);
   const requestVersionRef = useRef(0);
   const sharedStateAppliedRef = useRef(false);
   const cloudLoadedRef = useRef(false);
@@ -277,9 +278,15 @@ export default function Home() {
 
   const refreshRealtime = useCallback(async (code: string, silent = false) => {
     if (!/^\d{6}$/.test(code)) return;
+    if (realtimeControllerRef.current) {
+      if (silent) return;
+      realtimeControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    realtimeControllerRef.current = controller;
     if (!silent) setRealtimeLoad({ phase: "loading", detail: "正在获取当前交易日分钟 K 线与五档买卖盘…" });
     try {
-      const response = await fetch("/api/realtime-market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }), cache: "no-store" });
+      const response = await fetch("/api/realtime-market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }), cache: "no-store", signal: controller.signal });
       const body = await response.json() as RealtimeSnapshot | { error?: unknown };
       if (!response.ok) throw new Error(String((body as { error?: unknown }).error || "实时行情获取失败"));
       const snapshot = body as RealtimeSnapshot;
@@ -287,16 +294,26 @@ export default function Home() {
       setRealtimeSnapshot(snapshot);
       setRealtimeLoad({ phase: "success", detail: `${snapshot.date} ${snapshot.time} · ${snapshot.minuteCandles.length} 根分钟 K 线` });
     } catch (reason) {
-      if (!silent) setRealtimeLoad({ phase: "error", detail: reason instanceof Error ? reason.message : "实时行情获取失败" });
+      if (!isAbortError(reason) && !silent) setRealtimeLoad({ phase: "error", detail: reason instanceof Error ? reason.message : "实时行情获取失败" });
+    } finally {
+      if (realtimeControllerRef.current === controller) realtimeControllerRef.current = null;
     }
   }, []);
 
   useEffect(() => {
     if (!/^\d{6}$/.test(selectedCode)) return;
+    const pollDelay = realtimeSnapshot?.marketStatus === "交易中" ? 5_000 : 15_000;
     const initial = window.setTimeout(() => void refreshRealtime(selectedCode), 0);
-    const timer = window.setInterval(() => { if (!document.hidden) void refreshRealtime(selectedCode, true); }, 15_000);
-    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
-  }, [isDemo, refreshRealtime, selectedCode]);
+    const timer = window.setInterval(() => { if (!document.hidden) void refreshRealtime(selectedCode, true); }, pollDelay);
+    const refreshWhenVisible = () => { if (!document.hidden) void refreshRealtime(selectedCode, true); };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      realtimeControllerRef.current?.abort();
+    };
+  }, [isDemo, realtimeSnapshot?.marketStatus, refreshRealtime, selectedCode]);
 
   useEffect(() => {
     const controller = new AbortController();
