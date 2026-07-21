@@ -71,5 +71,7 @@ test("server-renders the dedicated desktop market monitor", async () => {
   assert.match(html, /创建价格预警/);
   assert.match(html, /预警队列/);
   assert.match(html, /返回当前股票研究/);
+  assert.match(html, /实时价格 · 每 10 秒自动检查/);
+  assert.match(html, /价格以实时行情核验/);
   assert.doesNotMatch(html, /K线研判/);
 });

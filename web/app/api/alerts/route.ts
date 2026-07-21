@@ -1,13 +1,16 @@
 import { asc, eq } from "drizzle-orm";
-import { getDb } from "../../../db/index.ts";
+import { getD1, getDb } from "../../../db/index.ts";
 import { priceAlerts } from "../../../db/schema.ts";
+import { ensurePriceAlertStorage } from "../../lib/priceAlertStorage.ts";
 import { resolveUserKey } from "../../lib/serverIdentity.ts";
 
 export async function GET(request: Request) {
   const userKey = await resolveUserKey(request);
   if (!userKey) return Response.json({ error: "当前访问没有可用的用户身份" }, { status: 401 });
   try {
-    const db = await getDb();
+    const database = await getD1();
+    await ensurePriceAlertStorage(database);
+    const db = await getDb(database);
     const alerts = await db.select().from(priceAlerts).where(eq(priceAlerts.userKey, userKey)).orderBy(asc(priceAlerts.createdAt)).limit(30);
     return Response.json({ alerts }, { headers: { "Cache-Control": "no-store" } });
   } catch (reason) {
@@ -23,7 +26,9 @@ export async function PUT(request: Request) {
     if (new TextEncoder().encode(body).byteLength > 64 * 1024) throw new Error("价格提醒数量过多");
     const input = JSON.parse(body) as { alerts?: unknown };
     const alerts = sanitizeAlerts(input.alerts);
-    const db = await getDb();
+    const database = await getD1();
+    await ensurePriceAlertStorage(database);
+    const db = await getDb(database);
     await db.delete(priceAlerts).where(eq(priceAlerts.userKey, userKey));
     if (alerts.length) await db.insert(priceAlerts).values(alerts.map((alert) => ({ ...alert, userKey })));
     return Response.json({ alerts }, { headers: { "Cache-Control": "no-store" } });

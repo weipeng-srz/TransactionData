@@ -36,6 +36,18 @@ export type RealtimeSnapshot = {
   fetchedAt: string;
 };
 
+export type RealtimePriceQuote = {
+  code: string;
+  name: string;
+  price: number;
+  previousClose: number;
+  change: number;
+  changePct: number;
+  date: string;
+  time: string;
+  marketStatus: string;
+};
+
 type QuoteData = Omit<RealtimeSnapshot, "code" | "marketStatus" | "minuteCandles" | "source" | "fetchedAt">;
 
 export function normalizeRealtimeRequest(value: unknown): { code: string } {
@@ -44,6 +56,15 @@ export function normalizeRealtimeRequest(value: unknown): { code: string } {
   const code = rawCode.replace(/^(?:sh|sz)/i, "").replace(/\.(?:sh|sz)$/i, "");
   if (!/^\d{6}$/.test(code)) throw new Error("请输入有效的 6 位沪深 A 股代码");
   return { code };
+}
+
+export function normalizeRealtimePriceRequest(value: unknown): { codes: string[] } {
+  if (!value || typeof value !== "object") throw new Error("请求内容无效");
+  const rawCodes = (value as { codes?: unknown }).codes;
+  if (!Array.isArray(rawCodes)) throw new Error("股票代码列表无效");
+  const codes = [...new Set(rawCodes.map((code) => normalizeRealtimeRequest({ code }).code))];
+  if (!codes.length || codes.length > 30) throw new Error("每次可检查 1 到 30 只沪深 A 股");
+  return { codes };
 }
 
 export async function fetchRealtimeSnapshot(code: string): Promise<RealtimeSnapshot> {
@@ -77,6 +98,13 @@ export async function fetchRealtimeSnapshot(code: string): Promise<RealtimeSnaps
   };
 }
 
+export async function fetchRealtimePrices(codes: string[]): Promise<RealtimePriceQuote[]> {
+  const normalized = normalizeRealtimePriceRequest({ codes }).codes;
+  const symbols = normalized.map((code) => `${/^[569]/.test(code) ? "sh" : "sz"}${code}`);
+  const body = await fetchText(`${quoteEndpoint}${symbols.join(",")}`, "gbk");
+  return parseQuoteBatchResponse(body);
+}
+
 export function parseQuoteResponse(body: string): QuoteData {
   const match = body.match(/="([\s\S]*)";?\s*$/);
   if (!match) throw new Error("实时盘口服务返回了异常内容");
@@ -103,6 +131,32 @@ export function parseQuoteResponse(body: string): QuoteData {
     bids,
     asks,
   };
+}
+
+export function parseQuoteBatchResponse(body: string): RealtimePriceQuote[] {
+  const quotes: RealtimePriceQuote[] = [];
+  const pattern = /var hq_str_(?:sh|sz)(\d{6})="([\s\S]*?)";/g;
+  for (const match of body.matchAll(pattern)) {
+    if (!match[2]) continue;
+    try {
+      const quote = parseQuoteResponse(`var hq_str="${match[2]}";`);
+      quotes.push({
+        code: match[1],
+        name: quote.name,
+        price: quote.price,
+        previousClose: quote.previousClose,
+        change: quote.change,
+        changePct: quote.changePct,
+        date: quote.date,
+        time: quote.time,
+        marketStatus: marketStatus(quote.date, quote.time),
+      });
+    } catch {
+      // One suspended or unavailable symbol must not discard valid quotes.
+    }
+  }
+  if (!quotes.length) throw new Error("实时行情服务没有返回可用价格");
+  return quotes;
 }
 
 export function parseMinuteKlineResponse(body: string): RealtimeMinuteCandle[] {

@@ -1730,12 +1730,12 @@ tbody tr:hover td {
 /* Desktop research layout: fixed alignment and deliberate use of every grid cell. */
 html,
 body {
-  min-width: 1366px;
+  min-width: 1280px;
 }
 
 .app-shell {
   width: min(1920px, 100%);
-  min-width: 1366px;
+  min-width: 1280px;
   grid-template-columns: 236px minmax(0, 1fr) !important;
   gap: 24px !important;
   padding: 18px 24px 40px !important;
@@ -1786,6 +1786,7 @@ body {
 }
 
 .workspace-grid {
+  margin-top: 14px !important;
   grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
   align-items: stretch !important;
   gap: 14px !important;
@@ -2013,6 +2014,7 @@ body {
 .monitor-intro p:last-child { margin: 8px 0 0; color: var(--apple-secondary); font-size: 13px; }
 .monitor-sync { padding: 8px 12px; border-radius: 999px; color: var(--apple-secondary); background: var(--apple-surface-soft); font-size: 12px; }
 .monitor-sync.is-synced { color: var(--apple-fall); background: color-mix(in srgb, var(--apple-fall) 9%, transparent); }
+.monitor-sync.is-local { color: var(--apple-accent); background: color-mix(in srgb, var(--apple-accent) 8%, transparent); }
 .monitor-sync.is-error { color: var(--apple-rise); }
 
 .monitor-summary-grid {
@@ -2078,7 +2080,7 @@ body {
 .monitor-create-card > p { margin: 14px 18px 0; color: var(--apple-tertiary); font-size: 10px; line-height: 1.6; }
 
 .monitor-table-wrap { min-height: 520px; overflow-x: auto; }
-.monitor-alert-table { width: 100%; min-width: 900px; table-layout: fixed; border-collapse: collapse; }
+.monitor-alert-table { width: 100%; min-width: 820px; table-layout: fixed; border-collapse: collapse; }
 .monitor-alert-table .col-stock { width: 22%; }
 .monitor-alert-table .col-condition { width: 17%; }
 .monitor-alert-table .col-price { width: 15%; }
