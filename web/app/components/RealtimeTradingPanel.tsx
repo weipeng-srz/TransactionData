@@ -27,7 +27,7 @@ export default function RealtimeTradingPanel({
     [snapshot?.date, snapshot?.minuteCandles],
   );
   const direction = (snapshot?.change ?? 0) >= 0 ? "is-up" : "is-down";
-  const refreshLabel = snapshot?.marketStatus === "交易中" ? "5 秒自动刷新" : "15 秒更新快照";
+  const refreshLabel = snapshot?.marketStatus === "交易中" ? "1 秒自动刷新" : "15 秒更新快照";
 
   return (
     <section className="realtime-panel" id="realtime-trading" aria-live="polite">

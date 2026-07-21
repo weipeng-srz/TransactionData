@@ -302,7 +302,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!/^\d{6}$/.test(selectedCode)) return;
-    const pollDelay = realtimeSnapshot?.marketStatus === "交易中" ? 5_000 : 15_000;
+    const pollDelay = realtimeSnapshot?.marketStatus === "交易中" ? 1_000 : 15_000;
     const initial = window.setTimeout(() => void refreshRealtime(selectedCode), 0);
     const timer = window.setInterval(() => { if (!document.hidden) void refreshRealtime(selectedCode, true); }, pollDelay);
     const refreshWhenVisible = () => { if (!document.hidden) void refreshRealtime(selectedCode, true); };
