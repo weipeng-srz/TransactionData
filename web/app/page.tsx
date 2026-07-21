@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MarketChart from "./components/MarketChart";
 import FinancialDashboard from "./components/FinancialDashboard";
+import ResearchDock from "./components/ResearchDock";
+import SignalBacktestCard from "./components/SignalBacktestCard";
 import {
   aggregateCandles,
   analyzeKlineConclusion,
@@ -29,6 +31,17 @@ import {
   type FinancialDataset,
   type FinancialReport,
 } from "./lib/financials";
+import {
+  backtestGuideSignals,
+  buildChartEvents,
+  buildResearchReport,
+  evaluatePriceAlerts,
+  parsePriceAlerts,
+  parseWatchlist,
+  type PriceAlert,
+  type SavedWorkspace,
+  type WatchlistItem,
+} from "./lib/research";
 
 const timeframes: Array<{ key: Timeframe; label: string }> = [
   { key: "1d", label: "日K" },
@@ -55,16 +68,23 @@ type RecentStock = {
   queriedAt: number;
 };
 
+type Appearance = "light" | "dark";
+
 const stockCodePattern = /^(?:(?:sh|sz)\d{6}|\d{6}(?:\.(?:sh|sz))?)$/i;
 const recentStocksStorageKey = "ticklens.recent-stocks.v1";
+const watchlistStorageKey = "ticklens.watchlist.v1";
+const alertsStorageKey = "ticklens.price-alerts.v1";
+const workspaceStorageKey = "ticklens.saved-workspace.v1";
+const appearanceStorageKey = "ticklens.appearance.v1";
 const maxRecentStocks = 8;
+const requestTimeoutMs = 18_000;
 
 function defaultRange(length: number, timeframe: Timeframe) {
   const visibleCount = timeframe === "1d" ? length : Math.min(length, 140);
   return { from: Math.max(0, length - visibleCount), to: Math.max(0, length - 1) };
 }
 
-async function resolveStockQuery(value: string): Promise<{ code: string; name: string }> {
+async function resolveStockQuery(value: string, signal?: AbortSignal): Promise<{ code: string; name: string }> {
   if (stockCodePattern.test(value)) {
     return {
       code: value.replace(/^(?:sh|sz)/i, "").replace(/\.(?:sh|sz)$/i, ""),
@@ -76,6 +96,7 @@ async function resolveStockQuery(value: string): Promise<{ code: string; name: s
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: value }),
+      signal,
     });
     const body = await response.text();
     let payload: { code?: unknown; name?: unknown; error?: unknown } = {};
@@ -89,12 +110,13 @@ async function resolveStockQuery(value: string): Promise<{ code: string; name: s
     const name = String(payload.name ?? "").trim();
     if (!/^\d{6}$/.test(code) || !name) throw new Error("股票名称查询返回了无效结果");
     return { code, name };
-  } catch {
-    return lookupStockWithJsonp(value);
+  } catch (reason) {
+    if (isAbortError(reason)) throw reason;
+    return lookupStockWithJsonp(value, signal);
   }
 }
 
-function lookupStockWithJsonp(query: string): Promise<{ code: string; name: string }> {
+function lookupStockWithJsonp(query: string, signal?: AbortSignal): Promise<{ code: string; name: string }> {
   return new Promise((resolve, reject) => {
     const callbackName = `__ticklensLookup_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const callbackHost = window as unknown as Record<string, unknown>;
@@ -107,9 +129,21 @@ function lookupStockWithJsonp(query: string): Promise<{ code: string; name: stri
     let timeout = 0;
     const cleanup = () => {
       window.clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
       delete callbackHost[callbackName];
       script.remove();
     };
+    const abort = () => {
+      cleanup();
+      const error = new Error("请求已取消");
+      error.name = "AbortError";
+      reject(error);
+    };
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener("abort", abort, { once: true });
     callbackHost[callbackName] = (payload: unknown) => {
       try {
         resolve(pickStockLookupResult(payload, query));
@@ -132,6 +166,10 @@ function lookupStockWithJsonp(query: string): Promise<{ code: string; name: stri
     }, 10_000);
     document.head.appendChild(script);
   });
+}
+
+function isAbortError(reason: unknown): boolean {
+  return reason instanceof Error && reason.name === "AbortError";
 }
 
 function parseRecentStocks(value: unknown): RecentStock[] {
@@ -189,15 +227,62 @@ export default function Home() {
   const [recentStocks, setRecentStocks] = useState<RecentStock[]>([]);
   const [fetchingStock, setFetchingStock] = useState(false);
   const [newsFilter, setNewsFilter] = useState<"全部" | NewsSentiment>("全部");
+  const [pendingQuery, setPendingQuery] = useState("");
+  const [lastAttemptedQuery, setLastAttemptedQuery] = useState("");
+  const [analysisExpanded, setAnalysisExpanded] = useState(false);
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [alerts, setAlerts] = useState<PriceAlert[]>([]);
+  const [hasSavedView, setHasSavedView] = useState(false);
+  const [workspaceNotice, setWorkspaceNotice] = useState("");
+  const [freshness, setFreshness] = useState({ market: "", financial: "", news: "" });
+  const [appearance, setAppearance] = useState<Appearance>("light");
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const requestVersionRef = useRef(0);
+  const sharedStateAppliedRef = useRef(false);
 
   useEffect(() => {
     let storedStocks: RecentStock[] = [];
+    let storedWatchlist: WatchlistItem[] = [];
+    let storedAlerts: PriceAlert[] = [];
     try {
       storedStocks = parseRecentStocks(JSON.parse(localStorage.getItem(recentStocksStorageKey) ?? "[]"));
     } catch {
       localStorage.removeItem(recentStocksStorageKey);
     }
-    const frame = window.requestAnimationFrame(() => setRecentStocks(storedStocks));
+    try {
+      storedWatchlist = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
+    } catch {
+      localStorage.removeItem(watchlistStorageKey);
+    }
+    try {
+      storedAlerts = parsePriceAlerts(JSON.parse(localStorage.getItem(alertsStorageKey) ?? "[]"));
+    } catch {
+      localStorage.removeItem(alertsStorageKey);
+    }
+    const savedViewExists = Boolean(localStorage.getItem(workspaceStorageKey));
+    const frame = window.requestAnimationFrame(() => {
+      setRecentStocks(storedStocks);
+      setWatchlist(storedWatchlist);
+      setAlerts(storedAlerts);
+      setHasSavedView(savedViewExists);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => () => requestControllerRef.current?.abort(), []);
+
+  useEffect(() => {
+    let resolved: Appearance = "light";
+    try {
+      const stored = localStorage.getItem(appearanceStorageKey);
+      resolved = stored === "dark" || stored === "light"
+        ? stored
+        : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch {
+      resolved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.dataset.appearance = resolved;
+    const frame = window.requestAnimationFrame(() => setAppearance(resolved));
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
@@ -206,6 +291,7 @@ export default function Home() {
     [dataset.rows, selectedCode, timeframe],
   );
   const indicators = useMemo(() => calculateIndicators(candles), [candles]);
+  const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators), [candles, indicators]);
 
   const selectedIndex = hoverIndex ?? Math.max(0, candles.length - 1);
   const selectedCandle = candles[selectedIndex];
@@ -239,8 +325,12 @@ export default function Home() {
     () => newsFilter === "全部" ? selectedNews : selectedNews.filter((item) => item.sentiment === newsFilter),
     [newsFilter, selectedNews],
   );
+  const chartEvents = useMemo(
+    () => buildChartEvents(selectedNews, financialDataset, selectedCode),
+    [financialDataset, selectedCode, selectedNews],
+  );
 
-  const rememberRecentStock = (code: string, name: string) => {
+  const rememberRecentStock = useCallback((code: string, name: string) => {
     const normalizedCode = code.trim();
     const normalizedName = name.trim();
     if (!/^\d{6}$/.test(normalizedCode) || !normalizedName) return;
@@ -256,7 +346,7 @@ export default function Home() {
       }
       return next;
     });
-  };
+  }, []);
 
   const clearRecentStocks = () => {
     setRecentStocks([]);
@@ -267,7 +357,7 @@ export default function Home() {
     }
   };
 
-  const applyDataset = (parsed: ParsedDataset, name: string) => {
+  const applyDataset = useCallback((parsed: ParsedDataset, name: string) => {
     const code = parsed.codes[0];
     setDataset(parsed);
     setSelectedCode(code);
@@ -276,58 +366,106 @@ export default function Home() {
     setMarketSourceLabel(name);
     setIsDemo(false);
     setTimeframe("1d");
-  };
+  }, []);
 
-  const applyNewsDataset = (parsed: ParsedNewsDataset, name: string) => {
+  const applyNewsDataset = useCallback((parsed: ParsedNewsDataset, name: string) => {
     setNewsDataset(parsed);
     setNewsSourceLabel(name);
     setNewsFilter("全部");
-  };
+  }, []);
 
-  const fetchStockData = async (queryValue = queryText) => {
+  const updateWatchedSnapshot = useCallback((code: string, values: Partial<Omit<WatchlistItem, "code">>) => {
+    setWatchlist((current) => {
+      const index = current.findIndex((item) => item.code === code);
+      if (index < 0) return current;
+      const merged = { ...current[index], ...values, updatedAt: new Date().toISOString() };
+      const comparableCurrent = { ...current[index], updatedAt: "" };
+      const comparableMerged = { ...merged, updatedAt: "" };
+      if (JSON.stringify(comparableCurrent) === JSON.stringify(comparableMerged)) return current;
+      const next = current.map((item, itemIndex) => itemIndex === index ? merged : item);
+      try {
+        localStorage.setItem(watchlistStorageKey, JSON.stringify(next));
+      } catch {
+        // Keep the in-memory comparison usable when storage is unavailable.
+      }
+      return next;
+    });
+  }, []);
+
+  const checkPriceAlerts = useCallback((code: string, price: number) => {
+    const checkedAt = new Date().toISOString();
+    const next = evaluatePriceAlerts(alerts, code, price, checkedAt);
+    const newlyTriggered = next.filter((item, index) => item.triggeredAt && !alerts[index]?.triggeredAt);
+    if (!newlyTriggered.length) return;
+    try {
+      localStorage.setItem(alertsStorageKey, JSON.stringify(next));
+    } catch {
+      // In-page alerts still work when storage is unavailable.
+    }
+    setAlerts(next);
+    setWorkspaceNotice(`${newlyTriggered.map((item) => `${item.name} ${item.direction === "above" ? "突破" : "跌破"} ${item.target.toFixed(3)}`).join("；")}，价格预警已触发。`);
+  }, [alerts]);
+
+  const fetchStockData = useCallback(async (queryValue = queryText) => {
     const query = queryValue.trim();
     if (!query) {
       setError("请输入股票代码或名称，例如 平安银行、002747 或 sh600000");
       return;
     }
+    requestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    requestControllerRef.current = requestController;
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
     setFetchingStock(true);
     setError("");
-    setMarketSourceLabel(`${query} · 正在识别`);
+    setPendingQuery(query);
+    setLastAttemptedQuery(query);
     setNewsSourceLabel(`${query} · 等待行情`);
     setFinancialSourceLabel(`${query} · 等待识别`);
-    setMarketLoad({ phase: "loading", detail: "正在识别股票名称或代码…" });
+    setMarketLoad({ phase: "loading", detail: `正在加载 ${query}；当前图表保留上一份成功数据` });
     setNewsLoad({ phase: "loading", detail: "识别完成后将并行获取新闻…" });
     setFinancialLoad({ phase: "loading", detail: "识别完成后将并行获取基本面…" });
     setNewsDataset(emptyNewsDataset());
     setFinancialDataset(emptyFinancialDataset());
     setNewsFilter("全部");
 
-    const requestCsv = async (endpoint: string, payload: unknown, fallback: string) => {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await response.text();
-      if (!response.ok) {
-        let message = fallback;
-        try {
-          message = String((JSON.parse(body) as { error?: unknown }).error || message);
-        } catch {
-          if (body.trim()) message = body.trim();
-        }
-        throw new Error(message);
+    const post = async (endpoint: string, payload: unknown, fallback: string) => {
+      const controller = new AbortController();
+      const abortFromParent = () => controller.abort();
+      requestController.signal.addEventListener("abort", abortFromParent, { once: true });
+      const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        return { response, body: await response.text() };
+      } catch (reason) {
+        if (controller.signal.aborted && !requestController.signal.aborted) throw new Error(`${fallback}（请求超时）`);
+        throw reason;
+      } finally {
+        window.clearTimeout(timeout);
+        requestController.signal.removeEventListener("abort", abortFromParent);
       }
-      return body;
+    };
+
+    const requestCsv = async (endpoint: string, payload: unknown, fallback: string) => {
+      const { response, body } = await post(endpoint, payload, fallback);
+      if (response.ok) return body;
+      let message = fallback;
+      try {
+        message = String((JSON.parse(body) as { error?: unknown }).error || message);
+      } catch {
+        if (body.trim()) message = body.trim();
+      }
+      throw new Error(message);
     };
 
     const requestJson = async <T,>(endpoint: string, payload: unknown, fallback: string): Promise<T> => {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await response.text();
+      const { response, body } = await post(endpoint, payload, fallback);
       let parsed: { error?: unknown } | T;
       try {
         parsed = JSON.parse(body) as { error?: unknown } | T;
@@ -339,14 +477,15 @@ export default function Home() {
     };
 
     try {
-      const resolved = await resolveStockQuery(query);
+      const resolved = await resolveStockQuery(query, requestController.signal);
+      if (requestVersion !== requestVersionRef.current) return;
       const normalizedCode = resolved.code;
       const resolvedLabel = `${resolved.name ? `${resolved.name} · ` : ""}${normalizedCode}`;
       setQueryText(resolved.name || normalizedCode);
-      setMarketSourceLabel(`${resolvedLabel} · 90日行情`);
+      setPendingQuery(resolvedLabel);
       setNewsSourceLabel(`${resolvedLabel} · 最新新闻`);
       setFinancialSourceLabel(`${resolvedLabel} · 基本面`);
-      setMarketLoad({ phase: "loading", detail: "stock-ticks 正在获取交易数据…" });
+      setMarketLoad({ phase: "loading", detail: `正在获取 ${resolvedLabel} 的 90 日行情；旧图表暂时保留` });
       setNewsLoad({ phase: "loading", detail: "stock-news 正在获取新闻数据…" });
       setFinancialLoad({ phase: "loading", detail: "正在获取估值、分红与三张财务报表…" });
 
@@ -354,35 +493,48 @@ export default function Home() {
       // as soon as its own response arrives, without waiting for the other one.
       const marketTask = requestCsv("/api/local-stock-data", { code: normalizedCode, days: 90 }, "获取行情数据失败")
         .then((csv) => {
+          if (requestVersion !== requestVersionRef.current) return;
           const parsed = parseMarketCsv(csv);
           const resultCode = parsed.codes[0] ?? normalizedCode;
           const resultName = parsed.stockNames[resultCode] ?? resolved.name;
+          const resultCandles = aggregateCandles(parsed.rows, resultCode, "1d");
+          const resultLatest = resultCandles.at(-1);
           applyDataset(parsed, `${resultName ? `${resultName} · ` : ""}${resultCode} · 90日行情`);
           rememberRecentStock(resultCode, resultName);
+          if (resultLatest) {
+            updateWatchedSnapshot(resultCode, { name: resultName || resultCode, price: resultLatest.close, changePct: resultLatest.changePct });
+            checkPriceAlerts(resultCode, resultLatest.close);
+          }
           setMarketLoad({
             phase: "success",
             detail: `${parsed.rows.length.toLocaleString("zh-CN")} 条分笔已加载，图表已更新`,
           });
+          setFreshness((current) => ({ ...current, market: new Date().toISOString() }));
         })
         .catch((reason) => {
+          if (isAbortError(reason) || requestVersion !== requestVersionRef.current) throw reason;
           const message = reason instanceof Error ? reason.message : "获取失败";
-          setMarketLoad({ phase: "error", detail: message });
+          setMarketLoad({ phase: "error", detail: `${message}；仍显示 ${selectedName || selectedCode} 的上一份成功行情` });
           throw new Error(`行情：${message}`);
         });
 
       const newsTask = requestCsv("/api/local-stock-news", { code: normalizedCode, limit: 30 }, "获取新闻数据失败")
         .then((csv) => {
+          if (requestVersion !== requestVersionRef.current) return;
           const parsed = parseNewsCsv(csv);
           const resultCode = parsed.codes[0] ?? normalizedCode;
           const resultName = parsed.stockNames[resultCode] ?? resolved.name;
           applyNewsDataset(parsed, `${resultName ? `${resultName} · ` : ""}${resultCode} · 新闻`);
           rememberRecentStock(resultCode, resultName);
+          updateWatchedSnapshot(resultCode, { name: resultName || resultCode, sentiment: parsed.summary.tone });
           setNewsLoad({
             phase: "success",
             detail: `${parsed.items.length.toLocaleString("zh-CN")} 条新闻已加载，舆情已更新`,
           });
+          setFreshness((current) => ({ ...current, news: new Date().toISOString() }));
         })
         .catch((reason) => {
+          if (isAbortError(reason) || requestVersion !== requestVersionRef.current) throw reason;
           const message = reason instanceof Error ? reason.message : "获取失败";
           setNewsLoad({ phase: "error", detail: message });
           throw new Error(`新闻：${message}`);
@@ -394,6 +546,7 @@ export default function Home() {
         "获取基本面数据失败",
       )
         .then((parsed) => {
+          if (requestVersion !== requestVersionRef.current) return;
           if (!Array.isArray(parsed.reports) || parsed.reports.length === 0) {
             throw new Error("基本面服务未返回可用数据");
           }
@@ -401,18 +554,27 @@ export default function Home() {
           const resultName = parsed.name || resolved.name;
           setFinancialSourceLabel(`${resultName ? `${resultName} · ` : ""}${parsed.code} · 基本面`);
           rememberRecentStock(parsed.code, resultName);
+          updateWatchedSnapshot(parsed.code, {
+            name: resultName || parsed.code,
+            peTtm: parsed.snapshot.peTtm,
+            pb: parsed.snapshot.pb,
+            dividendYieldTtm: parsed.snapshot.dividendYieldTtm,
+          });
           setFinancialLoad({
             phase: "success",
             detail: `估值、股息与 ${parsed.analysis?.periods?.length || parsed.reports.length} 个报告期已加载`,
           });
+          setFreshness((current) => ({ ...current, financial: parsed.fetchedAt || new Date().toISOString() }));
         })
         .catch((reason) => {
+          if (isAbortError(reason) || requestVersion !== requestVersionRef.current) throw reason;
           const message = reason instanceof Error ? reason.message : "获取失败";
           setFinancialLoad({ phase: "error", detail: message });
           throw new Error(`基本面：${message}`);
         });
 
       const results = await Promise.allSettled([marketTask, newsTask, financialTask]);
+      if (requestVersion !== requestVersionRef.current) return;
       const failures = results.flatMap((result) =>
         result.status === "rejected"
           ? [result.reason instanceof Error ? result.reason.message : "数据获取失败"]
@@ -420,17 +582,23 @@ export default function Home() {
       );
       setError(failures.join("；"));
     } catch (reason) {
+      if (isAbortError(reason) || requestVersion !== requestVersionRef.current) return;
       const message = reason instanceof Error ? reason.message : "获取股票数据失败";
       setMarketLoad({ phase: "error", detail: message });
       setNewsLoad({ phase: "error", detail: "未能识别股票，新闻查询未启动" });
       setFinancialLoad({ phase: "error", detail: "未能识别股票，财报查询未启动" });
       setError(message);
     } finally {
-      setFetchingStock(false);
+      if (requestVersion === requestVersionRef.current) {
+        setFetchingStock(false);
+        setPendingQuery("");
+      }
     }
-  };
+  }, [applyDataset, applyNewsDataset, checkPriceAlerts, queryText, rememberRecentStock, selectedCode, selectedName, updateWatchedSnapshot]);
 
   const resetDemo = () => {
+    requestControllerRef.current?.abort();
+    requestVersionRef.current += 1;
     const demo = createDemoDataset();
     setDataset(demo);
     setSelectedCode(demo.codes[0]);
@@ -450,8 +618,21 @@ export default function Home() {
     setNewsFilter("全部");
     setIsDemo(true);
     setError("");
+    setPendingQuery("");
     setQueryText("");
     setTimeframe("1d");
+    setFreshness({ market: "", financial: "", news: "" });
+  };
+
+  const toggleAppearance = () => {
+    const next: Appearance = appearance === "light" ? "dark" : "light";
+    setAppearance(next);
+    document.documentElement.dataset.appearance = next;
+    try {
+      localStorage.setItem(appearanceStorageKey, next);
+    } catch {
+      // Appearance still changes for the current page when storage is restricted.
+    }
   };
 
   const exportCandles = () => {
@@ -481,6 +662,166 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  const persistWatchlist = useCallback((next: WatchlistItem[]) => {
+    setWatchlist(next);
+    try {
+      localStorage.setItem(watchlistStorageKey, JSON.stringify(next));
+    } catch {
+      setWorkspaceNotice("浏览器未允许保存自选股，本次修改只在当前页面有效。");
+    }
+  }, []);
+
+  const persistAlerts = useCallback((next: PriceAlert[]) => {
+    setAlerts(next);
+    try {
+      localStorage.setItem(alertsStorageKey, JSON.stringify(next));
+    } catch {
+      setWorkspaceNotice("浏览器未允许保存价格预警，本次修改只在当前页面有效。");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sharedStateAppliedRef.current) return;
+    sharedStateAppliedRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const sharedTimeframe = params.get("tf");
+    const sharedLower = params.get("lower");
+    const sharedOverlays = params.get("ov")?.split(",").filter(Boolean) ?? [];
+    const sharedFrom = Number(params.get("from"));
+    const sharedTo = Number(params.get("to"));
+    const sharedCode = params.get("stock") ?? "";
+    const applySharedState = async () => {
+      if (sharedCode && /^\d{6}$/.test(sharedCode)) await fetchStockData(sharedCode);
+      if (timeframes.some((item) => item.key === sharedTimeframe)) setTimeframe(sharedTimeframe as Timeframe);
+      if (lowerIndicators.includes(sharedLower as LowerIndicator)) setLowerIndicator(sharedLower as LowerIndicator);
+      if (sharedOverlays.length) {
+        setOverlays((current) => Object.fromEntries(Object.keys(current).map((key) => [key, sharedOverlays.includes(key)])) as typeof current);
+      }
+      if (Number.isFinite(sharedFrom) && Number.isFinite(sharedTo) && sharedFrom >= 0 && sharedTo > sharedFrom) {
+        setRange({ from: sharedFrom, to: sharedTo });
+      }
+      if (sharedCode) setWorkspaceNotice("已从分享链接恢复股票与图表视图。");
+    };
+    void applySharedState();
+  }, [fetchStockData]);
+
+  const currentWorkspace = (): SavedWorkspace => ({
+    version: 1,
+    code: selectedCode,
+    isDemo,
+    timeframe,
+    lowerIndicator,
+    overlays: Object.entries(overlays).filter(([, active]) => active).map(([key]) => key),
+    range,
+    savedAt: new Date().toISOString(),
+  });
+
+  const toggleWatch = () => {
+    const existing = watchlist.some((item) => item.code === selectedCode);
+    if (existing) {
+      persistWatchlist(watchlist.filter((item) => item.code !== selectedCode));
+      setWorkspaceNotice(`已将 ${selectedName || selectedCode} 从自选股移除。`);
+      return;
+    }
+    if (watchlist.length >= 12) {
+      setWorkspaceNotice("自选股最多保留 12 只，请先移除一只。");
+      return;
+    }
+    const snapshot = financialDataset.code === selectedCode ? financialDataset.snapshot : null;
+    persistWatchlist([...watchlist, {
+      code: selectedCode,
+      name: selectedName || selectedCode,
+      price: latest?.close ?? null,
+      changePct: latest?.changePct ?? null,
+      peTtm: snapshot?.peTtm ?? null,
+      pb: snapshot?.pb ?? null,
+      dividendYieldTtm: snapshot?.dividendYieldTtm ?? null,
+      sentiment: newsDataset.items.length ? newsDataset.summary.tone : null,
+      updatedAt: new Date().toISOString(),
+    }]);
+    setWorkspaceNotice(`已将 ${selectedName || selectedCode} 加入自选股。`);
+  };
+
+  const addAlert = (direction: "above" | "below", target: number) => {
+    const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${selectedCode}-${Date.now()}`;
+    persistAlerts([{
+      id,
+      code: selectedCode,
+      name: selectedName || selectedCode,
+      direction,
+      target,
+      createdAt: new Date().toISOString(),
+      triggeredAt: "",
+    }, ...alerts].slice(0, 30));
+    setWorkspaceNotice(`已添加 ${selectedName || selectedCode} ${direction === "above" ? "突破" : "跌破"} ${target.toFixed(3)} 的价格预警。`);
+  };
+
+  const copyWorkspaceLink = async () => {
+    const workspace = currentWorkspace();
+    const url = new URL(window.location.href);
+    url.search = "";
+    if (!workspace.isDemo) url.searchParams.set("stock", workspace.code);
+    url.searchParams.set("tf", workspace.timeframe);
+    url.searchParams.set("lower", workspace.lowerIndicator);
+    url.searchParams.set("ov", workspace.overlays.join(","));
+    url.searchParams.set("from", String(workspace.range.from));
+    url.searchParams.set("to", String(workspace.range.to));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setWorkspaceNotice("分享链接已复制，打开后会自动恢复股票和图表视图。");
+    } catch {
+      setWorkspaceNotice("无法写入剪贴板，请检查浏览器权限。");
+    }
+  };
+
+  const saveWorkspace = () => {
+    try {
+      localStorage.setItem(workspaceStorageKey, JSON.stringify(currentWorkspace()));
+      setHasSavedView(true);
+      setWorkspaceNotice("当前研究视图已保存在此浏览器。");
+    } catch {
+      setWorkspaceNotice("浏览器未允许保存研究视图。");
+    }
+  };
+
+  const restoreWorkspace = async () => {
+    try {
+      const workspace = JSON.parse(localStorage.getItem(workspaceStorageKey) ?? "null") as SavedWorkspace | null;
+      if (!workspace || workspace.version !== 1) throw new Error("未找到有效视图");
+      if (!workspace.isDemo && /^\d{6}$/.test(workspace.code)) await fetchStockData(workspace.code);
+      else resetDemo();
+      setTimeframe(workspace.timeframe);
+      setLowerIndicator(lowerIndicators.includes(workspace.lowerIndicator as LowerIndicator) ? workspace.lowerIndicator as LowerIndicator : "VOL");
+      setOverlays((current) => Object.fromEntries(Object.keys(current).map((key) => [key, workspace.overlays.includes(key)])) as typeof current);
+      setRange(workspace.range);
+      setWorkspaceNotice(`已恢复 ${new Date(workspace.savedAt).toLocaleString("zh-CN", { hour12: false })} 保存的研究视图。`);
+    } catch {
+      setWorkspaceNotice("保存的研究视图无效或已被清除。");
+    }
+  };
+
+  const exportResearchReport = () => {
+    const report = buildResearchReport({
+      code: selectedCode,
+      name: selectedName,
+      timeframe,
+      candles,
+      conclusion: klineConclusion,
+      backtest: signalBacktest,
+      financialDataset,
+      newsDataset,
+      generatedAt: new Date().toLocaleString("zh-CN", { hour12: false }),
+    });
+    const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${selectedCode}-${timeframe}-research-report.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setWorkspaceNotice("研究报告已导出；也可使用“打印 / PDF”生成版式化文件。");
+  };
+
   const currentIndicator = {
     ma5: indicators.ma5[selectedIndex],
     ma10: indicators.ma10[selectedIndex],
@@ -498,18 +839,72 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
+      <aside className="app-sidebar">
+        <div className="sidebar-brand">
           <div className="brand-mark">TL</div>
           <div>
-            <p className="eyebrow">TICKLENS / 分笔实验室</p>
-            <h1>行情、基本面与舆情工作台</h1>
+            <strong>TickLens</strong>
+            <span>市场研究工作台</span>
           </div>
         </div>
-        <div className="topbar-meta">
-          <span className="privacy-dot" aria-hidden="true" />
-          行情、基本面与新闻并行采集 · 浏览器分析
-          <span className="build-tag">L1 · FIN · NEWS</span>
+
+        <section className="sidebar-current" aria-label="当前股票">
+          <span>当前标的</span>
+          <strong>{selectedName || selectedCode}</strong>
+          <small>{selectedCode} · {dataset.dataLevel}</small>
+          <b className={directionClass}>{latest ? formatNumber(latest.close, 3) : "—"}</b>
+          <em className={directionClass}>{latest ? `${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}</em>
+        </section>
+
+        <nav className="workspace-nav" aria-label="工作台章节导航">
+          <a href="#stock-market"><span>行情</span><small>Market</small></a>
+          <a href="#kline-analysis"><span>研判</span><small>Insight</small></a>
+          <a href="#signal-backtest"><span>回测</span><small>Backtest</small></a>
+          <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
+          <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
+          <a href="#stock-news"><span>新闻</span><small>News</small></a>
+        </nav>
+
+        <section className={`recent-query-strip sidebar-recents ${recentStocks.length ? "" : "is-empty"}`} aria-label="最近查询的股票">
+          <div className="sidebar-section-heading">
+            <span className="recent-query-label">最近查询</span>
+            {recentStocks.length > 0 ? <button className="recent-query-clear" type="button" onClick={clearRecentStocks} disabled={busy}>清空</button> : null}
+          </div>
+          <div className="recent-query-list">
+            {recentStocks.length > 0 ? recentStocks.map((stock) => (
+              <button
+                key={stock.code}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setQueryText(stock.name);
+                  void fetchStockData(stock.code);
+                }}
+                title={`再次查询 ${stock.name} ${stock.code}`}
+              >
+                <strong>{stock.name}</strong>
+                <span>{stock.code}</span>
+              </button>
+            )) : <span className="recent-query-empty">查询过的股票会显示在这里</span>}
+          </div>
+        </section>
+
+        <p className="sidebar-footnote">公开数据与规则模型仅供研究参考，不构成投资建议。</p>
+      </aside>
+
+      <div className="app-workspace-shell">
+      <header className="topbar">
+        <div className="brand-lockup workspace-heading">
+          <div>
+            <p className="eyebrow">MARKET WORKSPACE</p>
+            <h1>市场研究</h1>
+          </div>
+        </div>
+        <div className="topbar-actions">
+          <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>
+          <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
+            <span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span>
+          </button>
         </div>
       </header>
 
@@ -549,7 +944,8 @@ export default function Home() {
           </div>
         </div>
         <div className="query-actions">
-          {error ? <span className="error-message">{error}</span> : null}
+          {error ? <span className="error-message" role="alert">{error}</span> : null}
+          {error && lastAttemptedQuery ? <button className="retry-button" type="button" onClick={() => void fetchStockData(lastAttemptedQuery)} disabled={busy}>重试</button> : null}
           <form
             className="stock-search"
             onSubmit={(event) => {
@@ -575,30 +971,6 @@ export default function Home() {
             </button>
           ) : null}
         </div>
-      </section>
-
-      <section className="recent-query-strip" aria-label="最近查询的股票">
-        <span className="recent-query-label">最近查询</span>
-        <div className="recent-query-list">
-          {recentStocks.length > 0 ? recentStocks.map((stock) => (
-            <button
-              key={stock.code}
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setQueryText(stock.name);
-                void fetchStockData(stock.code);
-              }}
-              title={`再次查询 ${stock.name} ${stock.code}`}
-            >
-              <strong>{stock.name}</strong>
-              <span>{stock.code}</span>
-            </button>
-          )) : <span className="recent-query-empty">成功查询后会在这里保留最近 {maxRecentStocks} 只股票</span>}
-        </div>
-        {recentStocks.length > 0 ? (
-          <button className="recent-query-clear" type="button" onClick={clearRecentStocks} disabled={busy}>清空</button>
-        ) : null}
       </section>
 
       <section className="quote-head">
@@ -642,15 +1014,30 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="workspace-grid">
-        <div className="chart-card">
+      {fetchingStock ? (
+        <div className="stale-data-banner" role="status">
+          <span className="loading-spinner" aria-hidden="true" />
+          正在加载 {pendingQuery || "新股票"}；下方行情仍是 {selectedName || selectedCode} 的上一份成功数据，加载完成前不会替换。
+        </div>
+      ) : null}
+
+      <section className="workspace-grid" id="stock-market">
+        <div className={`chart-card ${fetchingStock ? "is-stale" : ""}`}>
           <div className="chart-toolbar">
+            <div className="chart-toolbar-title">
+              <span aria-hidden="true">⌁</span>
+              <div>
+                <strong>价格走势</strong>
+                <small>{timeframes.find((item) => item.key === timeframe)?.label} · 前复权</small>
+              </div>
+            </div>
             <div className="segmented" aria-label="K线周期">
               {timeframes.map(({ key, label }) => (
                 <button
                   key={key}
                   type="button"
                   className={timeframe === key ? "active" : ""}
+                  aria-pressed={timeframe === key}
                   onClick={() => {
                     setTimeframe(key);
                     setRange(defaultRange(aggregateCandles(dataset.rows, selectedCode, key).length, key));
@@ -672,6 +1059,7 @@ export default function Home() {
               <Toggle active={overlays.nineTurn} label="九转" color="cyan" onClick={() => setOverlays((value) => ({ ...value, nineTurn: !value.nineTurn }))} />
               <Toggle active={overlays.guides} label="B/S指引" color="red" onClick={() => setOverlays((value) => ({ ...value, guides: !value.guides }))} />
             </div>
+            {chartEvents.length ? <span className="event-count" title="N 新闻 · F 财报 · D 分红">事件 {chartEvents.length}</span> : null}
             <button className="icon-button" type="button" onClick={exportCandles} title="导出当前周期K线" aria-label="导出当前周期K线">
               ⇩
             </button>
@@ -687,11 +1075,13 @@ export default function Home() {
           </div>
 
           <MarketChart
+            appearance={appearance}
             candles={candles}
             indicators={indicators}
             overlays={overlays}
             lowerIndicator={lowerIndicator}
             range={range}
+            events={chartEvents}
             onRangeChange={setRange}
             onHover={setHoverIndex}
           />
@@ -699,7 +1089,7 @@ export default function Home() {
           <div className="chart-footer-controls">
             <div className="segmented compact" aria-label="副图指标">
               {lowerIndicators.map((indicator) => (
-                <button key={indicator} type="button" className={lowerIndicator === indicator ? "active" : ""} onClick={() => setLowerIndicator(indicator)}>
+                <button key={indicator} type="button" className={lowerIndicator === indicator ? "active" : ""} aria-pressed={lowerIndicator === indicator} onClick={() => setLowerIndicator(indicator)}>
                   {indicator}
                 </button>
               ))}
@@ -736,8 +1126,11 @@ export default function Home() {
           </div>
         </div>
 
-        <aside className="analysis-rail">
-          <section className="rail-card conclusion-card">
+        <aside className={`analysis-rail ${analysisExpanded ? "is-expanded" : ""}`}>
+          <button className="mobile-analysis-toggle" type="button" aria-expanded={analysisExpanded} onClick={() => setAnalysisExpanded((value) => !value)}>
+            {analysisExpanded ? "收起辅助分析" : "展开数据、资金行为与技术快照"}
+          </button>
+          <section className="rail-card conclusion-card" id="kline-analysis">
             <div className="rail-heading">
               <div>
                 <p className="eyebrow">KLINE READOUT</p>
@@ -896,8 +1289,35 @@ export default function Home() {
               <Indicator label="ATR 14" values={[currentIndicator.atr]} colors={["pink"]} />
             </div>
           </section>
+          <SignalBacktestCard backtest={signalBacktest} />
         </aside>
       </section>
+
+      <ResearchDock
+        key={selectedCode}
+        code={selectedCode}
+        name={selectedName}
+        price={latest?.close ?? null}
+        isDemo={isDemo}
+        busy={busy}
+        isWatched={watchlist.some((item) => item.code === selectedCode)}
+        hasSavedView={hasSavedView}
+        watchlist={watchlist}
+        alerts={alerts}
+        freshness={freshness}
+        notice={workspaceNotice}
+        onToggleWatch={toggleWatch}
+        onSelectWatch={(code) => void fetchStockData(code)}
+        onRemoveWatch={(code) => persistWatchlist(watchlist.filter((item) => item.code !== code))}
+        onAddAlert={addAlert}
+        onRemoveAlert={(id) => persistAlerts(alerts.filter((item) => item.id !== id))}
+        onRefresh={() => void fetchStockData(selectedCode)}
+        onCopyLink={() => void copyWorkspaceLink()}
+        onSaveView={saveWorkspace}
+        onRestoreView={() => void restoreWorkspace()}
+        onExportReport={exportResearchReport}
+        onPrint={() => window.print()}
+      />
 
       <FinancialDashboard dataset={financialDataset} load={financialLoad} />
       <details className="legacy-financial-summary">
@@ -912,7 +1332,7 @@ export default function Home() {
             <p className="eyebrow">RECENT BARS</p>
             <h3>最近 K 线</h3>
           </div>
-          <span>由分笔成交在浏览器内聚合</span>
+          <span>由分笔成交在浏览器内聚合 · 可横向滑动查看更多</span>
         </div>
         <div className="table-wrap">
           <table>
@@ -952,6 +1372,7 @@ export default function Home() {
                   key={filter}
                   type="button"
                   className={newsFilter === filter ? "active" : ""}
+                  aria-pressed={newsFilter === filter}
                   onClick={() => setNewsFilter(filter)}
                 >
                   {filter}
@@ -995,6 +1416,7 @@ export default function Home() {
         <span>输入股票后，行情、估值分红、历史财报诊断与新闻会同步获取，先完成的数据会先更新页面。</span>
         <span>Level-1、九转、B/S、主力行为与新闻情绪均为研究代理，只供投资参考，不构成投资建议。</span>
       </footer>
+      </div>
     </main>
   );
 }
@@ -1313,7 +1735,7 @@ function signedCompact(value: number): string {
 
 function Toggle({ active, label, color, onClick }: { active: boolean; label: string; color: string; onClick: () => void }) {
   return (
-    <button type="button" className={active ? "active" : ""} onClick={onClick}>
+    <button type="button" className={active ? "active" : ""} aria-pressed={active} onClick={onClick}>
       <i className={`dot ${color}`} aria-hidden="true" />{label}
     </button>
   );

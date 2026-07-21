@@ -28,13 +28,14 @@ test("server-renders the TickLens market workbench", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>TickLens · 行情、基本面与舆情工作台<\/title>/i);
-  assert.match(html, /og-fundamentals\.png/);
+  assert.match(html, /<title>TickLens · 市场研究工作台<\/title>/i);
+  assert.match(html, /og-apple\.png/);
   assert.match(html, /TickLens/);
-  assert.match(html, /行情、基本面与舆情工作台/);
+  assert.match(html, /市场研究工作台/);
   assert.match(html, /平安银行/);
   assert.match(html, /股票名称或代码，如 平安银行 \/ 000001/);
-  assert.match(html, /行情、基本面与新闻并行采集 · 浏览器分析/);
+  assert.match(html, /行情、基本面与新闻并行更新/);
+  assert.match(html, /切换到深色外观/);
   assert.match(html, /输入股票代码或名称后自动获取最新新闻/);
   assert.match(html, /最近查询/);
   assert.match(html, /输入股票名称或代码一键获取舆情/);
@@ -46,9 +47,13 @@ test("server-renders the TickLens market workbench", async () => {
   assert.match(html, /近三期财报/);
   assert.match(html, /输入股票查看近三期财报/);
   assert.match(html, /财报对比/);
-  assert.match(html, /最近8季度/);
-  assert.match(html, /单季度/);
   assert.match(html, /输入股票查看最近 8 个单季度/);
+  assert.match(html, /研究工具与自选对比/);
+  assert.match(html, /B\/S 信号回测/);
+  assert.match(html, /价格预警/);
+  assert.match(html, /复制分享链接/);
+  assert.match(html, /导出报告/);
+  assert.doesNotMatch(html, /aria-label="财报筛选"/);
   assert.match(html, /获取行情 \+ 基本面 \+ 新闻/);
   assert.doesNotMatch(html, /type="file"/i);
   assert.doesNotMatch(html, /导入(?:行情|新闻)/);

@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Candle, IndicatorSet, LowerIndicator } from "../lib/market";
 import { formatNumber } from "../lib/market";
+import type { ChartEvent } from "../lib/research";
 
 type OverlayKey = "ma5" | "ma10" | "ma20" | "ema" | "boll" | "vwap" | "nineTurn" | "guides";
 
 type Props = {
+  appearance: "light" | "dark";
   candles: Candle[];
   indicators: IndicatorSet;
   overlays: Record<OverlayKey, boolean>;
   lowerIndicator: LowerIndicator;
   range: { from: number; to: number };
+  events: ChartEvent[];
   onRangeChange: (range: { from: number; to: number }) => void;
   onHover: (index: number | null) => void;
 };
@@ -29,34 +32,73 @@ type Layout = {
   priceMax: number;
 };
 
-const colors = {
-  grid: "rgba(126, 143, 163, .13)",
-  text: "#718096",
-  textStrong: "#b8c3d1",
+const chartPalettes = {
+  light: {
+  grid: "rgba(29, 29, 31, .09)",
+  gridStrong: "rgba(29, 29, 31, .16)",
+  text: "#86868b",
+  textStrong: "#515154",
   up: "#f05d5e",
-  down: "#24b47e",
-  neutral: "#91a0b2",
-  ma5: "#f3b760",
-  ma10: "#63c7ff",
-  ma20: "#c38cff",
-  ema12: "#ff8f70",
-  ema26: "#70d6ae",
-  boll: "#8192ff",
-  vwap: "#f08ec6",
-  nineBuy: "#63c7ff",
-  nineSell: "#f3b760",
-  white: "#eaf0f6",
+  down: "#1a9c5b",
+  neutral: "#8e8e93",
+  ma5: "#ff9f0a",
+  ma10: "#0071e3",
+  ma20: "#8e5bd9",
+  ema12: "#e86a33",
+  ema26: "#2aa876",
+  boll: "#5e6ad2",
+  bollMid: "#7b84dc",
+  bollFill: "rgba(94, 106, 210, .055)",
+  vwap: "#c04685",
+  nineBuy: "#0071e3",
+  nineSell: "#ff9f0a",
+  contrast: "#ffffff",
+  upFill: "rgba(240, 68, 68, .68)",
+  downFill: "rgba(26, 156, 91, .68)",
+  upGuide: "rgba(240, 68, 68, .48)",
+  downGuide: "rgba(26, 156, 91, .48)",
+  hover: "rgba(29, 29, 31, .32)",
+  },
+  dark: {
+  grid: "rgba(235, 235, 245, .1)",
+  gridStrong: "rgba(235, 235, 245, .16)",
+  text: "#8e8e93",
+  textStrong: "#d1d1d6",
+  up: "#ff6961",
+  down: "#32d583",
+  neutral: "#98989d",
+  ma5: "#ffb340",
+  ma10: "#2997ff",
+  ma20: "#af85e8",
+  ema12: "#ff805c",
+  ema26: "#47c78a",
+  boll: "#8992ff",
+  bollMid: "#a9b0ff",
+  bollFill: "rgba(137, 146, 255, .07)",
+  vwap: "#e277b2",
+  nineBuy: "#2997ff",
+  nineSell: "#ffb340",
+  contrast: "#111113",
+  upFill: "rgba(255, 105, 97, .72)",
+  downFill: "rgba(50, 213, 131, .72)",
+  upGuide: "rgba(255, 105, 97, .55)",
+  downGuide: "rgba(50, 213, 131, .55)",
+  hover: "rgba(235, 235, 245, .38)",
+  },
 };
 
 export default function MarketChart({
+  appearance,
   candles,
   indicators,
   overlays,
   lowerIndicator,
   range,
+  events,
   onRangeChange,
   onHover,
 }: Props) {
+  const colors = chartPalettes[appearance];
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layoutRef = useRef<Layout | null>(null);
@@ -77,6 +119,11 @@ export default function MarketChart({
     () => candles.slice(Math.max(0, range.from), Math.min(candles.length, range.to + 1)),
     [candles, range],
   );
+  const eventsByDate = useMemo(() => {
+    const grouped = new Map<string, ChartEvent[]>();
+    events.forEach((event) => grouped.set(event.date, [...(grouped.get(event.date) ?? []), event]));
+    return grouped;
+  }, [events]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -175,7 +222,7 @@ export default function MarketChart({
         upperPoints.forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
         [...lowerPoints].reverse().forEach(([x, y]) => context.lineTo(x, y));
         context.closePath();
-        context.fillStyle = "rgba(129, 146, 255, .07)";
+        context.fillStyle = colors.bollFill;
         context.fill();
       }
     }
@@ -238,10 +285,28 @@ export default function MarketChart({
     }
     if (overlays.boll) {
       drawLine(indicators.bollUpper, colors.boll, 1, true);
-      drawLine(indicators.bollMid, "#a9b4ff", 1);
+      drawLine(indicators.bollMid, colors.bollMid, 1);
       drawLine(indicators.bollLower, colors.boll, 1, true);
     }
     if (overlays.vwap) drawLine(indicators.vwap, colors.vwap, 1.15, true);
+
+    const renderedEventDates = new Set<string>();
+    visible.forEach((candle, localIndex) => {
+      const dayEvents = eventsByDate.get(candle.date);
+      if (!dayEvents?.length || renderedEventDates.has(candle.date)) return;
+      renderedEventDates.add(candle.date);
+      const x = xFor(localIndex);
+      const primary = dayEvents[0];
+      const color = primary.kind === "report" ? colors.ma5 : primary.kind === "dividend" ? colors.ma20 : primary.tone === "up" ? colors.up : primary.tone === "down" ? colors.down : colors.ma10;
+      context.fillStyle = color;
+      context.beginPath();
+      context.arc(x, mainTop + 10, 7, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = colors.contrast;
+      context.textAlign = "center";
+      context.font = "800 8px ui-monospace, SFMono-Regular, Menlo, monospace";
+      context.fillText(dayEvents.length > 1 ? String(dayEvents.length) : primary.kind === "report" ? "F" : primary.kind === "dividend" ? "D" : "N", x, mainTop + 13);
+    });
 
     if (overlays.nineTurn) {
       context.textAlign = "center";
@@ -257,7 +322,7 @@ export default function MarketChart({
           context.beginPath();
           context.arc(x, y - 3, 7, 0, Math.PI * 2);
           context.fill();
-          context.fillStyle = "#071016";
+          context.fillStyle = colors.contrast;
         }
         context.fillText(String(mark.count), x, y);
       }
@@ -327,7 +392,7 @@ export default function MarketChart({
       const maxVolume = Math.max(...visible.map((candle) => candle.volume), 1);
       visible.forEach((candle, localIndex) => {
         const height = (candle.volume / maxVolume) * (lowerBottom - lowerTop);
-        context.fillStyle = candle.close >= candle.open ? "rgba(240,93,94,.72)" : "rgba(36,180,126,.72)";
+        context.fillStyle = candle.close >= candle.open ? colors.upFill : colors.downFill;
         context.fillRect(
           xFor(localIndex) - Math.max(1, candleWidth * 0.25),
           lowerBottom - height,
@@ -357,21 +422,21 @@ export default function MarketChart({
       for (let index = range.from; index <= range.to; index += 1) {
         const value = indicators.macdHist[index];
         const y = lowerTop + ((max - value) / (max - min)) * (lowerBottom - lowerTop);
-        context.fillStyle = value >= 0 ? "rgba(240,93,94,.78)" : "rgba(36,180,126,.78)";
+        context.fillStyle = value >= 0 ? colors.upFill : colors.downFill;
         context.fillRect(xFor(globalToLocal(index)) - 1.5, Math.min(y, zeroY), 3, Math.max(1, Math.abs(y - zeroY)));
       }
       drawLowerLine(indicators.macdDif, colors.ma5, min, max);
       drawLowerLine(indicators.macdDea, colors.ma10, min, max);
     } else if (lowerIndicator === "RSI") {
-      drawThresholds(context, left, plotWidth, lowerTop, lowerBottom, [30, 70], 0, 100);
+      drawThresholds(context, left, plotWidth, lowerTop, lowerBottom, [30, 70], 0, 100, colors.gridStrong);
       drawLowerLine(indicators.rsi, colors.ma10, 0, 100, 1.4);
-      drawLowerAxis(context, left + plotWidth + 8, lowerTop, lowerBottom, [100, 70, 30, 0]);
+      drawLowerAxis(context, left + plotWidth + 8, lowerTop, lowerBottom, [100, 70, 30, 0], colors.text);
     } else {
-      drawThresholds(context, left, plotWidth, lowerTop, lowerBottom, [20, 80], -20, 120);
+      drawThresholds(context, left, plotWidth, lowerTop, lowerBottom, [20, 80], -20, 120, colors.gridStrong);
       drawLowerLine(indicators.k, colors.ma5, -20, 120);
       drawLowerLine(indicators.d, colors.ma10, -20, 120);
       drawLowerLine(indicators.j, colors.ma20, -20, 120);
-      drawLowerAxis(context, left + plotWidth + 8, lowerTop, lowerBottom, [100, 80, 20, 0]);
+      drawLowerAxis(context, left + plotWidth + 8, lowerTop, lowerBottom, [100, 80, 20, 0], colors.text);
     }
 
     context.fillStyle = colors.text;
@@ -386,7 +451,7 @@ export default function MarketChart({
 
     const last = visible[visible.length - 1];
     const lastY = yForPrice(last.close);
-    context.strokeStyle = last.change >= 0 ? "rgba(240,93,94,.55)" : "rgba(36,180,126,.55)";
+    context.strokeStyle = last.change >= 0 ? colors.upGuide : colors.downGuide;
     context.setLineDash([3, 3]);
     context.beginPath();
     context.moveTo(left, lastY);
@@ -395,7 +460,7 @@ export default function MarketChart({
     context.setLineDash([]);
     context.fillStyle = last.change >= 0 ? colors.up : colors.down;
     context.fillRect(left + plotWidth + 4, lastY - 9, 62, 18);
-    context.fillStyle = "#071016";
+    context.fillStyle = colors.contrast;
     context.textAlign = "center";
     context.font = "700 10px ui-monospace, SFMono-Regular, Menlo, monospace";
     context.fillText(last.close.toFixed(3), left + plotWidth + 35, lastY + 3.5);
@@ -405,7 +470,7 @@ export default function MarketChart({
       const candle = candles[hover.index];
       const x = xFor(localIndex);
       const y = yForPrice(candle.close);
-      context.strokeStyle = "rgba(218,228,239,.45)";
+      context.strokeStyle = colors.hover;
       context.setLineDash([4, 4]);
       context.beginPath();
       context.moveTo(x, mainTop);
@@ -417,7 +482,7 @@ export default function MarketChart({
     }
 
     layoutRef.current = { left, plotWidth, candleWidth, from: range.from, to: range.to, mainTop, mainBottom, priceMin, priceMax };
-  }, [candles, hover, indicators, lowerIndicator, overlays, range, size, visible]);
+  }, [candles, colors, eventsByDate, hover, indicators, lowerIndicator, overlays, range, size, visible]);
 
   useEffect(() => {
     draw();
@@ -451,7 +516,7 @@ export default function MarketChart({
       <canvas
         ref={canvasRef}
         role="img"
-        aria-label={`K线图，共 ${candles.length} 根，当前显示第 ${range.from + 1} 到 ${range.to + 1} 根`}
+        aria-label={`K线图，共 ${candles.length} 根，当前显示第 ${range.from + 1} 到 ${range.to + 1} 根，叠加 ${events.length} 个新闻或财务事件`}
         tabIndex={0}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -515,6 +580,7 @@ export default function MarketChart({
           <span>{candles[hover.index].key}</span>
           <strong>{formatNumber(candles[hover.index].close, 3)}</strong>
           {indicators.guidePoints[hover.index] ? <em>{indicators.guidePoints[hover.index]?.type === "buy" ? "B" : "S"}{indicators.guidePoints[hover.index]?.score}</em> : null}
+          {eventsByDate.get(candles[hover.index].date)?.[0] ? <small className="chart-event-detail">{eventsByDate.get(candles[hover.index].date)?.[0].label}</small> : null}
         </div>
       ) : null}
       <div className="chart-hint">滚轮缩放 · 拖拽平移 · ← → 定位</div>
@@ -537,8 +603,9 @@ function drawThresholds(
   thresholds: number[],
   min: number,
   max: number,
+  color: string,
 ) {
-  context.strokeStyle = "rgba(126,143,163,.18)";
+  context.strokeStyle = color;
   context.setLineDash([3, 4]);
   for (const threshold of thresholds) {
     const y = top + ((max - threshold) / (max - min)) * (bottom - top);
@@ -556,8 +623,9 @@ function drawLowerAxis(
   top: number,
   bottom: number,
   values: number[],
+  color: string,
 ) {
-  context.fillStyle = colors.text;
+  context.fillStyle = color;
   context.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
   context.textAlign = "left";
   values.forEach((value, index) => {

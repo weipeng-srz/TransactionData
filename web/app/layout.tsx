@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./apple.css";
 
-const title = "TickLens · 行情、基本面与舆情工作台";
-const description = "输入股票名称或代码，同时获取90日行情、最近8个单季度财报诊断、估值与相关新闻。";
+const title = "TickLens · 市场研究工作台";
+const description = "以清晰、克制的工作区同时查看行情、技术研判、财报、估值与市场新闻。";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const image = `${protocol}://${host}/og-fundamentals.png`;
+  const image = `${protocol}://${host}/og-apple.png`;
   return {
     title,
     description,
     openGraph: {
       title,
       description,
-      images: [{ url: image, width: 1200, height: 630, alt: "TickLens 行情、基本面与舆情工作台" }],
+      images: [{ url: image, width: 1200, height: 630, alt: "TickLens 市场研究工作台" }],
     },
     twitter: {
       card: "summary_large_image",
@@ -29,7 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" data-appearance="light">
       <body>{children}</body>
     </html>
   );

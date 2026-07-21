@@ -129,21 +129,23 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
         </div>
       </header>
 
-      <div className="finance-filter-bar" aria-label="财报筛选">
-        <FilterGroup label="周期" value={range} options={[
-          ["8q", "最近8季度"], ["12q", "最近12季度"], ["5y", "近5年"], ["10y", "近10年"],
-        ]} onChange={(value) => setRange(value as RangeKey)} />
-        <FilterGroup label="口径" value={effectiveMode} options={[
-          ["single", "单季度"], ["cumulative", "累计"], ["ttm", "TTM"],
-        ]} onChange={(value) => setMode(value as FinancialViewMode)} disabled={range.endsWith("y")} />
-        <FilterGroup label="利润" value={profitKey} options={[
-          ["parentNetProfit", "归母净利"], ["deductNetProfit", "扣非净利"],
-        ]} onChange={(value) => setProfitKey(value as ProfitKey)} />
-        <FilterGroup label="显示" value={displayMode} options={[
-          ["absolute", "绝对值"], ["yoy", "同比"], ["qoq", "环比"], ["ratio", "占营收"],
-        ]} onChange={(value) => setDisplayMode(value as DisplayMode)} />
-        <div className="finance-static-filters"><span>合并报表</span><span>正式财报</span></div>
-      </div>
+      {hasAnalysis ? (
+        <div className="finance-filter-bar" aria-label="财报筛选">
+          <FilterGroup label="周期" value={range} options={[
+            ["8q", "最近8季度"], ["12q", "最近12季度"], ["5y", "近5年"], ["10y", "近10年"],
+          ]} onChange={(value) => setRange(value as RangeKey)} />
+          <FilterGroup label="口径" value={effectiveMode} options={[
+            ["single", "单季度"], ["cumulative", "累计"], ["ttm", "TTM"],
+          ]} onChange={(value) => setMode(value as FinancialViewMode)} disabled={range.endsWith("y")} />
+          <FilterGroup label="利润" value={profitKey} options={[
+            ["parentNetProfit", "归母净利"], ["deductNetProfit", "扣非净利"],
+          ]} onChange={(value) => setProfitKey(value as ProfitKey)} />
+          <FilterGroup label="显示" value={displayMode} options={[
+            ["absolute", "绝对值"], ["yoy", "同比"], ["qoq", "环比"], ["ratio", "占营收"],
+          ]} onChange={(value) => setDisplayMode(value as DisplayMode)} />
+          <div className="finance-static-filters"><span>合并报表</span><span>正式财报</span></div>
+        </div>
+      ) : null}
 
       {!hasAnalysis ? (
         <div className={`finance-dashboard-empty ${load.phase === "loading" ? "is-loading" : ""}`}>
@@ -246,7 +248,7 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
 }
 
 function FilterGroup({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: string[][]; onChange: (value: string) => void; disabled?: boolean }) {
-  return <div className={`finance-filter-group ${disabled ? "is-disabled" : ""}`}><span>{label}</span><div>{options.map(([key, text]) => <button key={key} type="button" className={value === key ? "active" : ""} disabled={disabled} onClick={() => onChange(key)}>{text}</button>)}</div></div>;
+  return <div className={`finance-filter-group ${disabled ? "is-disabled" : ""}`}><span>{label}</span><div>{options.map(([key, text]) => <button key={key} type="button" className={value === key ? "active" : ""} aria-pressed={value === key} disabled={disabled} onClick={() => onChange(key)}>{text}</button>)}</div></div>;
 }
 
 function FinanceKpi({ label, value, format, yoy, qoq, trend, note, deltaUnit = "%" }: { label: string; value: number | null; format: "amount" | "percent" | "ratio"; yoy: number | null; qoq: number | null; trend: Array<number | null>; note?: string; deltaUnit?: string }) {
