@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import MarketChart from "./components/MarketChart";
 import FinancialDashboard from "./components/FinancialDashboard";
 import ResearchDock from "./components/ResearchDock";
@@ -37,11 +38,8 @@ import {
   buildChartEvents,
   buildResearchReport,
   calculateRiskMetrics,
-  evaluatePriceAlerts,
-  parsePriceAlerts,
   parseWatchlist,
   type ChartAnnotation,
-  type PriceAlert,
   type SavedWorkspace,
   type WatchlistItem,
 } from "./lib/research";
@@ -79,7 +77,6 @@ type Appearance = "light" | "dark";
 const stockCodePattern = /^(?:(?:sh|sz)\d{6}|\d{6}(?:\.(?:sh|sz))?)$/i;
 const recentStocksStorageKey = "ticklens.recent-stocks.v1";
 const watchlistStorageKey = "ticklens.watchlist.v1";
-const alertsStorageKey = "ticklens.price-alerts.v1";
 const workspaceStorageKey = "ticklens.saved-workspace.v1";
 const appearanceStorageKey = "ticklens.appearance.v1";
 const annotationsStorageKey = "ticklens.annotations.v1";
@@ -188,7 +185,6 @@ export default function Home() {
   const [lastAttemptedQuery, setLastAttemptedQuery] = useState("");
   const [analysisExpanded, setAnalysisExpanded] = useState(false);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [hasSavedView, setHasSavedView] = useState(false);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
   const [freshness, setFreshness] = useState({ market: "", financial: "", news: "" });
@@ -208,7 +204,6 @@ export default function Home() {
   useEffect(() => {
     let storedStocks: RecentStock[] = [];
     let storedWatchlist: WatchlistItem[] = [];
-    let storedAlerts: PriceAlert[] = [];
     let storedAnnotations: ChartAnnotation[] = [];
     let storedWorkspace: SavedWorkspace | null = null;
     let storedViewMode: "basic" | "pro" = "pro";
@@ -223,11 +218,6 @@ export default function Home() {
       localStorage.removeItem(watchlistStorageKey);
     }
     try {
-      storedAlerts = parsePriceAlerts(JSON.parse(localStorage.getItem(alertsStorageKey) ?? "[]"));
-    } catch {
-      localStorage.removeItem(alertsStorageKey);
-    }
-    try {
       storedWorkspace = JSON.parse(localStorage.getItem(workspaceStorageKey) ?? "null") as SavedWorkspace | null;
     } catch { localStorage.removeItem(workspaceStorageKey); }
     try {
@@ -237,7 +227,6 @@ export default function Home() {
     const frame = window.requestAnimationFrame(() => {
       setRecentStocks(storedStocks);
       setWatchlist(storedWatchlist);
-      setAlerts(storedAlerts);
       setSavedWorkspace(storedWorkspace);
       setHasSavedView(Boolean(storedWorkspace));
       setAnnotations(storedAnnotations);
@@ -286,17 +275,13 @@ export default function Home() {
     const controller = new AbortController();
     const loadCloudState = async () => {
       try {
-        const [stateResponse, alertsResponse] = await Promise.all([
-          fetch("/api/research-state", { signal: controller.signal, cache: "no-store" }),
-          fetch("/api/alerts", { signal: controller.signal, cache: "no-store" }),
-        ]);
-        if (stateResponse.status === 401 || alertsResponse.status === 401) {
+        const stateResponse = await fetch("/api/research-state", { signal: controller.signal, cache: "no-store" });
+        if (stateResponse.status === 401) {
           setCloudStatus("local");
           return;
         }
-        if (!stateResponse.ok || !alertsResponse.ok) throw new Error("云端研究状态暂不可用");
+        if (!stateResponse.ok) throw new Error("云端研究状态暂不可用");
         const stateBody = await stateResponse.json() as { state?: unknown };
-        const alertBody = await alertsResponse.json() as { alerts?: unknown };
         const state = stateBody.state && typeof stateBody.state === "object" ? stateBody.state as Record<string, unknown> : null;
         if (state) {
           const cloudWatchlist = parseWatchlist(state.watchlist);
@@ -310,8 +295,6 @@ export default function Home() {
             if (workspace.version === 1) { setSavedWorkspace(workspace); setHasSavedView(true); }
           }
         }
-        const cloudAlerts = parsePriceAlerts(alertBody.alerts);
-        if (cloudAlerts.length || Array.isArray(alertBody.alerts)) setAlerts(cloudAlerts);
         cloudLoadedRef.current = true;
         setCloudStatus("synced");
       } catch (reason) {
@@ -477,22 +460,6 @@ export default function Home() {
     });
   }, []);
 
-  const checkPriceAlerts = useCallback((code: string, price: number) => {
-    const checkedAt = new Date().toISOString();
-    const next = evaluatePriceAlerts(alerts, code, price, checkedAt);
-    const newlyTriggered = next.filter((item, index) => item.triggeredAt && !alerts[index]?.triggeredAt);
-    if (!newlyTriggered.length) return;
-    try {
-      localStorage.setItem(alertsStorageKey, JSON.stringify(next));
-    } catch {
-      // In-page alerts still work when storage is unavailable.
-    }
-    setAlerts(next);
-    const message = newlyTriggered.map((item) => `${item.name} ${item.direction === "above" ? "突破" : "跌破"} ${item.target.toFixed(3)}`).join("；");
-    setWorkspaceNotice(`${message}，价格预警已触发。`);
-    if ("Notification" in window && Notification.permission === "granted") new Notification("TickLens 价格提醒", { body: message });
-  }, [alerts]);
-
   const fetchStockData = useCallback(async (queryValue = queryText) => {
     const query = queryValue.trim();
     if (!query) {
@@ -605,7 +572,6 @@ export default function Home() {
           rememberRecentStock(resultCode, resultName);
           if (resultLatest) {
             updateWatchedSnapshot(resultCode, { name: resultName || resultCode, price: resultLatest.close, changePct: resultLatest.changePct, momentum20, annualizedVolatility: resultRisk.annualizedVolatility, maxDrawdown: resultRisk.maxDrawdown });
-            checkPriceAlerts(resultCode, resultLatest.close);
           }
           setMarketLoad({
             phase: "success",
@@ -702,7 +668,7 @@ export default function Home() {
         setPendingQuery("");
       }
     }
-  }, [applyDataset, applyNewsDataset, checkPriceAlerts, queryText, rememberRecentStock, selectedCode, selectedName, updateWatchedSnapshot]);
+  }, [applyDataset, applyNewsDataset, queryText, rememberRecentStock, selectedCode, selectedName, updateWatchedSnapshot]);
 
   const resetDemo = () => {
     requestControllerRef.current?.abort();
@@ -781,20 +747,6 @@ export default function Home() {
     }
   }, []);
 
-  const persistAlerts = useCallback((next: PriceAlert[]) => {
-    setAlerts(next);
-    try {
-      localStorage.setItem(alertsStorageKey, JSON.stringify(next));
-    } catch {
-      setWorkspaceNotice("浏览器未允许保存价格预警，本次修改只在当前页面有效。");
-    }
-    if (cloudLoadedRef.current) {
-      void fetch("/api/alerts", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alerts: next }) })
-        .then((response) => { if (!response.ok) throw new Error("sync"); setCloudStatus("synced"); })
-        .catch(() => setCloudStatus("error"));
-    }
-  }, []);
-
   useEffect(() => {
     if (sharedStateAppliedRef.current) return;
     sharedStateAppliedRef.current = true;
@@ -839,11 +791,11 @@ export default function Home() {
     const existing = watchlist.some((item) => item.code === selectedCode);
     if (existing) {
       persistWatchlist(watchlist.filter((item) => item.code !== selectedCode));
-      setWorkspaceNotice(`已将 ${selectedName || selectedCode} 从自选股移除。`);
+      setWorkspaceNotice(`已将 ${selectedName || selectedCode} 从行情监控移除。`);
       return;
     }
     if (watchlist.length >= 20) {
-      setWorkspaceNotice("自选股最多保留 20 只，请先移除一只。");
+      setWorkspaceNotice("行情监控最多保留 20 只股票，请先移除一只。");
       return;
     }
     const snapshot = financialDataset.code === selectedCode ? financialDataset.snapshot : null;
@@ -861,21 +813,7 @@ export default function Home() {
       maxDrawdown: riskMetrics.maxDrawdown,
       updatedAt: new Date().toISOString(),
     }]);
-    setWorkspaceNotice(`已将 ${selectedName || selectedCode} 加入自选股。`);
-  };
-
-  const addAlert = (direction: "above" | "below", target: number) => {
-    const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${selectedCode}-${Date.now()}`;
-    persistAlerts([{
-      id,
-      code: selectedCode,
-      name: selectedName || selectedCode,
-      direction,
-      target,
-      createdAt: new Date().toISOString(),
-      triggeredAt: "",
-    }, ...alerts].slice(0, 30));
-    setWorkspaceNotice(`已添加 ${selectedName || selectedCode} ${direction === "above" ? "突破" : "跌破"} ${target.toFixed(3)} 的价格预警。`);
+    setWorkspaceNotice(`已将 ${selectedName || selectedCode} 加入行情监控。`);
   };
 
   const copyWorkspaceLink = async () => {
@@ -952,15 +890,6 @@ export default function Home() {
     try { localStorage.setItem(annotationsStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
   };
 
-  const enableNotifications = async () => {
-    if (!("Notification" in window)) { setWorkspaceNotice("当前浏览器不支持系统通知，将继续使用站内提醒。"); return; }
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      new Notification("TickLens 提醒已开启", { body: "页面打开时，已触发的价格提醒会通过浏览器通知展示。" });
-      setWorkspaceNotice("浏览器通知已开启；云端检查结果会在页面打开时同步。");
-    } else setWorkspaceNotice("未获得通知权限，价格提醒仍会保留在站内。");
-  };
-
   const exportResearchReport = () => {
     const report = buildResearchReport({
       code: selectedCode,
@@ -988,7 +917,8 @@ export default function Home() {
     { id: "search", label: "查询股票", description: "聚焦股票名称或代码输入框", shortcut: "/", run: () => document.getElementById("stock-query")?.focus() },
     { id: "mode", label: viewMode === "pro" ? "切换基础模式" : "切换专业模式", description: "调整页面信息密度与研究深度", shortcut: "M", run: toggleViewMode },
     { id: "refresh", label: "刷新当前股票", description: selectedName || selectedCode, shortcut: "R", run: () => { if (!isDemo) void fetchStockData(selectedCode); } },
-    { id: "watch", label: watchlist.some((item) => item.code === selectedCode) ? "移出自选股" : "加入自选股", description: "维护自选比较矩阵", shortcut: "W", run: toggleWatch },
+    { id: "watch", label: watchlist.some((item) => item.code === selectedCode) ? "移出行情监控" : "加入行情监控", description: "维护当前股票的监控状态", shortcut: "W", run: toggleWatch },
+    { id: "alerts", label: "打开行情监控", description: "管理跨股票价格预警", run: () => { window.location.href = "/alerts"; } },
     { id: "save", label: "保存当前研究视图", description: "保存周期、指标、范围和股票", shortcut: "S", run: saveWorkspace },
     { id: "theme", label: appearance === "light" ? "切换深色外观" : "切换浅色外观", description: "跟随不同阅读环境", shortcut: "T", run: toggleAppearance },
     { id: "market", label: "前往行情图表", description: "价格、成交量和技术指标", run: () => scrollToSection("stock-market") },
@@ -1040,6 +970,7 @@ export default function Home() {
           <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
           <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻</span><small>News</small></a>
+          <Link className="monitor-nav-link" href="/alerts"><span>行情监控</span><small>Alerts ↗</small></Link>
         </nav>
 
         <section className={`recent-query-strip sidebar-recents ${recentStocks.length ? "" : "is-empty"}`} aria-label="最近查询的股票">
@@ -1079,6 +1010,7 @@ export default function Home() {
         </div>
         <div className="topbar-actions">
           <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>
+          <Link className="topbar-monitor-link" href="/alerts">行情监控</Link>
           <button className="command-trigger" type="button" onClick={() => setCommandOpen(true)}><span>⌘K</span> 命令中心</button>
           <button className="view-mode-toggle" type="button" onClick={toggleViewMode}>{viewMode === "pro" ? "专业模式" : "基础模式"}</button>
           <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
@@ -1495,23 +1427,16 @@ export default function Home() {
         key={selectedCode}
         code={selectedCode}
         name={selectedName}
-        price={latest?.close ?? null}
         isDemo={isDemo}
         busy={busy}
         isWatched={watchlist.some((item) => item.code === selectedCode)}
         hasSavedView={hasSavedView}
-        watchlist={watchlist}
-        alerts={alerts}
         freshness={freshness}
         dataProfile={{ level: dataset.dataLevel, priceBasis: dataset.priceBasis ?? "", amountBasis: dataset.amountBasis, timePrecision: dataset.timePrecision, qualityWarnings: dataset.quality.warnings.length }}
         notice={workspaceNotice}
         cloudStatus={cloudStatus}
         annotations={annotations}
         onToggleWatch={toggleWatch}
-        onSelectWatch={(code) => void fetchStockData(code)}
-        onRemoveWatch={(code) => persistWatchlist(watchlist.filter((item) => item.code !== code))}
-        onAddAlert={addAlert}
-        onRemoveAlert={(id) => persistAlerts(alerts.filter((item) => item.id !== id))}
         onRefresh={() => void fetchStockData(selectedCode)}
         onCopyLink={() => void copyWorkspaceLink()}
         onSaveView={saveWorkspace}
@@ -1520,7 +1445,6 @@ export default function Home() {
         onPrint={() => window.print()}
         onAddAnnotation={addAnnotation}
         onRemoveAnnotation={removeAnnotation}
-        onEnableNotifications={() => void enableNotifications()}
       />
 
       <div className="advanced-only">

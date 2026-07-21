@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${pathname}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -48,14 +48,26 @@ test("server-renders the TickLens market workbench", async () => {
   assert.match(html, /输入股票查看近三期财报/);
   assert.match(html, /财报对比/);
   assert.match(html, /输入股票查看最近 8 个单季度/);
-  assert.match(html, /研究工具与自选对比/);
+  assert.match(html, /研究记录与数据口径/);
   assert.match(html, /B\/S 信号回测/);
-  assert.match(html, /价格预警/);
-  assert.match(html, /复制分享链接/);
+  assert.match(html, /行情监控/);
+  assert.doesNotMatch(html, /预警队列/);
+  assert.match(html, /分享当前研究/);
   assert.match(html, /导出报告/);
   assert.doesNotMatch(html, /aria-label="财报筛选"/);
   assert.match(html, /获取行情 \+ 基本面 \+ 新闻/);
   assert.doesNotMatch(html, /type="file"/i);
   assert.doesNotMatch(html, /导入(?:行情|新闻)/);
   assert.doesNotMatch(html, /\[object Object\]/);
+});
+
+test("server-renders the dedicated desktop market monitor", async () => {
+  const response = await render("/alerts");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /跨股票预警集中管理/);
+  assert.match(html, /创建价格预警/);
+  assert.match(html, /预警队列/);
+  assert.match(html, /返回当前股票研究/);
+  assert.doesNotMatch(html, /K线研判/);
 });
