@@ -4,7 +4,7 @@ import "./globals.css";
 import "./apple.css";
 
 const title = "TickLens · 市场研究工作台";
-const description = "以清晰、克制的工作区同时查看行情、技术研判、财报、估值与市场新闻。";
+const description = "以清晰、克制的工作区同时查看行情、风险、因子、回测、财报、估值与市场新闻。";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -14,6 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    icons: { icon: "/favicon.svg" },
     openGraph: {
       title,
       description,
