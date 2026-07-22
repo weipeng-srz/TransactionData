@@ -1,3 +1,5 @@
+import { parseUSMarketResponse, US_INDEXES, US_QUOTE_SYMBOLS, type USIndexSessionQuote } from "./usMarketIndexes.ts";
+
 const quoteEndpoint = "https://hq.sinajs.cn/list=";
 const maxResponseBytes = 512 * 1024;
 
@@ -28,15 +30,13 @@ export type GlobalIndexQuote = Omit<GlobalIndexDefinition, "session" | "map"> & 
 
 export type GlobalIndexFeed = {
   quotes: GlobalIndexQuote[];
+  usQuotes: USIndexSessionQuote[];
   source: string;
   fetchedAt: string;
 };
 
 export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
   { id: "tsx", symbol: "b_GSPTSE", code: "GSPTSE", name: "加拿大 S&P/TSX", city: "多伦多", country: "加拿大", region: "美洲", timezone: "America/Toronto", session: { open: "09:30", close: "16:00" }, map: { x: 19, y: 27, anchor: "top" } },
-  { id: "dow", symbol: "int_dji", code: "DJI", name: "道琼斯工业指数", city: "纽约", country: "美国", region: "美洲", timezone: "America/New_York", session: { open: "09:30", close: "16:00" }, map: { x: 24, y: 39, anchor: "bottom" } },
-  { id: "nasdaq", symbol: "int_nasdaq", code: "IXIC", name: "纳斯达克综合指数", city: "纽约", country: "美国", region: "美洲", timezone: "America/New_York", session: { open: "09:30", close: "16:00" } },
-  { id: "sp500", symbol: "int_sp500", code: "SPX", name: "标普 500", city: "纽约", country: "美国", region: "美洲", timezone: "America/New_York", session: { open: "09:30", close: "16:00" } },
   { id: "bovespa", symbol: "b_IBOV", code: "IBOV", name: "巴西 BOVESPA", city: "圣保罗", country: "巴西", region: "美洲", timezone: "America/Sao_Paulo", session: { open: "10:00", close: "17:55" }, map: { x: 35, y: 72, anchor: "right" } },
   { id: "ftse", symbol: "b_FTSE", code: "FTSE", name: "英国富时 100", city: "伦敦", country: "英国", region: "欧洲", timezone: "Europe/London", session: { open: "08:00", close: "16:30" }, map: { x: 46, y: 29, anchor: "left" } },
   { id: "dax", symbol: "b_DAX", code: "GDAXI", name: "德国 DAX", city: "法兰克福", country: "德国", region: "欧洲", timezone: "Europe/Berlin", session: { open: "09:00", close: "17:30" }, map: { x: 52, y: 29, anchor: "top" } },
@@ -59,11 +59,13 @@ export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
 ];
 
 export async function fetchGlobalIndexFeed(now = new Date()): Promise<GlobalIndexFeed> {
-  const symbols = GLOBAL_INDEXES.map((item) => item.symbol).join(",");
+  const symbols = [...GLOBAL_INDEXES.map((item) => item.symbol), ...US_QUOTE_SYMBOLS].join(",");
   const body = await fetchQuoteText(`${quoteEndpoint}${symbols}`);
   const quotes = parseGlobalIndexResponse(body, now);
+  const usQuotes = parseUSMarketResponse(body, now);
   if (quotes.length < Math.ceil(GLOBAL_INDEXES.length / 2)) throw new Error("全球行情服务暂未返回足够的有效指数");
-  return { quotes, source: "新浪财经全球指数 HTTPS 行情", fetchedAt: now.toISOString() };
+  if (usQuotes.length < Math.ceil(US_INDEXES.length / 2)) throw new Error("美股现货与延长时段行情暂不可用");
+  return { quotes, usQuotes, source: "新浪财经全球指数、ETF 延长时段与指数期货 HTTPS 行情", fetchedAt: now.toISOString() };
 }
 
 export function parseGlobalIndexResponse(body: string, now = new Date()): GlobalIndexQuote[] {
