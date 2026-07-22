@@ -15,6 +15,13 @@
       "when": 1784603081979,
       "tag": "0001_steep_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784692806036,
+      "tag": "0002_blushing_gwen_stacy",
+      "breakpoints": true
     }
   ]
 }

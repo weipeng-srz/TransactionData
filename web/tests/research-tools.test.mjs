@@ -5,9 +5,6 @@ import {
   backtestGuideSignals,
   buildChartEvents,
   calculateRiskMetrics,
-  evaluatePriceAlerts,
-  parsePriceAlerts,
-  parseWatchlist,
 } from "../app/lib/research.ts";
 
 const candles = Array.from({ length: 30 }, (_, index) => ({
@@ -78,14 +75,4 @@ test("builds news, report and dividend events for the selected stock", () => {
     analysis: { periods: [], latestReportDate: "", sourceScope: "" }, source: "测试", fetchedAt: "",
   }, "000001");
   assert.deepEqual(events.map((event) => event.kind), ["report", "dividend", "news"]);
-});
-
-test("validates persisted watchlist and price alerts before use", () => {
-  const watchlist = parseWatchlist([{ code: "000001", name: "平安银行", price: "12.3" }, { code: "bad", name: "坏数据" }]);
-  assert.equal(watchlist.length, 1);
-  assert.equal(watchlist[0].price, 12.3);
-
-  const alerts = parsePriceAlerts([{ id: "a", code: "000001", name: "平安银行", direction: "above", target: 12, createdAt: "", triggeredAt: "" }]);
-  const checked = evaluatePriceAlerts(alerts, "000001", 12.5, "2026-07-20T12:00:00.000Z");
-  assert.equal(checked[0].triggeredAt, "2026-07-20T12:00:00.000Z");
 });

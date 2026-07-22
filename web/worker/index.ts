@@ -1,7 +1,6 @@
 /** Cloudflare Worker entry point for TickLens. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { checkPriceAlertsInBackground } from "../app/lib/serverAlerts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -42,10 +41,6 @@ const worker = {
     }
 
     return handler.fetch(request, env, ctx);
-  },
-
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(checkPriceAlertsInBackground(env.DB).then(() => undefined));
   },
 };
 

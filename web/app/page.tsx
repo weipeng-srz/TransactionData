@@ -39,10 +39,8 @@ import {
   buildChartEvents,
   buildResearchReport,
   calculateRiskMetrics,
-  parseWatchlist,
   type ChartAnnotation,
   type SavedWorkspace,
-  type WatchlistItem,
 } from "./lib/research";
 import { buildEventStudies, buildFactorProfile } from "./lib/advancedResearch";
 import { readCachedText, writeCachedText } from "./lib/browserCache";
@@ -78,7 +76,6 @@ type Appearance = "light" | "dark";
 
 const stockCodePattern = /^(?:(?:sh|sz)\d{6}|\d{6}(?:\.(?:sh|sz))?)$/i;
 const recentStocksStorageKey = "ticklens.recent-stocks.v1";
-const watchlistStorageKey = "ticklens.watchlist.v1";
 const workspaceStorageKey = "ticklens.saved-workspace.v1";
 const appearanceStorageKey = "ticklens.appearance.v1";
 const annotationsStorageKey = "ticklens.annotations.v1";
@@ -188,7 +185,6 @@ export default function Home() {
   const [pendingQuery, setPendingQuery] = useState("");
   const [lastAttemptedQuery, setLastAttemptedQuery] = useState("");
   const [analysisExpanded, setAnalysisExpanded] = useState(false);
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [hasSavedView, setHasSavedView] = useState(false);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
   const [freshness, setFreshness] = useState({ market: "", financial: "", news: "" });
@@ -208,7 +204,6 @@ export default function Home() {
 
   useEffect(() => {
     let storedStocks: RecentStock[] = [];
-    let storedWatchlist: WatchlistItem[] = [];
     let storedAnnotations: ChartAnnotation[] = [];
     let storedWorkspace: SavedWorkspace | null = null;
     let storedViewMode: "basic" | "pro" = "pro";
@@ -216,11 +211,6 @@ export default function Home() {
       storedStocks = parseRecentStocks(JSON.parse(localStorage.getItem(recentStocksStorageKey) ?? "[]"));
     } catch {
       localStorage.removeItem(recentStocksStorageKey);
-    }
-    try {
-      storedWatchlist = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
-    } catch {
-      localStorage.removeItem(watchlistStorageKey);
     }
     try {
       storedWorkspace = JSON.parse(localStorage.getItem(workspaceStorageKey) ?? "null") as SavedWorkspace | null;
@@ -231,7 +221,6 @@ export default function Home() {
     storedViewMode = localStorage.getItem(viewModeStorageKey) === "basic" ? "basic" : "pro";
     const frame = window.requestAnimationFrame(() => {
       setRecentStocks(storedStocks);
-      setWatchlist(storedWatchlist);
       setSavedWorkspace(storedWorkspace);
       setHasSavedView(Boolean(storedWorkspace));
       setAnnotations(storedAnnotations);
@@ -328,9 +317,7 @@ export default function Home() {
         const stateBody = await stateResponse.json() as { state?: unknown };
         const state = stateBody.state && typeof stateBody.state === "object" ? stateBody.state as Record<string, unknown> : null;
         if (state) {
-          const cloudWatchlist = parseWatchlist(state.watchlist);
           const cloudAnnotations = parseAnnotations(state.annotations);
-          if (cloudWatchlist.length) setWatchlist(cloudWatchlist);
           if (cloudAnnotations.length) setAnnotations(cloudAnnotations);
           if (state.viewMode === "basic" || state.viewMode === "pro") setViewMode(state.viewMode);
           if (typeof state.benchmarkCode === "string" && /^\d{6}$/.test(state.benchmarkCode)) setBenchmarkCode(state.benchmarkCode);
@@ -356,13 +343,13 @@ export default function Home() {
         const response = await fetch("/api/research-state", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: { version: 2, watchlist, workspace: savedWorkspace, annotations, viewMode, benchmarkCode } }),
+          body: JSON.stringify({ state: { version: 2, workspace: savedWorkspace, annotations, viewMode, benchmarkCode } }),
         });
         if (!response.ok) throw new Error("同步失败");
       } catch { setCloudStatus("error"); }
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [annotations, benchmarkCode, cloudStatus, savedWorkspace, storageHydrated, viewMode, watchlist]);
+  }, [annotations, benchmarkCode, cloudStatus, savedWorkspace, storageHydrated, viewMode]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -488,24 +475,6 @@ export default function Home() {
     setNewsFilter("全部");
   }, []);
 
-  const updateWatchedSnapshot = useCallback((code: string, values: Partial<Omit<WatchlistItem, "code">>) => {
-    setWatchlist((current) => {
-      const index = current.findIndex((item) => item.code === code);
-      if (index < 0) return current;
-      const merged = { ...current[index], ...values, updatedAt: new Date().toISOString() };
-      const comparableCurrent = { ...current[index], updatedAt: "" };
-      const comparableMerged = { ...merged, updatedAt: "" };
-      if (JSON.stringify(comparableCurrent) === JSON.stringify(comparableMerged)) return current;
-      const next = current.map((item, itemIndex) => itemIndex === index ? merged : item);
-      try {
-        localStorage.setItem(watchlistStorageKey, JSON.stringify(next));
-      } catch {
-        // Keep the in-memory comparison usable when storage is unavailable.
-      }
-      return next;
-    });
-  }, []);
-
   const fetchStockData = useCallback(async (queryValue = queryText) => {
     const query = queryValue.trim();
     if (!query) {
@@ -613,14 +582,8 @@ export default function Home() {
           const resultCode = parsed.codes[0] ?? normalizedCode;
           const resultName = parsed.stockNames[resultCode] ?? resolved.name;
           const resultCandles = aggregateCandles(parsed.rows, resultCode, "1d");
-          const resultLatest = resultCandles.at(-1);
-          const resultRisk = calculateRiskMetrics(resultCandles);
-          const momentum20 = resultCandles.length > 20 ? ((resultCandles.at(-1)!.close / resultCandles[resultCandles.length - 21].close) - 1) * 100 : null;
           applyDataset(parsed, `${resultName ? `${resultName} · ` : ""}${resultCode} · 最多5年前复权日K`);
           rememberRecentStock(resultCode, resultName);
-          if (resultLatest) {
-            updateWatchedSnapshot(resultCode, { name: resultName || resultCode, price: resultLatest.close, changePct: resultLatest.changePct, momentum20, annualizedVolatility: resultRisk.annualizedVolatility, maxDrawdown: resultRisk.maxDrawdown });
-          }
           setMarketLoad({
             phase: "success",
             detail: `${resultCandles.length.toLocaleString("zh-CN")} 个交易日日K已加载，图表与风险指标已更新`,
@@ -644,7 +607,6 @@ export default function Home() {
           const resultName = parsed.stockNames[resultCode] ?? resolved.name;
           applyNewsDataset(parsed, `${resultName ? `${resultName} · ` : ""}${resultCode} · 新闻`);
           rememberRecentStock(resultCode, resultName);
-          updateWatchedSnapshot(resultCode, { name: resultName || resultCode, sentiment: parsed.summary.tone });
           setNewsLoad({
             phase: "success",
             detail: `${parsed.items.length.toLocaleString("zh-CN")} 条新闻已加载，舆情已更新`,
@@ -674,12 +636,6 @@ export default function Home() {
           const resultName = parsed.name || resolved.name;
           setFinancialSourceLabel(`${resultName ? `${resultName} · ` : ""}${parsed.code} · 基本面`);
           rememberRecentStock(parsed.code, resultName);
-          updateWatchedSnapshot(parsed.code, {
-            name: resultName || parsed.code,
-            peTtm: parsed.snapshot.peTtm,
-            pb: parsed.snapshot.pb,
-            dividendYieldTtm: parsed.snapshot.dividendYieldTtm,
-          });
           setFinancialLoad({
             phase: "success",
             detail: `估值、股息与 ${parsed.analysis?.periods?.length || parsed.reports.length} 个报告期已加载`,
@@ -716,7 +672,7 @@ export default function Home() {
         setPendingQuery("");
       }
     }
-  }, [applyDataset, applyNewsDataset, queryText, rememberRecentStock, selectedCode, selectedName, updateWatchedSnapshot]);
+  }, [applyDataset, applyNewsDataset, queryText, rememberRecentStock, selectedCode, selectedName]);
 
   const resetDemo = () => {
     requestControllerRef.current?.abort();
@@ -788,15 +744,6 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  const persistWatchlist = useCallback((next: WatchlistItem[]) => {
-    setWatchlist(next);
-    try {
-      localStorage.setItem(watchlistStorageKey, JSON.stringify(next));
-    } catch {
-      setWorkspaceNotice("浏览器未允许保存自选股，本次修改只在当前页面有效。");
-    }
-  }, []);
-
   useEffect(() => {
     if (sharedStateAppliedRef.current) return;
     sharedStateAppliedRef.current = true;
@@ -836,35 +783,6 @@ export default function Home() {
     range,
     savedAt: new Date().toISOString(),
   });
-
-  const toggleWatch = () => {
-    const existing = watchlist.some((item) => item.code === selectedCode);
-    if (existing) {
-      persistWatchlist(watchlist.filter((item) => item.code !== selectedCode));
-      setWorkspaceNotice(`已将 ${selectedName || selectedCode} 从行情监控移除。`);
-      return;
-    }
-    if (watchlist.length >= 20) {
-      setWorkspaceNotice("行情监控最多保留 20 只股票，请先移除一只。");
-      return;
-    }
-    const snapshot = financialDataset.code === selectedCode ? financialDataset.snapshot : null;
-    persistWatchlist([...watchlist, {
-      code: selectedCode,
-      name: selectedName || selectedCode,
-      price: latest?.close ?? null,
-      changePct: latest?.changePct ?? null,
-      peTtm: snapshot?.peTtm ?? null,
-      pb: snapshot?.pb ?? null,
-      dividendYieldTtm: snapshot?.dividendYieldTtm ?? null,
-      sentiment: newsDataset.items.length ? newsDataset.summary.tone : null,
-      momentum20: candles.length > 20 ? ((candles.at(-1)!.close / candles[candles.length - 21].close) - 1) * 100 : null,
-      annualizedVolatility: riskMetrics.annualizedVolatility,
-      maxDrawdown: riskMetrics.maxDrawdown,
-      updatedAt: new Date().toISOString(),
-    }]);
-    setWorkspaceNotice(`已将 ${selectedName || selectedCode} 加入行情监控。`);
-  };
 
   const copyWorkspaceLink = async () => {
     const workspace = currentWorkspace();
@@ -967,8 +885,6 @@ export default function Home() {
     { id: "search", label: "查询股票", description: "聚焦股票名称或代码输入框", shortcut: "/", run: () => document.getElementById("stock-query")?.focus() },
     { id: "mode", label: viewMode === "pro" ? "切换基础模式" : "切换专业模式", description: "调整页面信息密度与研究深度", shortcut: "M", run: toggleViewMode },
     { id: "refresh", label: "刷新当前股票", description: selectedName || selectedCode, shortcut: "R", run: () => { if (!isDemo) void fetchStockData(selectedCode); } },
-    { id: "watch", label: watchlist.some((item) => item.code === selectedCode) ? "移出行情监控" : "加入行情监控", description: "维护当前股票的监控状态", shortcut: "W", run: toggleWatch },
-    { id: "alerts", label: "打开行情监控", description: "管理跨股票价格预警", run: () => { window.location.href = "/alerts"; } },
     { id: "save", label: "保存当前研究视图", description: "保存周期、指标、范围和股票", shortcut: "S", run: saveWorkspace },
     { id: "theme", label: appearance === "light" ? "切换深色外观" : "切换浅色外观", description: "跟随不同阅读环境", shortcut: "T", run: toggleAppearance },
     { id: "market", label: "前往行情图表", description: "价格、成交量和技术指标", run: () => scrollToSection("stock-market") },
@@ -1022,7 +938,6 @@ export default function Home() {
           <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻</span><small>News</small></a>
           <Link className="global-markets-nav-link" href="/global-markets"><span>全球股指</span><small>Global ↗</small></Link>
-          <Link className="monitor-nav-link" href="/alerts"><span>行情监控</span><small>Alerts ↗</small></Link>
         </nav>
 
         <section className={`recent-query-strip sidebar-recents ${recentStocks.length ? "" : "is-empty"}`} aria-label="最近查询的股票">
@@ -1062,7 +977,6 @@ export default function Home() {
         </div>
         <div className="topbar-actions">
           <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>
-          <Link className="topbar-monitor-link" href="/alerts">行情监控</Link>
           <button className="command-trigger" type="button" onClick={() => setCommandOpen(true)}><span>⌘K</span> 命令中心</button>
           <button className="view-mode-toggle" type="button" onClick={toggleViewMode}>{viewMode === "pro" ? "专业模式" : "基础模式"}</button>
           <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
@@ -1483,14 +1397,12 @@ export default function Home() {
         name={selectedName}
         isDemo={isDemo}
         busy={busy}
-        isWatched={watchlist.some((item) => item.code === selectedCode)}
         hasSavedView={hasSavedView}
         freshness={freshness}
         dataProfile={{ level: dataset.dataLevel, priceBasis: dataset.priceBasis ?? "", amountBasis: dataset.amountBasis, timePrecision: dataset.timePrecision, qualityWarnings: dataset.quality.warnings.length }}
         notice={workspaceNotice}
         cloudStatus={cloudStatus}
         annotations={annotations}
-        onToggleWatch={toggleWatch}
         onRefresh={() => void fetchStockData(selectedCode)}
         onCopyLink={() => void copyWorkspaceLink()}
         onSaveView={saveWorkspace}

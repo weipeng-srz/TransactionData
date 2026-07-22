@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import type { ChartAnnotation } from "../lib/research";
 
 type Props = {
@@ -9,14 +8,12 @@ type Props = {
   name: string;
   isDemo: boolean;
   busy: boolean;
-  isWatched: boolean;
   hasSavedView: boolean;
   freshness: { market: string; financial: string; news: string };
   dataProfile: { level: string; priceBasis: string; amountBasis: string; timePrecision: string; qualityWarnings: number };
   notice: string;
   cloudStatus: "loading" | "synced" | "local" | "error";
   annotations: ChartAnnotation[];
-  onToggleWatch: () => void;
   onRefresh: () => void;
   onCopyLink: () => void;
   onSaveView: () => void;
@@ -40,10 +37,6 @@ export default function ResearchDock(props: Props) {
         </div>
         <div className="research-actions">
           <span className={`cloud-sync-badge is-${props.cloudStatus}`}>{props.cloudStatus === "synced" ? "云端已同步" : props.cloudStatus === "loading" ? "同步中" : props.cloudStatus === "error" ? "同步异常" : "本机模式"}</span>
-          <button type="button" className={props.isWatched ? "active" : ""} aria-pressed={props.isWatched} onClick={props.onToggleWatch}>
-            {props.isWatched ? "★ 已加入监控" : "☆ 加入监控"}
-          </button>
-          <Link className="research-monitor-link" href="/alerts">打开行情监控</Link>
           <button type="button" onClick={props.onRefresh} disabled={props.busy || props.isDemo}>刷新当前股票</button>
           <button type="button" onClick={props.onCopyLink}>分享当前研究</button>
           <details className="research-more-actions">

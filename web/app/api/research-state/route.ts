@@ -39,7 +39,6 @@ function sanitizeState(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("研究状态格式无效");
   const input = value as Record<string, unknown>;
   const output: Record<string, unknown> = { version: 2 };
-  if (Array.isArray(input.watchlist)) output.watchlist = input.watchlist.slice(0, 30);
   if (input.workspace && typeof input.workspace === "object") output.workspace = input.workspace;
   if (Array.isArray(input.annotations)) output.annotations = input.annotations.slice(0, 100);
   if (input.viewMode === "basic" || input.viewMode === "pro") output.viewMode = input.viewMode;

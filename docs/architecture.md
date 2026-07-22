@@ -11,8 +11,6 @@ flowchart LR
     API --> S["新浪公开行情与新闻"]
     API --> E["东方财富搜索与财务数据"]
     API --> D1["Cloudflare D1"]
-    CRON["Worker 定时任务"] --> S
-    CRON --> D1
 ```
 
 浏览器不直接访问第三方数据源。所有外部请求集中在服务端客户端模块，避免把上游协议、请求头和响应解析散落到界面组件中。
@@ -23,24 +21,23 @@ flowchart LR
 2. 股票代码确定后，页面并行请求历史行情、基本面和新闻；实时行情走独立轮询。
 3. `app/api/` 校验请求大小和股票代码，再调用 `app/lib/remote*.ts`、`financials.ts` 等服务端模块访问外部数据源。
 4. 服务端把不同上游响应转换为稳定的 CSV 或 JSON；前端解析模块再统一为图表和研究组件使用的领域模型。
-5. 研究状态、价格提醒和匿名聚合遥测通过 Drizzle 写入 D1。
+5. 研究状态和匿名聚合遥测通过 Drizzle 写入 D1。
 
 ## 目录职责
 
 | 目录 | 职责 |
 | --- | --- |
-| `web/app/api` | 行情、财务、新闻、提醒、研究状态和遥测 API |
+| `web/app/api` | 行情、财务、新闻、研究状态和遥测 API |
 | `web/app/lib` | 上游数据客户端、解析、指标、研究和存储逻辑 |
 | `web/app/components` | 图表、财务、研究和交易面板 |
 | `web/db` | Drizzle/D1 schema 与连接封装 |
 | `web/drizzle` | D1 SQL 迁移 |
-| `web/worker` | HTTP 请求入口和价格提醒定时任务 |
+| `web/worker` | HTTP 请求入口 |
 | `web/tests` | 构建后回归测试 |
 
 ## 持久化
 
 - `research_states`：每个用户一份版本化研究状态。
-- `price_alerts`：最多 30 个用户价格提醒；Worker 定时任务分批刷新未触发提醒。
 - `telemetry_daily`：仅保存白名单事件的每日计数和耗时汇总，不保存股票代码或用户标识。
 
 托管环境通过 `oai-authenticated-user-email` 请求头识别用户，数据库只保存邮箱的 SHA-256 派生键；本地预览使用固定的 `local-preview` 用户键。
@@ -58,4 +55,3 @@ flowchart LR
 
 - 新增外部数据源时，把网络协议、响应解析和 UI 展示分开，并为异常响应添加测试。
 - 修改接口 CSV、JSON 或 D1 schema 时，需要兼容旧数据、更新专题文档并添加迁移或回归测试。
-- 修改 Worker 定时任务时，需要验证批量上限、幂等性和单批失败隔离。

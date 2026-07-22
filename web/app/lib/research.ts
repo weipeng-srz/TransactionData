@@ -1,6 +1,6 @@
 import type { FinancialDataset } from "./financials.ts";
 import type { Candle, IndicatorSet, Timeframe } from "./market.ts";
-import type { NewsItem, NewsSentiment, ParsedNewsDataset } from "./news.ts";
+import type { NewsItem, ParsedNewsDataset } from "./news.ts";
 
 export type ChartEventKind = "news" | "report" | "dividend";
 
@@ -57,33 +57,6 @@ export type RiskMetrics = {
   beta: number | null;
   alphaAnnualized: number | null;
   correlation: number | null;
-};
-
-export type WatchlistItem = {
-  code: string;
-  name: string;
-  price: number | null;
-  changePct: number | null;
-  peTtm: number | null;
-  pb: number | null;
-  dividendYieldTtm: number | null;
-  sentiment: NewsSentiment | null;
-  momentum20: number | null;
-  annualizedVolatility: number | null;
-  maxDrawdown: number | null;
-  updatedAt: string;
-};
-
-export type PriceAlert = {
-  id: string;
-  code: string;
-  name: string;
-  direction: "above" | "below";
-  target: number;
-  createdAt: string;
-  triggeredAt: string;
-  lastPrice?: number | null;
-  lastCheckedAt?: string;
 };
 
 export type ChartAnnotation = {
@@ -283,70 +256,6 @@ export function buildChartEvents(
   return events.sort((left, right) => left.date.localeCompare(right.date));
 }
 
-export function parseWatchlist(value: unknown): WatchlistItem[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const candidate = item as Partial<WatchlistItem>;
-    const code = String(candidate.code ?? "").trim();
-    const name = String(candidate.name ?? "").trim();
-    if (!/^\d{6}$/.test(code) || !name || seen.has(code)) return [];
-    seen.add(code);
-    return [{
-      code,
-      name,
-      price: nullableNumber(candidate.price),
-      changePct: nullableNumber(candidate.changePct),
-      peTtm: nullableNumber(candidate.peTtm),
-      pb: nullableNumber(candidate.pb),
-      dividendYieldTtm: nullableNumber(candidate.dividendYieldTtm),
-      sentiment: candidate.sentiment === "正面" || candidate.sentiment === "中性" || candidate.sentiment === "负面" ? candidate.sentiment : null,
-      momentum20: nullableNumber(candidate.momentum20),
-      annualizedVolatility: nullableNumber(candidate.annualizedVolatility),
-      maxDrawdown: nullableNumber(candidate.maxDrawdown),
-      updatedAt: String(candidate.updatedAt ?? ""),
-    }];
-  }).slice(0, 20);
-}
-
-export function parsePriceAlerts(value: unknown): PriceAlert[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const candidate = item as Partial<PriceAlert>;
-    const target = Number(candidate.target);
-    const code = String(candidate.code ?? "").trim();
-    const direction = candidate.direction;
-    if (!/^\d{6}$/.test(code) || !Number.isFinite(target) || target <= 0 || (direction !== "above" && direction !== "below")) return [];
-    return [{
-      id: String(candidate.id || `${code}-${direction}-${target}`),
-      code,
-      name: String(candidate.name || code),
-      direction,
-      target,
-      createdAt: String(candidate.createdAt ?? ""),
-      triggeredAt: String(candidate.triggeredAt ?? ""),
-      lastPrice: nullableNumber(candidate.lastPrice),
-      lastCheckedAt: String(candidate.lastCheckedAt ?? ""),
-    }];
-  }).slice(0, 30);
-}
-
-export function evaluatePriceAlerts(
-  alerts: PriceAlert[],
-  code: string,
-  price: number,
-  triggeredAt: string,
-): PriceAlert[] {
-  if (!Number.isFinite(price) || price <= 0) return alerts;
-  return alerts.map((alert) => {
-    if (alert.code !== code || alert.triggeredAt) return alert;
-    const matched = alert.direction === "above" ? price >= alert.target : price <= alert.target;
-    return matched ? { ...alert, triggeredAt } : alert;
-  });
-}
-
 export function buildResearchReport({
   code,
   name,
@@ -411,12 +320,6 @@ export function buildResearchReport({
 
 function extractDate(value: string): string {
   return value.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
-}
-
-function nullableNumber(value: unknown): number | null {
-  if (value == null || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
 }
 
 function average(values: number[]): number {

@@ -3247,8 +3247,6 @@ html {
 .retry-button,
 .research-actions button,
 .research-panel button,
-.alert-form select,
-.alert-form input,
 .mobile-analysis-toggle {
   min-height: 34px;
   border: 1px solid var(--line-strong);
@@ -3382,99 +3380,21 @@ html {
   line-height: 1.6;
 }
 
-.watchlist-table-wrap,
 .backtest-table-wrap {
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
 
-.watchlist-table,
 .backtest-table {
   min-width: 660px;
   font-size: 10px;
 }
 
-.watchlist-table th,
-.watchlist-table td,
 .backtest-table th,
 .backtest-table td {
   height: 34px;
   padding: 0 9px;
-}
-
-.watchlist-stock {
-  min-height: 28px !important;
-  padding: 3px 7px;
-  display: grid;
-  gap: 1px;
-  text-align: left;
-}
-
-.watchlist-stock strong {
-  color: var(--text);
-  font-size: 10px;
-}
-
-.watchlist-stock span {
-  color: var(--muted);
-  font: 9px var(--mono);
-}
-
-.table-remove {
-  min-height: 26px !important;
-  padding: 0 7px;
-  color: var(--muted) !important;
-}
-
-.alert-form {
-  margin-top: 8px;
-  display: grid;
-  grid-template-columns: 88px minmax(80px, 1fr) 48px;
-  gap: 6px;
-}
-
-.alert-form select,
-.alert-form input {
-  min-width: 0;
-  padding: 0 8px;
-  outline: 0;
-}
-
-.alert-list {
-  margin-top: 9px;
-  display: grid;
-  gap: 5px;
-}
-
-.alert-list > div {
-  min-width: 0;
-  padding: 7px 8px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 22px;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--text-soft);
-  font-size: 10px;
-}
-
-.alert-list > div.is-triggered {
-  border-color: rgba(240, 93, 94, 0.32);
-  background: rgba(240, 93, 94, 0.055);
-}
-
-.alert-list small {
-  color: var(--muted);
-  font-size: 9px;
-  white-space: nowrap;
-}
-
-.alert-list button {
-  width: 22px;
-  min-height: 22px !important;
-  padding: 0;
 }
 
 .freshness-panel dl {
@@ -3699,8 +3619,6 @@ table,
   .workspace-nav a,
   .research-actions button,
   .research-panel button,
-  .alert-form select,
-  .alert-form input,
   .mobile-analysis-toggle {
     min-height: 40px;
   }
@@ -3712,10 +3630,6 @@ table,
 
   .research-actions button {
     width: 100%;
-  }
-
-  .alert-form {
-    grid-template-columns: 96px minmax(0, 1fr) 56px;
   }
 
   .chart-toolbar {
@@ -4213,12 +4127,6 @@ body::before {
   font-size: 13px;
 }
 
-.alert-form select,
-.alert-form input {
-  border-radius: 8px;
-  background: rgba(3, 10, 15, 0.52);
-}
-
 table {
   font-variant-numeric: tabular-nums;
 }
@@ -4543,7 +4451,6 @@ tbody tr:hover td {
   .query-strip,
   .recent-query-strip,
   .research-actions,
-  .alert-panel,
   .chart-toolbar,
   .chart-footer-controls,
   .mobile-analysis-toggle,

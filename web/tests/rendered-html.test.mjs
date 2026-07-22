@@ -52,7 +52,7 @@ test("server-renders the TickLens market workbench", async () => {
   assert.match(html, /B\/S 信号回测/);
   assert.match(html, /当前交易日 · 分钟 K 线与五档盘口/);
   assert.match(html, /查询股票后显示实时行情/);
-  assert.match(html, /行情监控/);
+  assert.doesNotMatch(html, /行情监控|加入监控|\/alerts/);
   assert.doesNotMatch(html, /预警队列/);
   assert.match(html, /分享当前研究/);
   assert.match(html, /导出报告/);
@@ -61,19 +61,6 @@ test("server-renders the TickLens market workbench", async () => {
   assert.doesNotMatch(html, /type="file"/i);
   assert.doesNotMatch(html, /导入(?:行情|新闻)/);
   assert.doesNotMatch(html, /\[object Object\]/);
-});
-
-test("server-renders the dedicated desktop market monitor", async () => {
-  const response = await render("/alerts");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /跨股票预警集中管理/);
-  assert.match(html, /创建价格预警/);
-  assert.match(html, /预警队列/);
-  assert.match(html, /返回当前股票研究/);
-  assert.match(html, /实时价格 · 每 10 秒自动检查/);
-  assert.match(html, /价格以实时行情核验/);
-  assert.doesNotMatch(html, /K线研判/);
 });
 
 test("server-renders the global realtime index map", async () => {
@@ -93,4 +80,5 @@ test("server-renders the global realtime index map", async () => {
   assert.match(html, /日经 225/);
   assert.match(html, /行情每 10 秒自动刷新/);
   assert.doesNotMatch(html, /B\/S 信号回测/);
+  assert.doesNotMatch(html, /行情监控|\/alerts/);
 });
