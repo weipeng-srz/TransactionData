@@ -2,18 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { GLOBAL_INDEXES, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
+import { GLOBAL_INDEXES, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
 import "./global-markets.css";
 
 type FeedState = "loading" | "live" | "refreshing" | "error";
+type Appearance = "light" | "dark";
+
+const appearanceStorageKey = "ticklens.appearance.v1";
 
 export default function GlobalMarketsPage() {
   const [quotes, setQuotes] = useState<GlobalIndexQuote[]>([]);
   const [usQuotes, setUSQuotes] = useState<USIndexSessionQuote[]>([]);
+  const [fearGauges, setFearGauges] = useState<FearGaugeQuote[]>([]);
   const [feedState, setFeedState] = useState<FeedState>("loading");
   const [fetchedAt, setFetchedAt] = useState("");
   const [error, setError] = useState("");
+  const [appearance, setAppearance] = useState<Appearance>("light");
   const requestRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async (silent = false) => {
@@ -27,6 +32,7 @@ export default function GlobalMarketsPage() {
       if (!response.ok) throw new Error(body.error || "全球指数行情暂不可用");
       setQuotes(body.quotes ?? []);
       setUSQuotes(body.usQuotes ?? []);
+      setFearGauges(body.fearGauges ?? []);
       setFetchedAt(body.fetchedAt ?? new Date().toISOString());
       setError("");
       setFeedState("live");
@@ -35,6 +41,18 @@ export default function GlobalMarketsPage() {
       setError(reason instanceof Error ? reason.message : "全球指数刷新失败");
       setFeedState("error");
     }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      let next: Appearance = "light";
+      try {
+        next = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
+      } catch { /* Appearance remains available for the current page. */ }
+      setAppearance(next);
+      document.documentElement.dataset.appearance = next;
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -54,6 +72,7 @@ export default function GlobalMarketsPage() {
 
   const quoteById = useMemo(() => new Map(quotes.map((quote) => [quote.id, quote])), [quotes]);
   const usQuoteById = useMemo(() => new Map(usQuotes.map((quote) => [quote.id, quote])), [usQuotes]);
+  const fearGaugeByMarket = useMemo(() => new Map(fearGauges.map((quote) => [quote.market, quote])), [fearGauges]);
   const marketMoves = [
     ...quotes.map((quote) => ({ name: quote.name, changePct: quote.changePct })),
     ...usQuotes.flatMap((quote) => quote.cashChangePct == null ? [] : [{ name: quote.name, changePct: quote.cashChangePct }]),
@@ -63,29 +82,41 @@ export default function GlobalMarketsPage() {
   const openMarkets = quotes.filter((quote) => quote.marketStatus === "交易中").length + (usQuotes[0]?.phase === "盘中" ? 1 : 0);
   const leader = [...marketMoves].sort((left, right) => Math.abs(right.changePct) - Math.abs(left.changePct))[0];
 
+  const toggleAppearance = () => {
+    const next: Appearance = appearance === "light" ? "dark" : "light";
+    setAppearance(next);
+    document.documentElement.dataset.appearance = next;
+    try { localStorage.setItem(appearanceStorageKey, next); } catch { /* Preference remains in memory. */ }
+  };
+
   return (
-    <main className="global-page-shell">
-      <aside className="global-sidebar">
-        <Link className="global-brand" href="/" aria-label="返回 TickLens 市场研究">
-          <span>TL</span><div><strong>TickLens</strong><small>GLOBAL PULSE</small></div>
+    <main className="app-shell global-page-shell">
+      <aside className="app-sidebar global-sidebar">
+        <Link className="sidebar-brand global-brand" href="/" aria-label="返回 TickLens 市场研究">
+          <div className="brand-mark">TL</div><div><strong>TickLens</strong><span>市场研究工作台</span></div>
         </Link>
-        <nav aria-label="全球市场页面导航">
-          <Link href="/"><i>01</i><span>个股研究<small>Research</small></span></Link>
-          <Link className="is-active" href="/global-markets" aria-current="page"><i>02</i><span>全球股指<small>Global Indices</small></span></Link>
-        </nav>
-        <div className="global-sidebar-foot">
-          <span className={openMarkets ? "is-live" : ""}><i />{openMarkets ? `${openMarkets} 个市场交易中` : "主要市场已休市"}</span>
+        <section className="sidebar-current global-sidebar-current" aria-label="全球市场状态">
+          <span>全球市场</span>
+          <strong>{openMarkets ? "实时交易中" : "主要市场休市"}</strong>
           <small>行情每 10 秒自动刷新</small>
-        </div>
+          <b>{openMarkets}</b>
+          <em className={openMarkets ? "is-open" : ""}>{openMarkets ? "个市场交易中" : "等待下一交易时段"}</em>
+        </section>
+        <nav className="workspace-nav global-workspace-nav" aria-label="工作台页面导航">
+          <Link href="/"><span>个股研究</span><small>Research</small></Link>
+          <Link className="is-active" href="/global-markets" aria-current="page"><span>全球股指</span><small>Global</small></Link>
+        </nav>
+        <p className="sidebar-footnote global-sidebar-footnote">指数、扩展时段代理和压力指标仅供市场研究，不构成投资建议。</p>
       </aside>
 
-      <div className="global-main">
-        <header className="global-topbar">
-          <div><p>GLOBAL MARKET COMMAND CENTER</p><h1>全球股指脉动</h1></div>
-          <div className="global-topbar-actions">
-            <span className={`global-feed-state is-${feedState}`}><i />{feedLabel(feedState)}</span>
-            <time dateTime={fetchedAt}>{fetchedAt ? `更新于 ${formatFetchedAt(fetchedAt)}` : "正在连接全球行情"}</time>
-            <button type="button" disabled={feedState === "refreshing"} onClick={() => void refresh()}>{feedState === "refreshing" ? "刷新中…" : "立即刷新"}</button>
+      <div className="app-workspace-shell global-main">
+        <header className="topbar global-topbar">
+          <div className="workspace-heading"><p className="eyebrow">GLOBAL MARKET</p><h1>全球股指</h1></div>
+          <div className="topbar-actions global-topbar-actions">
+            <span className={`topbar-sync global-feed-state is-${feedState}`}><i />{feedLabel(feedState)}</span>
+            <time dateTime={fetchedAt}>{fetchedAt ? `更新 ${formatFetchedAt(fetchedAt)}` : "正在连接全球行情"}</time>
+            <button className="global-refresh-button" type="button" disabled={feedState === "refreshing"} onClick={() => void refresh()}>{feedState === "refreshing" ? "刷新中…" : "立即刷新"}</button>
+            <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}><span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span></button>
           </div>
         </header>
 
@@ -99,14 +130,15 @@ export default function GlobalMarketsPage() {
         </section>
 
         <section className="global-a-share-board" aria-label="A股核心指数行情">
-          <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} />
+          <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} fearGauge={fearGaugeByMarket.get("A股")} />
         </section>
 
         <section className="global-map-card" aria-label="全球主要股指地图">
           <header><div><p>LIVE WORLD MAP</p><h2>全球市场实时坐标</h2></div><div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div></header>
           <div className="global-map-stage">
+            <div className="global-map-viewport">
             <div className="global-map-orbit" aria-hidden="true" />
-            {/* Native SVG loading avoids CSS-mask compatibility failures on the map layer. */}
+            {/* The map and every marker share this fixed-aspect coordinate plane. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
             <div className="global-map-grid" aria-hidden="true" />
@@ -115,7 +147,7 @@ export default function GlobalMarketsPage() {
               const map = definition.map!;
               const style = { left: `${map.x}%`, top: `${map.y}%` } as CSSProperties;
               return (
-                <article className={`global-map-marker anchor-${map.anchor} ${tone(quote?.changePct)}`} style={style} key={definition.id} title={`${definition.city} · ${definition.name}`}>
+                <article className={`global-map-marker anchor-${map.anchor} ${tone(quote?.changePct)}`} style={style} key={definition.id} title={`${definition.city} · ${definition.name}`} data-map-id={definition.id}>
                   <span className="global-marker-dot"><i /></span>
                   <div className="global-marker-label"><small>{definition.city}</small><strong>{compactIndexName(definition.name)}</strong><b>{quote ? signedPercent(quote.changePct) : "—"}</b></div>
                 </article>
@@ -126,18 +158,19 @@ export default function GlobalMarketsPage() {
               const map = definition.map!;
               const style = { left: `${map.x}%`, top: `${map.y}%` } as CSSProperties;
               return (
-                <article className={`global-map-marker anchor-${map.anchor} ${tone(quote?.cashChangePct ?? undefined)}`} style={style} key={definition.id} title={`纽约 · ${definition.name}`}>
+                <article className={`global-map-marker anchor-${map.anchor} ${tone(quote?.cashChangePct ?? undefined)}`} style={style} key={definition.id} title={`纽约 · ${definition.name}`} data-map-id={definition.id}>
                   <span className="global-marker-dot"><i /></span>
                   <div className="global-marker-label"><small>纽约</small><strong>{compactIndexName(definition.name)}</strong><b>{quote?.cashChangePct == null ? "—" : signedPercent(quote.cashChangePct)}</b></div>
                 </article>
               );
             })}
+            </div>
           </div>
           <footer><span>点位按指数所在地理位置展示</span><span>红涨绿跌 · 数据仅供研究参考</span></footer>
         </section>
 
         <section className="global-region-board" aria-label="全球指数行情列表">
-          <USMarketPanel quotes={usQuotes} />
+          <USMarketPanel quotes={usQuotes} fearGauge={fearGaugeByMarket.get("美股")} />
           {(["美洲", "欧洲", "亚太"] as GlobalRegion[]).map((region) => (
             <RegionPanel key={region} region={region} definitions={GLOBAL_INDEXES.filter((item) => item.region === region)} quoteById={quoteById} />
           ))}
@@ -147,7 +180,7 @@ export default function GlobalMarketsPage() {
   );
 }
 
-function USMarketPanel({ quotes }: { quotes: USIndexSessionQuote[] }) {
+function USMarketPanel({ quotes, fearGauge }: { quotes: USIndexSessionQuote[]; fearGauge?: FearGaugeQuote }) {
   const quoteById = new Map(quotes.map((quote) => [quote.id, quote]));
   const phase = quotes[0]?.phase;
   return (
@@ -160,6 +193,7 @@ function USMarketPanel({ quotes }: { quotes: USIndexSessionQuote[] }) {
         <span>盘中显示现货指数；盘前、盘后使用对应 ETF，夜盘使用指数期货作为方向代理。</span>
         <b>代理值与现货指数点位口径不同</b>
       </div>
+      <FearGaugeCard gauge={fearGauge} market="美股" />
       <div className="global-us-index-list">
         {US_INDEXES.map((definition) => {
           const quote = quoteById.get(definition.id);
@@ -187,11 +221,12 @@ function USMarketPanel({ quotes }: { quotes: USIndexSessionQuote[] }) {
   );
 }
 
-function RegionPanel({ region, definitions, quoteById }: { region: GlobalRegion; definitions: typeof GLOBAL_INDEXES; quoteById: Map<string, GlobalIndexQuote> }) {
+function RegionPanel({ region, definitions, quoteById, fearGauge }: { region: GlobalRegion; definitions: typeof GLOBAL_INDEXES; quoteById: Map<string, GlobalIndexQuote>; fearGauge?: FearGaugeQuote }) {
   const open = definitions.filter((definition) => quoteById.get(definition.id)?.marketStatus === "交易中").length;
   return (
     <section className={`global-region-card ${region === "A股" ? "is-a-share" : ""}`}>
       <header><div><span>{regionCode(region)}</span><h3>{region === "A股" ? "A股核心指数" : `${region}市场`}</h3></div><small>{open ? `${open} 交易中` : "当前休市"}</small></header>
+      {region === "A股" ? <FearGaugeCard gauge={fearGauge} market="A股" /> : null}
       <div className="global-index-list">
         {definitions.map((definition) => {
           const quote = quoteById.get(definition.id);
@@ -207,9 +242,28 @@ function RegionPanel({ region, definitions, quoteById }: { region: GlobalRegion;
   );
 }
 
+function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A股" | "美股" }) {
+  return (
+    <article className={`global-fear-card ${fearTone(gauge?.value)}`} aria-label={`${market}恐慌指标`}>
+      <div className="global-fear-heading">
+        <span>{gauge?.code ?? (market === "美股" ? "VIX" : "CN-FEAR")}</span>
+        <div><strong>{gauge?.name ?? `${market}恐慌指标`}</strong><small>{gauge?.official ? "官方指数 · 延时行情" : "市场压力代理 · 非交易所官方指数"}</small></div>
+      </div>
+      <div className="global-fear-value">
+        <strong>{gauge ? gauge.value.toFixed(1) : "—"}</strong>
+        <span>{gauge?.level ?? "连接中"}</span>
+        {gauge?.changePct == null ? null : <em className={tone(gauge.changePct)}>{signedPercent(gauge.changePct)}</em>}
+      </div>
+      <p>{gauge?.description ?? "正在获取并计算最新市场压力数据。"}</p>
+      <small>{gauge ? `${gauge.source} · ${gauge.updatedAt}` : "行情时间 —"}</small>
+    </article>
+  );
+}
+
 function feedLabel(state: FeedState) { return state === "loading" ? "连接中" : state === "refreshing" ? "刷新中" : state === "error" ? "自动重试" : "实时行情"; }
 function regionCode(region: GlobalRegion) { return region === "美洲" ? "AMER" : region === "欧洲" ? "EMEA" : region === "亚太" ? "APAC" : "CN-A"; }
 function phaseTone(phase: USMarketPhase | undefined) { return phase === "盘中" ? "is-regular" : phase === "盘前" ? "is-pre" : phase === "盘后" ? "is-post" : phase === "夜盘" ? "is-night" : "is-closed"; }
+function fearTone(value: number | undefined) { return (value ?? 0) >= 40 ? "is-high" : (value ?? 0) >= 30 ? "is-watch" : "is-calm"; }
 function tone(value: number | undefined) { return (value ?? 0) > 0 ? "is-up" : (value ?? 0) < 0 ? "is-down" : "is-flat"; }
 function signedPercent(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`; }
 function compactIndexName(value: string) { return value.replace("加拿大 ", "").replace("澳大利亚 ", "").replace("巴西 ", "").replace("英国", "").replace("德国 ", "").replace("法国 ", "").replace("印度 ", ""); }

@@ -2173,3 +2173,154 @@ body {
   .app-sidebar .sidebar-recents .recent-query-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--apple-border-strong); }
   .app-sidebar .sidebar-footnote { margin-top: 7px; padding-top: 10px; font-size: 10px; }
 }
+
+/* Keep navigation on the left while the window is resized; content adapts beside it. */
+html,
+body { min-width: 320px; }
+
+.app-shell { min-width: 0; }
+
+@media (max-width: 980px) {
+  .app-shell {
+    width: 100%;
+    min-width: 0;
+    padding: 12px !important;
+    display: grid !important;
+    grid-template-columns: 112px minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 14px !important;
+  }
+
+  .app-sidebar {
+    position: sticky;
+    top: 12px;
+    z-index: 40;
+    width: auto;
+    height: calc(100vh - 24px);
+    min-height: 0;
+    margin: 0;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  .app-sidebar .sidebar-brand {
+    padding: 0 0 12px;
+    display: flex;
+    justify-content: center;
+    border-bottom: 1px solid var(--apple-border);
+  }
+
+  .app-sidebar .sidebar-brand > div:last-child,
+  .app-sidebar .sidebar-current,
+  .app-sidebar .sidebar-recents,
+  .app-sidebar .sidebar-footnote { display: none; }
+
+  .app-sidebar .workspace-nav {
+    min-height: 0;
+    margin: 6px 0 0;
+    display: grid;
+    align-content: start;
+    gap: 3px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .app-sidebar .workspace-nav a {
+    min-height: 44px;
+    padding: 0 6px;
+    justify-content: center;
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .app-sidebar .workspace-nav a small { display: none; }
+  .app-workspace-shell { min-width: 0; }
+  .topbar { position: sticky; top: 12px; }
+}
+
+@media (max-width: 700px) {
+  .app-shell {
+    padding: 8px !important;
+    grid-template-columns: 84px minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .app-sidebar {
+    top: 8px;
+    height: calc(100vh - 16px);
+    padding-inline: 6px;
+    border-radius: 16px;
+  }
+
+  .app-sidebar .brand-mark { width: 38px; height: 38px; }
+  .app-sidebar .workspace-nav a { min-height: 42px; padding-inline: 3px; font-size: 10px; }
+  .topbar { top: 8px; }
+  .topbar-actions { gap: 4px; }
+  .workspace-heading h1 { font-size: 17px; white-space: nowrap; }
+  .command-trigger { width: 38px; min-width: 38px; padding: 0; font-size: 0; }
+  .command-trigger span { font-size: 9px; }
+  .view-mode-toggle { min-width: 54px; padding-inline: 7px; font-size: 10px; }
+  .appearance-toggle { width: 38px; height: 38px; min-height: 38px; }
+  .stock-search { height: auto; display: grid; gap: 7px; background: transparent; }
+  .stock-search input {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--apple-text) 4.5%, transparent);
+  }
+  .stock-search button {
+    width: 100%;
+    max-width: none;
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .quote-head {
+    display: flex !important;
+    grid-template-columns: none !important;
+  }
+
+  .quote-stats {
+    grid-column: auto !important;
+    padding-top: 0 !important;
+    border-top: 0 !important;
+  }
+
+  .workspace-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .workspace-grid .chart-card,
+  .workspace-grid .conclusion-card,
+  .workspace-grid .focus-card,
+  .workspace-grid .sentiment-card,
+  .workspace-grid .intent-card,
+  .workspace-grid .data-card,
+  .workspace-grid .indicator-card,
+  .workspace-grid .backtest-card {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+
+  .current-stock-grid,
+  .finance-chart-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .valuation-support-strip,
+  .finance-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .realtime-layout { grid-template-columns: minmax(0, 1fr); }
+  .realtime-chart-card { border-right: 0; border-bottom: 1px solid var(--apple-border); }
+  .realtime-quote-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .realtime-quote-strip > div { min-width: 0; }
+  .realtime-header { align-items: flex-start; flex-direction: column; }
+  .realtime-header-meta { width: 100%; flex-wrap: wrap; }
+}

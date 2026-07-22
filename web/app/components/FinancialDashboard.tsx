@@ -117,7 +117,7 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
   ];
 
   return (
-    <section className="finance-dashboard" id="stock-financials" aria-live="polite">
+    <section className="finance-dashboard" aria-live="polite">
       <header className="finance-dashboard-header">
         <div>
           <p className="eyebrow">FINANCIAL DIAGNOSTICS</p>
