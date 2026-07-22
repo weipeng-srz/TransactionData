@@ -85,6 +85,10 @@ test("server-renders the global realtime index map", async () => {
   assert.match(html, /AMER/);
   assert.match(html, /EMEA/);
   assert.match(html, /APAC/);
+  assert.match(html, /A股核心指数/);
+  assert.match(html, /沪深 300/);
+  assert.match(html, /创业板指/);
+  assert.match(html, /北证 50/);
   assert.match(html, /标普 500/);
   assert.match(html, /日经 225/);
   assert.match(html, /行情每 10 秒自动刷新/);

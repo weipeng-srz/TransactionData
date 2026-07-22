@@ -85,7 +85,7 @@ export default function GlobalMarketsPage() {
         {error ? <div className="global-error" role="status"><strong>行情连接提示</strong><span>{error}，页面将在下一个刷新周期自动重试。</span></div> : null}
 
         <section className="global-summary" aria-label="全球市场概览">
-          <article><span>覆盖指数</span><strong>{quotes.length || GLOBAL_INDEXES.length}</strong><small>美洲 · 欧洲 · 亚太</small></article>
+          <article><span>覆盖指数</span><strong>{quotes.length || GLOBAL_INDEXES.length}</strong><small>美洲 · 欧洲 · 亚太 · A股</small></article>
           <article><span>上涨 / 下跌</span><strong><em className="is-up">{rising}</em><b>/</b><em className="is-down">{falling}</em></strong><small>按最新涨跌幅统计</small></article>
           <article><span>交易中市场</span><strong>{openMarkets}</strong><small>依据各交易所当地时段</small></article>
           <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
@@ -113,7 +113,7 @@ export default function GlobalMarketsPage() {
         </section>
 
         <section className="global-region-board" aria-label="全球指数行情列表">
-          {(["美洲", "欧洲", "亚太"] as GlobalRegion[]).map((region) => (
+          {(["美洲", "欧洲", "亚太", "A股"] as GlobalRegion[]).map((region) => (
             <RegionPanel key={region} region={region} definitions={GLOBAL_INDEXES.filter((item) => item.region === region)} quoteById={quoteById} />
           ))}
         </section>
@@ -125,8 +125,8 @@ export default function GlobalMarketsPage() {
 function RegionPanel({ region, definitions, quoteById }: { region: GlobalRegion; definitions: typeof GLOBAL_INDEXES; quoteById: Map<string, GlobalIndexQuote> }) {
   const open = definitions.filter((definition) => quoteById.get(definition.id)?.marketStatus === "交易中").length;
   return (
-    <section className="global-region-card">
-      <header><div><span>{regionCode(region)}</span><h3>{region}市场</h3></div><small>{open ? `${open} 交易中` : "当前休市"}</small></header>
+    <section className={`global-region-card ${region === "A股" ? "is-a-share" : ""}`}>
+      <header><div><span>{regionCode(region)}</span><h3>{region === "A股" ? "A股核心指数" : `${region}市场`}</h3></div><small>{open ? `${open} 交易中` : "当前休市"}</small></header>
       <div className="global-index-list">
         {definitions.map((definition) => {
           const quote = quoteById.get(definition.id);
@@ -143,7 +143,7 @@ function RegionPanel({ region, definitions, quoteById }: { region: GlobalRegion;
 }
 
 function feedLabel(state: FeedState) { return state === "loading" ? "连接中" : state === "refreshing" ? "刷新中" : state === "error" ? "自动重试" : "实时行情"; }
-function regionCode(region: GlobalRegion) { return region === "美洲" ? "AMER" : region === "欧洲" ? "EMEA" : "APAC"; }
+function regionCode(region: GlobalRegion) { return region === "美洲" ? "AMER" : region === "欧洲" ? "EMEA" : region === "亚太" ? "APAC" : "CN-A"; }
 function tone(value: number | undefined) { return (value ?? 0) > 0 ? "is-up" : (value ?? 0) < 0 ? "is-down" : "is-flat"; }
 function signedPercent(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`; }
 function compactIndexName(value: string) { return value.replace("加拿大 ", "").replace("澳大利亚 ", "").replace("巴西 ", "").replace("英国", "").replace("德国 ", "").replace("法国 ", "").replace("印度 ", ""); }

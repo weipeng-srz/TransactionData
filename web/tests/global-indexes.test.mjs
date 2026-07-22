@@ -34,5 +34,5 @@ test("ignores empty or malformed global quotes without losing valid markets", ()
 
   assert.equal(quotes.length, 1);
   assert.equal(quotes[0].id, "tsx");
-  assert.ok(GLOBAL_INDEXES.length >= 15);
+  assert.ok(GLOBAL_INDEXES.length >= 23);
 });

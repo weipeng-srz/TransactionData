@@ -1,7 +1,7 @@
 const quoteEndpoint = "https://hq.sinajs.cn/list=";
 const maxResponseBytes = 512 * 1024;
 
-export type GlobalRegion = "美洲" | "欧洲" | "亚太";
+export type GlobalRegion = "美洲" | "欧洲" | "亚太" | "A股";
 
 export type GlobalIndexDefinition = {
   id: string;
@@ -42,7 +42,15 @@ export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
   { id: "dax", symbol: "b_DAX", code: "GDAXI", name: "德国 DAX", city: "法兰克福", country: "德国", region: "欧洲", timezone: "Europe/Berlin", session: { open: "09:00", close: "17:30" }, map: { x: 52, y: 29, anchor: "top" } },
   { id: "cac", symbol: "b_CAC", code: "FCHI", name: "法国 CAC 40", city: "巴黎", country: "法国", region: "欧洲", timezone: "Europe/Paris", session: { open: "09:00", close: "17:30" }, map: { x: 49, y: 39, anchor: "bottom" } },
   { id: "sensex", symbol: "b_SENSEX", code: "SENSEX", name: "印度 SENSEX", city: "孟买", country: "印度", region: "亚太", timezone: "Asia/Kolkata", session: { open: "09:15", close: "15:30" }, map: { x: 68, y: 57, anchor: "left" } },
-  { id: "shanghai", symbol: "s_sh000001", code: "000001", name: "上证指数", city: "上海", country: "中国", region: "亚太", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" }, map: { x: 80, y: 43, anchor: "left" } },
+  { id: "shanghai", symbol: "s_sh000001", code: "000001", name: "上证指数", city: "上海", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" }, map: { x: 80, y: 43, anchor: "left" } },
+  { id: "csi300", symbol: "s_sh000300", code: "000300", name: "沪深 300", city: "沪深", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "szse", symbol: "s_sz399001", code: "399001", name: "深证成指", city: "深圳", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "chinext", symbol: "s_sz399006", code: "399006", name: "创业板指", city: "深圳", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "star50", symbol: "s_sh000688", code: "000688", name: "科创 50", city: "上海", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "sse50", symbol: "s_sh000016", code: "000016", name: "上证 50", city: "上海", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "csi500", symbol: "s_sh000905", code: "000905", name: "中证 500", city: "沪深", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "csi1000", symbol: "s_sh000852", code: "000852", name: "中证 1000", city: "沪深", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
+  { id: "bse50", symbol: "s_bj899050", code: "899050", name: "北证 50", city: "北京", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
   { id: "hsi", symbol: "b_HSI", code: "HSI", name: "恒生指数", city: "香港", country: "中国香港", region: "亚太", timezone: "Asia/Hong_Kong", session: { open: "09:30", close: "16:00", breakStart: "12:00", breakEnd: "13:00" }, map: { x: 79, y: 56, anchor: "bottom" } },
   { id: "nikkei", symbol: "b_NKY", code: "N225", name: "日经 225", city: "东京", country: "日本", region: "亚太", timezone: "Asia/Tokyo", session: { open: "09:00", close: "15:30", breakStart: "11:30", breakEnd: "12:30" }, map: { x: 91, y: 38, anchor: "right" } },
   { id: "kospi", symbol: "b_KOSPI", code: "KS11", name: "韩国 KOSPI", city: "首尔", country: "韩国", region: "亚太", timezone: "Asia/Seoul", session: { open: "09:00", close: "15:30" }, map: { x: 85, y: 31, anchor: "top" } },
