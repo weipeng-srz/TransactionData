@@ -75,3 +75,18 @@ test("server-renders the dedicated desktop market monitor", async () => {
   assert.match(html, /价格以实时行情核验/);
   assert.doesNotMatch(html, /K线研判/);
 });
+
+test("server-renders the global realtime index map", async () => {
+  const response = await render("/global-markets");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /全球股指脉动/);
+  assert.match(html, /全球市场实时坐标/);
+  assert.match(html, /AMER/);
+  assert.match(html, /EMEA/);
+  assert.match(html, /APAC/);
+  assert.match(html, /标普 500/);
+  assert.match(html, /日经 225/);
+  assert.match(html, /行情每 10 秒自动刷新/);
+  assert.doesNotMatch(html, /B\/S 信号回测/);
+});

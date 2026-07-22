@@ -1021,6 +1021,7 @@ export default function Home() {
           <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
           <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻</span><small>News</small></a>
+          <Link className="global-markets-nav-link" href="/global-markets"><span>全球股指</span><small>Global ↗</small></Link>
           <Link className="monitor-nav-link" href="/alerts"><span>行情监控</span><small>Alerts ↗</small></Link>
         </nav>
 
