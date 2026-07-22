@@ -98,11 +98,17 @@ export default function GlobalMarketsPage() {
           <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
         </section>
 
+        <section className="global-a-share-board" aria-label="A股核心指数行情">
+          <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} />
+        </section>
+
         <section className="global-map-card" aria-label="全球主要股指地图">
           <header><div><p>LIVE WORLD MAP</p><h2>全球市场实时坐标</h2></div><div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div></header>
           <div className="global-map-stage">
             <div className="global-map-orbit" aria-hidden="true" />
-            <div className="global-map-land" aria-hidden="true" />
+            {/* Native SVG loading avoids CSS-mask compatibility failures on the map layer. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
             <div className="global-map-grid" aria-hidden="true" />
             {GLOBAL_INDEXES.filter((item) => item.map).map((definition) => {
               const quote = quoteById.get(definition.id);
@@ -131,7 +137,6 @@ export default function GlobalMarketsPage() {
         </section>
 
         <section className="global-region-board" aria-label="全球指数行情列表">
-          <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} />
           <USMarketPanel quotes={usQuotes} />
           {(["美洲", "欧洲", "亚太"] as GlobalRegion[]).map((region) => (
             <RegionPanel key={region} region={region} definitions={GLOBAL_INDEXES.filter((item) => item.region === region)} quoteById={quoteById} />
