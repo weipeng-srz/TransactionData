@@ -72,6 +72,23 @@ test("parses enriched daily context and calculates real-amount behavior proxy", 
   assert.match(intent.warnings.join(" "), /Level-1/);
 });
 
+test("falls back to a disclosed daily price-volume behavior proxy", () => {
+  const csv = [
+    "#META,股票代码=000001,股票名称=平安银行,价格口径=前复权,成交数据级别=HTTPS日K聚合行情,成交时间精度=日,成交金额口径=典型价格×成交量代理",
+    "交易日期,成交时间,股票代码,股票名称,前复权成交价格(元),成交量(股),成交金额估算(元),性质,交易时段,数据级别",
+    "2026-07-20,09:30:00,000001,平安银行,10.00,250000,2500000,,连续竞价,HTTPS日K聚合行情",
+    "2026-07-20,10:30:00,000001,平安银行,10.30,250000,2575000,,连续竞价,HTTPS日K聚合行情",
+    "2026-07-20,14:00:00,000001,平安银行,9.90,250000,2475000,,连续竞价,HTTPS日K聚合行情",
+    "2026-07-20,15:00:00,000001,平安银行,10.25,250000,2562500,,连续竞价,HTTPS日K聚合行情",
+  ].join("\n");
+  const dataset = parseMarketCsv(csv);
+  const intent = analyzeMarketIntent(dataset, "000001", "2026-07-20");
+  assert.ok(intent);
+  assert.equal(intent.basis, "daily-price-volume");
+  assert.ok(intent.activeNetAmount > 0);
+  assert.match(intent.warnings.join(" "), /不等于真实主力净流入/);
+});
+
 test("calculates nine-turn completion, composite guide and K-line conclusion", () => {
   const candles = Array.from({ length: 20 }, (_, index) => {
     const close = 10 + index * 0.2;

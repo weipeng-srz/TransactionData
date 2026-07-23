@@ -1,6 +1,6 @@
 <div align="center">
 
-# TickLens
+# TrendSight
 
 面向沪深 A 股的开源市场研究工作台
 
@@ -10,9 +10,9 @@
 
 </div>
 
-![TickLens 市场研究工作台](./web/public/og-apple.png)
+![TrendSight 应用图标](./web/public/trendsight-icon-512.png)
 
-TickLens 把行情、基本面、新闻舆情、技术指标和信号回测放进同一个 Web 研究界面。
+TrendSight 把行情、基本面、新闻舆情、技术指标和信号回测放进同一个 Web 研究界面。
 
 > [!WARNING]
 > 本项目仅用于学习、数据工程和量化研究，不构成投资建议、收益承诺或交易依据。公开免费数据源可能延迟、限流、变更或出错，请在重要决策前交叉核验。

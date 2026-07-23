@@ -51,11 +51,33 @@ export type FundamentalSnapshot = {
   latestDividendDate: string;
 };
 
+export type HolderPosition = {
+  name: string;
+  type: string;
+  ratio: number;
+  changeRatio: number | null;
+  state: string;
+};
+
+export type HolderStructure = {
+  asOfDate: string;
+  reportLabel: string;
+  institutionalRatio: number | null;
+  retailProxyRatio: number | null;
+  previousInstitutionalRatio: number | null;
+  institutionalChangePp: number | null;
+  topThreeInstitutionalRatio: number | null;
+  institutionCount: number;
+  topInstitutions: HolderPosition[];
+  analysis: string;
+};
+
 export type FinancialDataset = {
   code: string;
   name: string;
   reports: FinancialReport[];
   snapshot: FundamentalSnapshot;
+  holderStructure: HolderStructure;
   analysis: FinancialAnalysis;
   source: string;
   fetchedAt: string;
@@ -69,9 +91,25 @@ export function emptyFinancialDataset(): FinancialDataset {
     name: "",
     reports: [],
     snapshot: emptyFundamentalSnapshot(),
+    holderStructure: emptyHolderStructure(),
     analysis: emptyFinancialAnalysis(),
-    source: "东方财富公开财务报表、估值与分红数据",
+    source: "东方财富公开财务报表、估值、分红与流通股东数据",
     fetchedAt: "",
+  };
+}
+
+export function emptyHolderStructure(): HolderStructure {
+  return {
+    asOfDate: "",
+    reportLabel: "",
+    institutionalRatio: null,
+    retailProxyRatio: null,
+    previousInstitutionalRatio: null,
+    institutionalChangePp: null,
+    topThreeInstitutionalRatio: null,
+    institutionCount: 0,
+    topInstitutions: [],
+    analysis: "",
   };
 }
 
@@ -120,6 +158,7 @@ export function parseFinancialResponse(
   code: string,
   snapshot: FundamentalSnapshot = emptyFundamentalSnapshot(),
   analysis: FinancialAnalysis = emptyFinancialAnalysis(),
+  holderStructure: HolderStructure = emptyHolderStructure(),
 ): FinancialDataset {
   const result = (value as { result?: { data?: unknown } } | null)?.result;
   const rows = (Array.isArray(result?.data) ? result.data : [])
@@ -161,9 +200,58 @@ export function parseFinancialResponse(
     name: String(firstRow?.SECURITY_NAME_ABBR ?? "").trim(),
     reports,
     snapshot,
+    holderStructure,
     analysis,
-    source: "东方财富公开财务报表、估值与分红数据",
+    source: "东方财富公开财务报表、估值、分红与流通股东数据",
     fetchedAt: new Date().toISOString(),
+  };
+}
+
+export function parseHolderStructureResponse(value: unknown): HolderStructure {
+  const rows = (value as { result?: { data?: unknown } } | null)?.result?.data;
+  const records = (Array.isArray(rows) ? rows : []).filter(
+    (item): item is EastMoneyFinancialRow => Boolean(item && typeof item === "object"),
+  );
+  const dates = [...new Set(records.map((row) => toDate(row.END_DATE)).filter(Boolean))].sort((left, right) => right.localeCompare(left));
+  const latestDate = dates[0] ?? "";
+  if (!latestDate) return emptyHolderStructure();
+
+  const rowsForDate = (date: string) => records
+    .filter((row) => toDate(row.END_DATE) === date)
+    .sort((left, right) => (toFiniteNumber(left.HOLDER_RANK) ?? 99) - (toFiniteNumber(right.HOLDER_RANK) ?? 99))
+    .slice(0, 10);
+  const institutionalRows = (date: string) => rowsForDate(date).filter((row) => String(row.IS_HOLDORG ?? "") === "1");
+  const ratioForRows = (items: EastMoneyFinancialRow[]) => items.reduce((sum, row) => sum + Math.max(0, toFiniteNumber(row.FREE_HOLDNUM_RATIO) ?? 0), 0);
+  const latestInstitutions = institutionalRows(latestDate);
+  const previousInstitutions = dates[1] ? institutionalRows(dates[1]) : [];
+  const institutionalRatio = Math.min(100, ratioForRows(latestInstitutions));
+  const previousInstitutionalRatio = dates[1] ? Math.min(100, ratioForRows(previousInstitutions)) : null;
+  const institutionalChangePp = previousInstitutionalRatio == null ? null : institutionalRatio - previousInstitutionalRatio;
+  const topInstitutions = latestInstitutions.slice(0, 5).map((row) => ({
+    name: String(row.HOLD_NUM_ABBR ?? row.HOLDER_NAME ?? "机构股东").trim(),
+    type: String(row.HOLDER_NEWTYPE ?? row.HOLDER_TYPE ?? "机构").trim() || "机构",
+    ratio: Math.max(0, toFiniteNumber(row.FREE_HOLDNUM_RATIO) ?? 0),
+    changeRatio: toFiniteNumber(row.HOLD_RATIO_CHANGE),
+    state: String(row.HOLDER_STATE_NEW ?? row.HOLDNUM_CHANGE_NAME ?? "").trim() || "持有",
+  }));
+  const direction = institutionalChangePp == null || Math.abs(institutionalChangePp) < 0.1
+    ? "与上一期基本持平"
+    : institutionalChangePp > 0
+      ? `较上一期上升 ${institutionalChangePp.toFixed(2)} 个百分点，集中度提高`
+      : `较上一期下降 ${Math.abs(institutionalChangePp).toFixed(2)} 个百分点，集中度回落`;
+  const concentration = institutionalRatio >= 50 ? "前十机构持仓较集中" : institutionalRatio >= 30 ? "前十机构持仓中等集中" : "前十机构持仓相对分散";
+
+  return {
+    asOfDate: latestDate,
+    reportLabel: String(rowsForDate(latestDate)[0]?.REPORT_DATE_NAME ?? "").trim(),
+    institutionalRatio,
+    retailProxyRatio: Math.max(0, 100 - institutionalRatio),
+    previousInstitutionalRatio,
+    institutionalChangePp,
+    topThreeInstitutionalRatio: Math.min(100, ratioForRows(latestInstitutions.slice(0, 3))),
+    institutionCount: latestInstitutions.length,
+    topInstitutions,
+    analysis: `${concentration}，${direction}。`,
   };
 }
 
@@ -311,8 +399,15 @@ export async function fetchFinancials(code: string): Promise<FinancialDataset> {
       sortColumns: "REPORT_DATE",
       label: "现金流量表",
     }),
+    fetchEastMoneyReport({
+      reportName: "RPT_F10_EH_FREEHOLDERS",
+      filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
+      pageSize: 20,
+      sortColumns: "END_DATE",
+      label: "流通股东",
+    }),
   ] as const;
-  const [financialResult, valuationResult, dividendResult, incomeResult, balanceResult, cashflowResult] = await Promise.allSettled(requests);
+  const [financialResult, valuationResult, dividendResult, incomeResult, balanceResult, cashflowResult, holderResult] = await Promise.allSettled(requests);
   if (financialResult.status === "rejected") throw financialResult.reason;
 
   let snapshot = valuationResult.status === "fulfilled"
@@ -332,7 +427,10 @@ export async function fetchFinancials(code: string): Promise<FinancialDataset> {
       indicators: financialResult.value,
     })
     : emptyFinancialAnalysis();
-  return parseFinancialResponse(financialResult.value, normalizedCode, snapshot, analysis);
+  const holderStructure = holderResult.status === "fulfilled"
+    ? parseHolderStructureResponse(holderResult.value)
+    : emptyHolderStructure();
+  return parseFinancialResponse(financialResult.value, normalizedCode, snapshot, analysis, holderStructure);
 }
 
 async function fetchEastMoneyReport({

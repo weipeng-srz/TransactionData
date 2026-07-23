@@ -9,6 +9,7 @@ import ResearchDock from "./components/ResearchDock";
 import SignalBacktestCard from "./components/SignalBacktestCard";
 import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import CommandPalette, { type CommandItem } from "./components/CommandPalette";
+import MarketScopeSwitch from "./components/MarketScopeSwitch";
 import {
   aggregateCandles,
   analyzeKlineConclusion,
@@ -33,6 +34,7 @@ import {
   emptyFinancialDataset,
   type FinancialDataset,
   type FinancialReport,
+  type HolderStructure,
 } from "./lib/financials";
 import {
   backtestGuideSignals,
@@ -84,7 +86,7 @@ const maxRecentStocks = 20;
 const requestTimeoutMs = 18_000;
 
 function defaultRange(length: number, timeframe: Timeframe) {
-  const visibleCount = timeframe === "1d" ? length : Math.min(length, 140);
+  const visibleCount = timeframe === "1d" ? Math.min(length, 120) : Math.min(length, 140);
   return { from: Math.max(0, length - visibleCount), to: Math.max(0, length - 1) };
 }
 
@@ -406,7 +408,7 @@ export default function Home() {
     return { firstRow: first, lastRow: last };
   }, [dataset.rows, selectedCode]);
   const intent = useMemo(
-    () => lastRow && !dataset.dataLevel.includes("日K聚合") ? analyzeMarketIntent(dataset, selectedCode, lastRow.date) : null,
+    () => lastRow ? analyzeMarketIntent(dataset, selectedCode, lastRow.date) : null,
     [dataset, selectedCode, lastRow],
   );
   const latest = candles[candles.length - 1];
@@ -798,7 +800,7 @@ export default function Home() {
     url.searchParams.set("benchmark", benchmarkCode);
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${selectedName || selectedCode} · TickLens研究视图`, text: "打开后可恢复股票、周期、指标和对比基准。", url: url.toString() });
+        await navigator.share({ title: `${selectedName || selectedCode} · TrendSight研究视图`, text: "打开后可恢复股票、周期、指标和对比基准。", url: url.toString() });
         setWorkspaceNotice("研究视图已通过系统分享。");
       } else {
         await navigator.clipboard.writeText(url.toString());
@@ -913,9 +915,9 @@ export default function Home() {
       <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />
       <aside className="app-sidebar">
         <div className="sidebar-brand">
-          <div className="brand-mark">TL</div>
+          <div className="brand-mark" aria-hidden="true" />
           <div>
-            <strong>TickLens</strong>
+            <strong>TrendSight</strong>
             <span>市场研究工作台</span>
           </div>
         </div>
@@ -937,7 +939,7 @@ export default function Home() {
           <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
           <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻</span><small>News</small></a>
-          <Link className="global-markets-nav-link" href="/global-markets"><span>全球股指</span><small>Global ↗</small></Link>
+          <Link className="global-markets-nav-link" href={isDemo ? "/global-markets" : `/global-markets?stock=${selectedCode}`}><span>全球股指</span><small>Global ↗</small></Link>
         </nav>
 
         <section className={`recent-query-strip sidebar-recents ${recentStocks.length ? "" : "is-empty"}`} aria-label="最近查询的股票">
@@ -969,11 +971,12 @@ export default function Home() {
 
       <div className="app-workspace-shell">
       <header className="topbar">
-        <div className="brand-lockup workspace-heading">
+        <div className="brand-lockup workspace-heading workspace-heading-with-scope">
           <div>
             <p className="eyebrow">MARKET WORKSPACE</p>
             <h1>市场研究</h1>
           </div>
+          <MarketScopeSwitch scope="stock" stockCode={isDemo ? "" : selectedCode} />
         </div>
         <div className="topbar-actions">
           <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>
@@ -1323,16 +1326,16 @@ export default function Home() {
               <>
                 <div className="intent-hero">
                   <strong className={intent.tone === "up" ? "is-up" : intent.tone === "down" ? "is-down" : ""}>{intent.label}</strong>
-                  <span>{intent.confidence}% 置信</span>
+                  <span>{intent.confidence}% 置信 · {intent.basis === "level1" ? "L1" : "日线量价"}</span>
                 </div>
                 <div className="confidence-track" aria-label={`代理信号置信度 ${intent.confidence}%`}>
                   <i style={{ width: `${intent.confidence}%` }} />
                 </div>
                 <div className="intent-grid">
-                  <IntentMetric label="主动净额" value={signedCompact(intent.activeNetAmount)} tone={intent.activeNetAmount} />
-                  <IntentMetric label="主动净比" value={signedPercent(intent.activeNetRatio)} tone={intent.activeNetRatio} />
-                  <IntentMetric label="大额净额" value={signedCompact(intent.largeNetAmount)} tone={intent.largeNetAmount} />
-                  <IntentMetric label="尾盘净比" value={signedPercent(intent.tailNetRatio)} tone={intent.tailNetRatio} />
+                  <IntentMetric label={intent.basis === "level1" ? "主动净额" : "量价方向额"} value={signedCompact(intent.activeNetAmount)} tone={intent.activeNetAmount} />
+                  <IntentMetric label={intent.basis === "level1" ? "主动净比" : "日线资金强度"} value={signedPercent(intent.activeNetRatio)} tone={intent.activeNetRatio} />
+                  <IntentMetric label={intent.basis === "level1" ? "大额净额" : "量能加权额"} value={signedCompact(intent.largeNetAmount)} tone={intent.largeNetAmount} />
+                  <IntentMetric label={intent.basis === "level1" ? "尾盘净比" : "收盘/开盘"} value={signedPercent(intent.tailNetRatio)} tone={intent.tailNetRatio} />
                   <IntentMetric label="收盘/VWAP" value={signedPercent(intent.closeVsVwapPct)} tone={intent.closeVsVwapPct} />
                   <IntentMetric label="换手率" value={intent.turnoverPct == null ? "—" : `${formatNumber(intent.turnoverPct, 2)}%`} />
                 </div>
@@ -1344,7 +1347,8 @@ export default function Home() {
                   <ul>{intent.warnings.slice(0, 5).map((warning) => <li key={warning}>{warning}</li>)}</ul>
                 </details>
               </>
-            ) : <p className="empty-note">{dailyOnly ? "当前 HTTPS 行情为日 K 聚合，不包含逐笔买卖性质；L1 行为代理已自动停用。" : "当前日期没有可分析的连续竞价记录。"}</p>}
+            ) : <p className="empty-note">当前日期没有可分析的行情记录。</p>}
+            <HolderMix structure={financialDataset.holderStructure} loading={financialLoad.phase === "loading"} />
           </section>
 
           <section className="rail-card focus-card">
@@ -1821,6 +1825,47 @@ function sentimentClass(sentiment: NewsSentiment): string {
 
 function IntentMetric({ label, value, tone = 0 }: { label: string; value: string; tone?: number }) {
   return <div><span>{label}</span><strong className={tone > 0 ? "is-up" : tone < 0 ? "is-down" : ""}>{value}</strong></div>;
+}
+
+function HolderMix({ structure, loading }: { structure: HolderStructure; loading: boolean }) {
+  if (structure.institutionalRatio == null || structure.retailProxyRatio == null) {
+    return (
+      <section className="ownership-block is-empty" aria-label="主力与散户持仓比例">
+        <header><div><span>HOLDER MIX</span><strong>最新持仓结构</strong></div></header>
+        <p>{loading ? "正在获取最新流通股东数据…" : "查询股票后展示最新前十流通股东结构。"}</p>
+      </section>
+    );
+  }
+  const change = structure.institutionalChangePp;
+  return (
+    <section className="ownership-block" aria-label="主力与散户持仓比例">
+      <header>
+        <div><span>HOLDER MIX</span><strong>最新持仓结构</strong></div>
+        <small>{structure.asOfDate || "—"}</small>
+      </header>
+      <div className="ownership-ratio-grid">
+        <div><span>主力持仓</span><strong>{formatNumber(structure.institutionalRatio, 2)}%</strong><small>前十机构</small></div>
+        <div><span>散户持仓</span><strong>{formatNumber(structure.retailProxyRatio, 2)}%</strong><small>其余流通盘代理</small></div>
+      </div>
+      <div className="ownership-bar" role="img" aria-label={`前十机构 ${formatNumber(structure.institutionalRatio, 2)}%，其余流通盘代理 ${formatNumber(structure.retailProxyRatio, 2)}%`}>
+        <i style={{ width: `${structure.institutionalRatio}%` }} />
+        <i style={{ width: `${structure.retailProxyRatio}%` }} />
+      </div>
+      <dl className="ownership-facts">
+        <div><dt>前三机构</dt><dd>{structure.topThreeInstitutionalRatio == null ? "—" : `${formatNumber(structure.topThreeInstitutionalRatio, 2)}%`}</dd></div>
+        <div><dt>较上期</dt><dd className={(change ?? 0) > 0 ? "is-up" : (change ?? 0) < 0 ? "is-down" : ""}>{change == null ? "—" : `${change >= 0 ? "+" : ""}${formatNumber(change, 2)}pp`}</dd></div>
+        <div><dt>机构席位</dt><dd>{structure.institutionCount} / 10</dd></div>
+      </dl>
+      <p className="ownership-analysis">{structure.analysis}</p>
+      {structure.topInstitutions.length ? (
+        <details className="ownership-details">
+          <summary>查看主要机构</summary>
+          <ol>{structure.topInstitutions.slice(0, 3).map((holder) => <li key={`${holder.name}-${holder.ratio}`}><span>{holder.name}</span><b>{formatNumber(holder.ratio, 2)}%</b></li>)}</ol>
+        </details>
+      ) : null}
+      <p className="method-note">“主力”仅统计最新一期前十流通股东中的机构；“散户”是 100% 减去该比例的剩余流通盘代理，可能包含未进入前十的机构。</p>
+    </section>
+  );
 }
 
 function signedPercent(value: number): string {

@@ -5,6 +5,7 @@ import {
   normalizeFinancialRequest,
   parseDividendResponse,
   parseFinancialResponse,
+  parseHolderStructureResponse,
   parseValuationResponse,
   toSecuCode,
 } from "../app/lib/financials.ts";
@@ -110,6 +111,19 @@ const dividendPayload = {
   },
 };
 
+const holderPayload = {
+  success: true,
+  result: {
+    data: [
+      { END_DATE: "2026-03-31 00:00:00", REPORT_DATE_NAME: "2026一季报", HOLDER_RANK: 1, HOLDER_NAME: "机构甲", HOLD_NUM_ABBR: "机构甲", IS_HOLDORG: "1", FREE_HOLDNUM_RATIO: 30, HOLD_RATIO_CHANGE: 1.2, HOLDER_NEWTYPE: "保险", HOLDER_STATE_NEW: "加仓" },
+      { END_DATE: "2026-03-31 00:00:00", REPORT_DATE_NAME: "2026一季报", HOLDER_RANK: 2, HOLDER_NAME: "机构乙", IS_HOLDORG: "1", FREE_HOLDNUM_RATIO: 15, HOLD_RATIO_CHANGE: -0.2, HOLDER_NEWTYPE: "基金", HOLDER_STATE_NEW: "减仓" },
+      { END_DATE: "2026-03-31 00:00:00", REPORT_DATE_NAME: "2026一季报", HOLDER_RANK: 3, HOLDER_NAME: "个人甲", IS_HOLDORG: "0", FREE_HOLDNUM_RATIO: 5, HOLDER_TYPE: "个人" },
+      { END_DATE: "2025-12-31 00:00:00", REPORT_DATE_NAME: "2025年报", HOLDER_RANK: 1, HOLDER_NAME: "机构甲", IS_HOLDORG: "1", FREE_HOLDNUM_RATIO: 28.5 },
+      { END_DATE: "2025-12-31 00:00:00", REPORT_DATE_NAME: "2025年报", HOLDER_RANK: 2, HOLDER_NAME: "机构乙", IS_HOLDORG: "1", FREE_HOLDNUM_RATIO: 14.5 },
+    ],
+  },
+};
+
 test("normalizes A-share financial report stock codes", () => {
   assert.deepEqual(normalizeFinancialRequest({ code: "sz000001" }), { code: "000001" });
   assert.equal(toSecuCode("000001"), "000001.SZ");
@@ -146,6 +160,17 @@ test("parses valuation and trailing-12-month cash dividends", () => {
   assert.equal(dividend.latestDividendDate, "2026-06-12");
 });
 
+test("builds a disclosed institutional and remaining-float holding proxy", () => {
+  const structure = parseHolderStructureResponse(holderPayload);
+  assert.equal(structure.asOfDate, "2026-03-31");
+  assert.equal(structure.institutionalRatio, 45);
+  assert.equal(structure.retailProxyRatio, 55);
+  assert.equal(structure.institutionalChangePp, 2);
+  assert.equal(structure.institutionCount, 2);
+  assert.equal(structure.topInstitutions[0].name, "机构甲");
+  assert.match(structure.analysis, /集中度提高/);
+});
+
 test("production financial route returns recent reports", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -168,6 +193,10 @@ test("production financial route returns recent reports", async () => {
     if (reportName === "RPT_SHAREBONUS_DET") {
       return new Response(JSON.stringify(dividendPayload), { status: 200 });
     }
+    if (reportName === "RPT_F10_EH_FREEHOLDERS") {
+      assert.equal(url.searchParams.get("sortColumns"), "END_DATE");
+      return new Response(JSON.stringify(holderPayload), { status: 200 });
+    }
     return new Response(JSON.stringify({ success: false, message: "unexpected report" }), { status: 400 });
   };
   try {
@@ -182,6 +211,7 @@ test("production financial route returns recent reports", async () => {
     assert.equal(dataset.reports.length, 3);
     assert.equal(dataset.snapshot.peTtm, 4.858);
     assert.equal(dataset.snapshot.dividendPaymentsTtm, 2);
+    assert.equal(dataset.holderStructure.institutionalRatio, 45);
   } finally {
     globalThis.fetch = originalFetch;
   }

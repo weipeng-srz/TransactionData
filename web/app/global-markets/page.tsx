@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import MarketScopeSwitch from "../components/MarketScopeSwitch";
 import { GLOBAL_INDEXES, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
 import "./global-markets.css";
@@ -19,6 +20,7 @@ export default function GlobalMarketsPage() {
   const [fetchedAt, setFetchedAt] = useState("");
   const [error, setError] = useState("");
   const [appearance, setAppearance] = useState<Appearance>("light");
+  const [preservedStock, setPreservedStock] = useState("");
   const requestRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async (silent = false) => {
@@ -51,6 +53,8 @@ export default function GlobalMarketsPage() {
       } catch { /* Appearance remains available for the current page. */ }
       setAppearance(next);
       document.documentElement.dataset.appearance = next;
+      const stock = new URLSearchParams(window.location.search).get("stock") ?? "";
+      if (/^\d{6}$/.test(stock)) setPreservedStock(stock);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -92,8 +96,8 @@ export default function GlobalMarketsPage() {
   return (
     <main className="app-shell global-page-shell">
       <aside className="app-sidebar global-sidebar">
-        <Link className="sidebar-brand global-brand" href="/" aria-label="返回 TickLens 市场研究">
-          <div className="brand-mark">TL</div><div><strong>TickLens</strong><span>市场研究工作台</span></div>
+        <Link className="sidebar-brand global-brand" href={preservedStock ? `/?stock=${preservedStock}` : "/"} aria-label="返回 TrendSight 市场研究">
+          <div className="brand-mark" aria-hidden="true" /><div><strong>TrendSight</strong><span>市场研究工作台</span></div>
         </Link>
         <section className="sidebar-current global-sidebar-current" aria-label="全球市场状态">
           <span>全球市场</span>
@@ -103,15 +107,15 @@ export default function GlobalMarketsPage() {
           <em className={openMarkets ? "is-open" : ""}>{openMarkets ? "个市场交易中" : "等待下一交易时段"}</em>
         </section>
         <nav className="workspace-nav global-workspace-nav" aria-label="工作台页面导航">
-          <Link href="/"><span>个股研究</span><small>Research</small></Link>
-          <Link className="is-active" href="/global-markets" aria-current="page"><span>全球股指</span><small>Global</small></Link>
+          <Link href={preservedStock ? `/?stock=${preservedStock}` : "/"}><span>个股研究</span><small>Research</small></Link>
+          <Link className="is-active" href={preservedStock ? `/global-markets?stock=${preservedStock}` : "/global-markets"} aria-current="page"><span>全球股指</span><small>Global</small></Link>
         </nav>
         <p className="sidebar-footnote global-sidebar-footnote">指数、扩展时段代理和压力指标仅供市场研究，不构成投资建议。</p>
       </aside>
 
       <div className="app-workspace-shell global-main">
         <header className="topbar global-topbar">
-          <div className="workspace-heading"><p className="eyebrow">GLOBAL MARKET</p><h1>全球股指</h1></div>
+          <div className="workspace-heading workspace-heading-with-scope"><div><p className="eyebrow">GLOBAL MARKET</p><h1>全球股指</h1></div><MarketScopeSwitch scope="global" stockCode={preservedStock} /></div>
           <div className="topbar-actions global-topbar-actions">
             <span className={`topbar-sync global-feed-state is-${feedState}`}><i />{feedLabel(feedState)}</span>
             <time dateTime={fetchedAt}>{fetchedAt ? `更新 ${formatFetchedAt(fetchedAt)}` : "正在连接全球行情"}</time>

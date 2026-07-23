@@ -25,10 +25,13 @@ export default function AdvancedResearchPanel({ risk, factors, events, benchmark
           <header><div><span>六维因子</span><strong>可解释评分</strong></div><small>0–100</small></header>
           <div className="factor-list">
             {factors.map((factor) => (
-              <div className="factor-row" key={factor.key}>
-                <div><strong>{factor.label}</strong><span>{factor.evidence}</span></div>
-                <div className="factor-score"><i style={{ width: `${factor.score ?? 0}%` }} /><b>{factor.score ?? "—"}</b></div>
-              </div>
+                <div className="factor-row" key={factor.key}>
+                  <div><strong>{factor.label}</strong><span>{factor.evidence}</span></div>
+                  <div className="factor-score">
+                    <span className="factor-track" aria-label={`${factor.label}评分 ${factor.score ?? "暂无"}`}><i style={{ width: `${factor.score ?? 0}%` }} /></span>
+                    <b>{factor.score ?? "—"}</b>
+                  </div>
+                </div>
             ))}
           </div>
           <p>当前为历史数据绝对评分，未做行业中性化；评分只用于比较线索，不是投资评级。</p>

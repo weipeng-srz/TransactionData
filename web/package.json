@@ -1,7 +1,7 @@
 {
-  "name": "ticklens-market-workbench",
+  "name": "trendsight-market-workbench",
   "version": "0.1.0",
-  "description": "TickLens A-share market research workbench",
+  "description": "TrendSight A-share market research workbench",
   "private": true,
   "license": "MIT",
   "repository": {

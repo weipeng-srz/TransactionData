@@ -1,6 +1,6 @@
-# TickLens Web
+# TrendSight Web
 
-这是 TickLens 的 Web 研究工作台，基于 Next.js App Router、React、vinext、Vite 和 Cloudflare Workers。它通过服务端路由访问公开行情、财务与新闻数据，并使用 D1 保存研究状态和匿名聚合遥测。
+这是 TrendSight 的 Web 研究工作台，基于 Next.js App Router、React、vinext、Vite 和 Cloudflare Workers。它通过服务端路由访问公开行情、财务与新闻数据，并使用 D1 保存研究状态和匿名聚合遥测。
 
 项目总览和数据口径请先阅读仓库根目录的 [`README.md`](../README.md)。
 

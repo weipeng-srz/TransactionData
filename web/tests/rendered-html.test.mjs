@@ -22,15 +22,18 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the TickLens market workbench", async () => {
+test("server-renders the TrendSight market workbench", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>TickLens · 市场研究工作台<\/title>/i);
-  assert.match(html, /og-apple\.png/);
-  assert.match(html, /TickLens/);
+  assert.match(html, /<title>TrendSight · 市场研究工作台<\/title>/i);
+  assert.match(html, /manifest\.webmanifest/);
+  assert.match(html, /favicon\.png/);
+  assert.match(html, /apple-touch-icon\.png/);
+  assert.match(html, /trendsight-icon-512\.png/);
+  assert.match(html, /TrendSight/);
   assert.match(html, /市场研究工作台/);
   assert.match(html, /平安银行/);
   assert.match(html, /股票名称或代码，如 平安银行 \/ 000001/);

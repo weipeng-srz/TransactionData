@@ -22,7 +22,7 @@ export default function CommandPalette({ open, commands, onClose }: { open: bool
   const execute = (item: CommandItem | undefined) => { if (!item) return; close(); item.run(); };
   return (
     <div className="command-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-      <section className="command-palette" role="dialog" aria-modal="true" aria-label="TickLens 命令中心" onKeyDown={(event) => {
+      <section className="command-palette" role="dialog" aria-modal="true" aria-label="TrendSight 命令中心" onKeyDown={(event) => {
         if (event.key === "Escape") { event.preventDefault(); close(); }
         if (event.key === "ArrowDown") { event.preventDefault(); setActive((value) => Math.min(filtered.length - 1, value + 1)); }
         if (event.key === "ArrowUp") { event.preventDefault(); setActive((value) => Math.max(0, value - 1)); }

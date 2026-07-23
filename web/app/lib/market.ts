@@ -126,6 +126,7 @@ export type DataQuality = {
 
 export type IntentAnalysis = {
   date: string;
+  basis: "level1" | "daily-price-volume";
   label: string;
   tone: "up" | "down" | "neutral";
   confidence: number;
@@ -451,6 +452,9 @@ export function analyzeMarketIntent(dataset: ParsedDataset, code: string, date: 
   const candle = dailyCandles[dayIndex];
   const previousClose = dayIndex > 0 ? dailyCandles[dayIndex - 1].close : candle.open;
   const returnPct = previousClose ? ((candle.close / previousClose) - 1) * 100 : 0;
+  if (dataset.dataLevel.includes("日K聚合") || dataset.quality.sideCoverage < 0.5) {
+    return analyzeDailyMarketIntent(dataset, dailyCandles, dayIndex, candle, returnPct);
+  }
 
   const buyAmount = sumAmount(dayRows, "买盘");
   const sellAmount = sumAmount(dayRows, "卖盘");
@@ -537,6 +541,7 @@ export function analyzeMarketIntent(dataset: ParsedDataset, code: string, date: 
 
   return {
     date,
+    basis: "level1",
     label,
     tone,
     confidence,
@@ -553,6 +558,89 @@ export function analyzeMarketIntent(dataset: ParsedDataset, code: string, date: 
     tailNetRatio,
     evidence,
     warnings,
+  };
+}
+
+function analyzeDailyMarketIntent(
+  dataset: ParsedDataset,
+  dailyCandles: Candle[],
+  dayIndex: number,
+  candle: Candle,
+  returnPct: number,
+): IntentAnalysis {
+  const priceRange = Math.max(candle.high - candle.low, candle.close * 0.001);
+  const moneyFlowMultiplier = Math.max(-1, Math.min(1, ((2 * candle.close) - candle.high - candle.low) / priceRange));
+  const activeNetRatio = moneyFlowMultiplier * 100;
+  const activeNetAmount = candle.amount * moneyFlowMultiplier;
+  const closeLocationPct = ((candle.close - candle.low) / priceRange) * 100;
+  const closeVsVwapPct = candle.vwap ? ((candle.close / candle.vwap) - 1) * 100 : 0;
+  const tailNetRatio = candle.open ? ((candle.close / candle.open) - 1) * 100 : 0;
+  const priorVolumes = dailyCandles.slice(Math.max(0, dayIndex - 20), dayIndex).map((item) => item.volume);
+  const medianVolume = median(priorVolumes);
+  const volumeRatio20 = priorVolumes.length >= 5 && medianVolume > 0 ? candle.volume / medianVolume : null;
+  const volumeWeight = volumeRatio20 == null ? 0.5 : Math.max(0.35, Math.min(1.25, volumeRatio20 / 1.5));
+  const largeNetAmount = activeNetAmount * volumeWeight;
+  const largeNetRatio = activeNetRatio * volumeWeight;
+
+  let score = thresholdScore(activeNetRatio, 16, 42, 0.7, 1.25)
+    + thresholdScore(closeVsVwapPct, 0.3, 1, 0.4, 0.8)
+    + thresholdScore(closeLocationPct - 50, 12, 32, 0.35, 0.7)
+    + thresholdScore(returnPct, 0.8, 3, 0.3, 0.65)
+    + thresholdScore(tailNetRatio, 0.6, 2.5, 0.25, 0.45);
+  if (volumeRatio20 != null && volumeRatio20 >= 1.2) score += Math.sign(activeNetRatio || returnPct) * Math.min(0.6, (volumeRatio20 - 1) * 0.4);
+  score = Number(score.toFixed(2));
+
+  let label = "量价中性 / 分歧";
+  let tone: IntentAnalysis["tone"] = "neutral";
+  if (volumeRatio20 != null && volumeRatio20 >= 1.6 && Math.abs(returnPct) < 1.2) {
+    label = "放量换手 / 分歧";
+  } else if (score >= 2.1) {
+    label = returnPct >= 1 ? "偏拉升（量价代理）" : "偏承接（量价代理）";
+    tone = "up";
+  } else if (score >= 1) {
+    label = "偏吸筹 / 承接（量价代理）";
+    tone = "up";
+  } else if (score <= -2.1) {
+    label = returnPct <= -1 ? "偏压制（量价代理）" : "偏派发（量价代理）";
+    tone = "down";
+  } else if (score <= -1) {
+    label = "偏派发（量价代理）";
+    tone = "down";
+  }
+
+  const sampleConfidence = dailyCandles.length >= 60 ? 42 : dailyCandles.length >= 20 ? 36 : 28;
+  const signalConfidence = 32 + Math.min(18, Math.abs(score) * 7);
+  const confidence = Math.round(Math.min(54, sampleConfidence, signalConfidence));
+  const evidence = [
+    `日线资金强度 ${signedPercent(activeNetRatio)}，量价方向额 ${signedCompact(activeNetAmount)}`,
+    `收盘相对VWAP ${signedPercent(closeVsVwapPct)}，日内收盘位置 ${formatNumber(closeLocationPct, 1)}%`,
+    `收盘相对开盘 ${signedPercent(tailNetRatio)}，当日涨跌 ${signedPercent(returnPct)}`,
+  ];
+  if (volumeRatio20 !== null) evidence.push(`成交量为近20日中位数的 ${formatNumber(volumeRatio20, 2)} 倍`);
+
+  return {
+    date: candle.date,
+    basis: "daily-price-volume",
+    label,
+    tone,
+    confidence,
+    score,
+    activeNetAmount,
+    activeNetRatio,
+    largeNetAmount,
+    largeNetRatio,
+    largeThreshold: 0,
+    closeVsVwapPct,
+    closeLocationPct,
+    turnoverPct: candle.turnoverPct,
+    volumeRatio20,
+    tailNetRatio,
+    evidence,
+    warnings: [
+      ...dataset.quality.warnings,
+      "当前使用日K OHLC、成交额和近20日量能构建量价代理，不含逐笔买卖方向、盘口队列或撤单数据。",
+      "量价方向额是可解释估算值，不等于真实主力净流入，也不能识别机构账户。",
+    ],
   };
 }
 

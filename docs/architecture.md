@@ -1,12 +1,12 @@
 # 架构说明
 
-TickLens 是一个 Web 研究工作台。浏览器负责交互和本地分析；Next.js App Router API 负责校验请求、聚合公开数据源以及访问 Cloudflare D1；vinext 将应用构建为 Cloudflare Worker 兼容产物。
+TrendSight 是一个 Web 研究工作台。浏览器负责交互和本地分析；Next.js App Router API 负责校验请求、聚合公开数据源以及访问 Cloudflare D1；vinext 将应用构建为 Cloudflare Worker 兼容产物。
 
 ## 组件关系
 
 ```mermaid
 flowchart LR
-    U["用户"] --> W["TickLens Web"]
+    U["用户"] --> W["TrendSight Web"]
     W --> API["同域 /api/* 路由"]
     API --> S["新浪公开行情与新闻"]
     API --> E["东方财富搜索与财务数据"]

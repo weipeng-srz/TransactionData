@@ -130,7 +130,7 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
       level: fearLevel(value),
       description: `由 ${aShareQuotes.length} 个核心指数的下跌家数与平均跌幅计算，用于观察市场压力。`,
       updatedAt: `${latest.date} ${latest.time}`,
-      source: "TickLens 市场压力代理模型",
+      source: "TrendSight 市场压力代理模型",
       official: false,
     });
   }

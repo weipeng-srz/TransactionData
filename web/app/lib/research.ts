@@ -280,7 +280,7 @@ export function buildResearchReport({
   const latest = candles.at(-1);
   const snapshot = financialDataset.code === code ? financialDataset.snapshot : null;
   const lines = [
-    `# TickLens 研究报告：${name || code} ${code}`,
+    `# TrendSight 研究报告：${name || code} ${code}`,
     "",
     `- 生成时间：${generatedAt}`,
     `- K线周期：${timeframe}`,

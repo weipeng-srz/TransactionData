@@ -124,7 +124,7 @@ body:has(.global-page-shell) {
   gap: 8px;
   overflow: hidden;
   color: var(--apple-text);
-  font-size: 27px;
+  font-size: clamp(18px, 2vw, 27px);
   line-height: 1;
   font-weight: 670;
   font-variant-numeric: tabular-nums;
@@ -132,6 +132,8 @@ body:has(.global-page-shell) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.global-summary strong > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .global-summary strong em { font-style: normal; }
 .global-summary strong b { color: var(--apple-tertiary); font-size: 15px; font-weight: 500; }
@@ -493,6 +495,11 @@ body:has(.global-page-shell) {
   .global-us-disclosure b { white-space: normal; }
   .global-us-index-list { grid-template-columns: 1fr; }
   .global-us-index-list > article { min-height: 170px; border-right: 0; }
+}
+
+@media (max-width: 520px) {
+  .global-refresh-button { display: none; }
+  .global-topbar .workspace-heading h1 { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

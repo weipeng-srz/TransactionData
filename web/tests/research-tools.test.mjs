@@ -72,6 +72,7 @@ test("builds news, report and dividend events for the selected stock", () => {
     name: "平安银行",
     reports: [{ reportDate: "2026-03-31", noticeDate: "2026-04-20", periodLabel: "2026一季报", reportType: "定期报告", revenue: 1, revenueYoY: 2, netProfit: 1, netProfitYoY: 3, basicEps: null, bookValuePerShare: null, operatingCashFlowPerShare: null, roe: null, roa: null, grossMargin: null, netMargin: null, debtAssetRatio: null }],
     snapshot: { asOfDate: "", industry: "", closePrice: null, totalMarketCap: null, floatMarketCap: null, totalShares: null, peTtm: null, peStatic: null, pb: null, psTtm: null, pcfTtm: null, peg: null, dividendYieldTtm: null, cashDividendPerShareTtm: null, dividendPaymentsTtm: 0, latestDividendProfile: "10派1元", latestDividendDate: "2026-05-20" },
+    holderStructure: { asOfDate: "", reportLabel: "", institutionalRatio: null, retailProxyRatio: null, previousInstitutionalRatio: null, institutionalChangePp: null, topThreeInstitutionalRatio: null, institutionCount: 0, topInstitutions: [], analysis: "" },
     analysis: { periods: [], latestReportDate: "", sourceScope: "" }, source: "测试", fetchedAt: "",
   }, "000001");
   assert.deepEqual(events.map((event) => event.kind), ["report", "dividend", "news"]);
