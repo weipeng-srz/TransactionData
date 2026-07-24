@@ -10,6 +10,7 @@ import SignalBacktestCard from "./components/SignalBacktestCard";
 import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import CommandPalette, { type CommandItem } from "./components/CommandPalette";
 import MarketScopeSwitch from "./components/MarketScopeSwitch";
+import HoldingProfitCard from "./components/HoldingProfitCard";
 import {
   aggregateCandles,
   analyzeKlineConclusion,
@@ -48,6 +49,7 @@ import { buildEventStudies, buildFactorProfile } from "./lib/advancedResearch";
 import { readCachedText, writeCachedText } from "./lib/browserCache";
 import { reportTelemetry } from "./lib/telemetry";
 import type { RealtimeSnapshot } from "./lib/realtimeMarket";
+import { parseHoldings, type StockHoldings } from "./lib/holdings";
 
 const timeframes: Array<{ key: Timeframe; label: string }> = [
   { key: "1d", label: "日K" },
@@ -82,6 +84,7 @@ const workspaceStorageKey = "ticklens.saved-workspace.v1";
 const appearanceStorageKey = "ticklens.appearance.v1";
 const annotationsStorageKey = "ticklens.annotations.v1";
 const viewModeStorageKey = "ticklens.view-mode.v1";
+const holdingsStorageKey = "ticklens.holdings.v1";
 const maxRecentStocks = 20;
 const requestTimeoutMs = 18_000;
 
@@ -195,6 +198,7 @@ export default function Home() {
   const [benchmarkCode, setBenchmarkCode] = useState("000300");
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([]);
   const [savedWorkspace, setSavedWorkspace] = useState<SavedWorkspace | null>(null);
+  const [holdings, setHoldings] = useState<StockHoldings>({});
   const [cloudStatus, setCloudStatus] = useState<"loading" | "synced" | "local" | "error">("loading");
   const [commandOpen, setCommandOpen] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
@@ -208,6 +212,7 @@ export default function Home() {
     let storedStocks: RecentStock[] = [];
     let storedAnnotations: ChartAnnotation[] = [];
     let storedWorkspace: SavedWorkspace | null = null;
+    let storedHoldings: StockHoldings = {};
     let storedViewMode: "basic" | "pro" = "pro";
     try {
       storedStocks = parseRecentStocks(JSON.parse(localStorage.getItem(recentStocksStorageKey) ?? "[]"));
@@ -220,12 +225,16 @@ export default function Home() {
     try {
       storedAnnotations = parseAnnotations(JSON.parse(localStorage.getItem(annotationsStorageKey) ?? "[]"));
     } catch { localStorage.removeItem(annotationsStorageKey); }
+    try {
+      storedHoldings = parseHoldings(JSON.parse(localStorage.getItem(holdingsStorageKey) ?? "[]"));
+    } catch { localStorage.removeItem(holdingsStorageKey); }
     storedViewMode = localStorage.getItem(viewModeStorageKey) === "basic" ? "basic" : "pro";
     const frame = window.requestAnimationFrame(() => {
       setRecentStocks(storedStocks);
       setSavedWorkspace(storedWorkspace);
       setHasSavedView(Boolean(storedWorkspace));
       setAnnotations(storedAnnotations);
+      setHoldings(storedHoldings);
       setViewMode(storedViewMode);
       setStorageHydrated(true);
     });
@@ -307,6 +316,7 @@ export default function Home() {
   }, [isDemo, realtimeSnapshot?.marketStatus, refreshRealtime, selectedCode]);
 
   useEffect(() => {
+    if (!storageHydrated) return;
     const controller = new AbortController();
     const loadCloudState = async () => {
       try {
@@ -323,6 +333,10 @@ export default function Home() {
           if (cloudAnnotations.length) setAnnotations(cloudAnnotations);
           if (state.viewMode === "basic" || state.viewMode === "pro") setViewMode(state.viewMode);
           if (typeof state.benchmarkCode === "string" && /^\d{6}$/.test(state.benchmarkCode)) setBenchmarkCode(state.benchmarkCode);
+          const cloudHoldings = parseHoldings(state.holdings);
+          if (Object.keys(cloudHoldings).length) {
+            setHoldings((current) => ({ ...current, ...cloudHoldings }));
+          }
           if (state.workspace && typeof state.workspace === "object") {
             const workspace = state.workspace as SavedWorkspace;
             if (workspace.version === 1) { setSavedWorkspace(workspace); setHasSavedView(true); }
@@ -336,7 +350,7 @@ export default function Home() {
     };
     void loadCloudState();
     return () => controller.abort();
-  }, []);
+  }, [storageHydrated]);
 
   useEffect(() => {
     if (!storageHydrated || !cloudLoadedRef.current || cloudStatus !== "synced") return;
@@ -345,13 +359,22 @@ export default function Home() {
         const response = await fetch("/api/research-state", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: { version: 2, workspace: savedWorkspace, annotations, viewMode, benchmarkCode } }),
+          body: JSON.stringify({ state: { version: 3, workspace: savedWorkspace, annotations, viewMode, benchmarkCode, holdings: Object.values(holdings) } }),
         });
         if (!response.ok) throw new Error("同步失败");
       } catch { setCloudStatus("error"); }
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [annotations, benchmarkCode, cloudStatus, savedWorkspace, storageHydrated, viewMode]);
+  }, [annotations, benchmarkCode, cloudStatus, holdings, savedWorkspace, storageHydrated, viewMode]);
+
+  useEffect(() => {
+    if (!storageHydrated) return;
+    try {
+      localStorage.setItem(holdingsStorageKey, JSON.stringify(Object.values(holdings)));
+    } catch {
+      // Cloud state remains authoritative when browser storage is unavailable.
+    }
+  }, [holdings, storageHydrated]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -414,6 +437,8 @@ export default function Home() {
   const latest = candles[candles.length - 1];
   const selectedName = dataset.stockNames[selectedCode] ?? "";
   const liveQuote = realtimeSnapshot?.code === selectedCode ? realtimeSnapshot : null;
+  const currentPrice = liveQuote?.price ?? latest?.close ?? null;
+  const currentHolding = holdings[selectedCode] ?? null;
   const displayChange = liveQuote?.change ?? latest?.change ?? 0;
   const directionClass = displayChange >= 0 ? "is-up" : "is-down";
   const busy = fetchingStock;
@@ -459,6 +484,28 @@ export default function Home() {
       // Ignore storage restrictions and keep the in-memory list cleared.
     }
   };
+
+  const saveHolding = useCallback((shares: number, cost: number) => {
+    if (isDemo || !/^\d{6}$/.test(selectedCode)) return;
+    setHoldings((current) => ({
+      ...current,
+      [selectedCode]: {
+        code: selectedCode,
+        shares,
+        cost,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+  }, [isDemo, selectedCode]);
+
+  const clearHolding = useCallback(() => {
+    setHoldings((current) => {
+      if (!current[selectedCode]) return current;
+      const next = { ...current };
+      delete next[selectedCode];
+      return next;
+    });
+  }, [selectedCode]);
 
   const applyDataset = useCallback((parsed: ParsedDataset, name: string) => {
     const code = parsed.codes[0];
@@ -1350,7 +1397,6 @@ export default function Home() {
                 </details>
               </>
             ) : <p className="empty-note">当前日期没有可分析的行情记录。</p>}
-            <HolderMix structure={financialDataset.holderStructure} loading={financialLoad.phase === "loading"} />
           </section>
 
           <section className="rail-card focus-card">
@@ -1377,6 +1423,18 @@ export default function Home() {
             </dl>
           </section>
 
+          <HoldingProfitCard
+            key={`${selectedCode}-${currentHolding?.updatedAt ?? "new"}`}
+            code={selectedCode}
+            name={selectedName}
+            currentPrice={currentPrice}
+            holding={currentHolding}
+            isDemo={isDemo}
+            cloudStatus={cloudStatus}
+            onSave={saveHolding}
+            onClear={clearHolding}
+          />
+
           <section className="rail-card indicator-card">
             <div className="rail-heading">
               <div>
@@ -1392,6 +1450,9 @@ export default function Home() {
               <Indicator label="RSI 14" values={[currentIndicator.rsi]} colors={["blue"]} />
               <Indicator label="ATR 14" values={[currentIndicator.atr]} colors={["pink"]} />
             </div>
+          </section>
+          <section className="rail-card ownership-card">
+            <HolderMix structure={financialDataset.holderStructure} loading={financialLoad.phase === "loading"} />
           </section>
           <SignalBacktestCard backtest={signalBacktest} />
         </aside>

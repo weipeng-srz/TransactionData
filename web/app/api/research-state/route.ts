@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../../db/index.ts";
 import { researchStates } from "../../../db/schema.ts";
 import { resolveUserKey } from "../../lib/serverIdentity.ts";
+import { parseHoldings } from "../../lib/holdings.ts";
 
 const maxPayloadBytes = 96 * 1024;
 
@@ -38,11 +39,12 @@ export async function PUT(request: Request) {
 function sanitizeState(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("研究状态格式无效");
   const input = value as Record<string, unknown>;
-  const output: Record<string, unknown> = { version: 2 };
+  const output: Record<string, unknown> = { version: 3 };
   if (input.workspace && typeof input.workspace === "object") output.workspace = input.workspace;
   if (Array.isArray(input.annotations)) output.annotations = input.annotations.slice(0, 100);
   if (input.viewMode === "basic" || input.viewMode === "pro") output.viewMode = input.viewMode;
   if (typeof input.benchmarkCode === "string" && /^\d{6}$/.test(input.benchmarkCode)) output.benchmarkCode = input.benchmarkCode;
+  output.holdings = Object.values(parseHoldings(input.holdings));
   return output;
 }
 
