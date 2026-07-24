@@ -1143,6 +1143,137 @@ select:disabled {
   }
 }
 
+/* Desktop composition: keep the brand, scope selector and quote metrics on one
+   deliberate grid so the primary workspace has no accidental dead zones. */
+@media (min-width: 1181px) {
+  .app-sidebar .sidebar-brand {
+    padding: 2px 8px 12px;
+    border-bottom: 0;
+  }
+
+  .app-sidebar .sidebar-brand .brand-mark {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    border: 0;
+    border-radius: 0;
+    background: transparent url("/trendsight-mark.svg") center / contain no-repeat;
+    box-shadow: none;
+    filter: drop-shadow(0 8px 13px rgba(0, 113, 227, 0.14));
+  }
+
+  :root[data-appearance="dark"] .app-sidebar .sidebar-brand .brand-mark {
+    background-color: transparent;
+    background-image: url("/trendsight-mark.svg");
+    box-shadow: none;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.28));
+  }
+
+  .sidebar-scope {
+    margin: 0 0 14px;
+    padding: 0 6px 14px;
+    border-bottom: 1px solid var(--apple-border);
+  }
+
+  .sidebar-scope .market-scope-switch {
+    width: 100%;
+    min-height: 40px;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 13px;
+  }
+
+  .sidebar-scope .market-scope-switch a {
+    min-width: 0;
+    min-height: 32px;
+    padding-inline: 8px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .topbar .workspace-heading {
+    flex: 0 0 auto;
+  }
+
+  .quote-head {
+    min-height: 154px;
+    margin: 0 0 28px;
+    padding: 18px;
+    align-items: stretch;
+    grid-template-columns: minmax(220px, 1.05fr) minmax(196px, .72fr) minmax(336px, 1.25fr) !important;
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--apple-border);
+    border-radius: var(--apple-radius-lg);
+    background: var(--apple-surface);
+    box-shadow: var(--apple-shadow-card);
+  }
+
+  .quote-identity,
+  .quote-price,
+  .quote-stats {
+    min-height: 116px;
+  }
+
+  .quote-identity {
+    padding: 8px 22px 8px 4px;
+    align-content: center;
+  }
+
+  .quote-identity h2,
+  .quote-identity select {
+    font-size: clamp(28px, 2.15vw, 38px);
+  }
+
+  .quote-price {
+    min-width: 0;
+    padding: 8px 22px;
+    align-content: center;
+    justify-content: center;
+    flex-direction: column;
+    border-inline: 1px solid var(--apple-border);
+  }
+
+  .quote-price strong {
+    font-size: clamp(34px, 2.7vw, 44px);
+  }
+
+  .quote-stats {
+    width: auto;
+    padding: 0 0 0 18px !important;
+    grid-column: auto !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    border-top: 0 !important;
+  }
+
+  .quote-stats .stat,
+  .quote-stats .stat:first-child {
+    min-height: 0;
+    padding: 10px 12px;
+    align-items: flex-start;
+    justify-content: center;
+    flex-direction: column;
+    gap: 5px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--apple-surface-soft);
+  }
+
+  .quote-stats .stat strong {
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar-scope {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

@@ -99,6 +99,9 @@ export default function GlobalMarketsPage() {
         <Link className="sidebar-brand global-brand" href={preservedStock ? `/?stock=${preservedStock}` : "/"} aria-label="返回 TrendSight 市场研究">
           <div className="brand-mark" aria-hidden="true" /><div><strong>TrendSight</strong><span>市场研究工作台</span></div>
         </Link>
+        <div className="sidebar-scope">
+          <MarketScopeSwitch scope="global" stockCode={preservedStock} />
+        </div>
         <section className="sidebar-current global-sidebar-current" aria-label="全球市场状态">
           <span>全球市场</span>
           <strong>{openMarkets ? "实时交易中" : "主要市场休市"}</strong>
@@ -115,7 +118,7 @@ export default function GlobalMarketsPage() {
 
       <div className="app-workspace-shell global-main">
         <header className="topbar global-topbar">
-          <div className="workspace-heading workspace-heading-with-scope"><div><p className="eyebrow">GLOBAL MARKET</p><h1>全球股指</h1></div><MarketScopeSwitch scope="global" stockCode={preservedStock} /></div>
+          <div className="workspace-heading"><div><p className="eyebrow">GLOBAL MARKET</p><h1>全球股指</h1></div></div>
           <div className="topbar-actions global-topbar-actions">
             <span className={`topbar-sync global-feed-state is-${feedState}`}><i />{feedLabel(feedState)}</span>
             <time dateTime={fetchedAt}>{fetchedAt ? `更新 ${formatFetchedAt(fetchedAt)}` : "正在连接全球行情"}</time>
@@ -138,39 +141,40 @@ export default function GlobalMarketsPage() {
         </section>
 
         <section className="global-map-card" aria-label="全球主要股指地图">
-          <header><div><p>LIVE WORLD MAP</p><h2>全球市场实时坐标</h2></div><div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div></header>
+          <header><div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div><div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div></header>
           <div className="global-map-stage">
             <div className="global-map-viewport">
-            <div className="global-map-orbit" aria-hidden="true" />
-            {/* The map and every marker share this fixed-aspect coordinate plane. */}
+            {/* The land silhouette and every market use the same Robinson projection. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
-            <div className="global-map-grid" aria-hidden="true" />
+            <span className="global-map-region-label is-americas" aria-hidden="true">美洲</span>
+            <span className="global-map-region-label is-europe" aria-hidden="true">欧洲</span>
+            <span className="global-map-region-label is-asia-pacific" aria-hidden="true">亚太</span>
             {GLOBAL_INDEXES.filter((item) => item.map).map((definition) => {
               const quote = quoteById.get(definition.id);
               const map = definition.map!;
-              const style = { left: `${map.x}%`, top: `${map.y}%` } as CSSProperties;
+              const style = projectMarketPoint(map.longitude, map.latitude);
               return (
-                <article className={`global-map-marker anchor-${map.anchor} ${tone(quote?.changePct)}`} style={style} key={definition.id} title={`${definition.city} · ${definition.name}`} data-map-id={definition.id}>
+                <button type="button" className={`global-map-marker anchor-${map.anchor} ${tone(quote?.changePct)}`} style={style} key={definition.id} title={`${definition.city} · ${definition.name}`} data-map-id={definition.id} aria-label={`${definition.city}，${definition.name}，${quote ? signedPercent(quote.changePct) : "等待行情"}`}>
                   <span className="global-marker-dot"><i /></span>
                   <div className="global-marker-label"><small>{definition.city}</small><strong>{compactIndexName(definition.name)}</strong><b>{quote ? signedPercent(quote.changePct) : "—"}</b></div>
-                </article>
+                </button>
               );
             })}
             {US_INDEXES.filter((item) => item.map).map((definition) => {
               const quote = usQuoteById.get(definition.id);
               const map = definition.map!;
-              const style = { left: `${map.x}%`, top: `${map.y}%` } as CSSProperties;
+              const style = projectMarketPoint(map.longitude, map.latitude);
               return (
-                <article className={`global-map-marker anchor-${map.anchor} ${tone(quote?.cashChangePct ?? undefined)}`} style={style} key={definition.id} title={`纽约 · ${definition.name}`} data-map-id={definition.id}>
+                <button type="button" className={`global-map-marker anchor-${map.anchor} ${tone(quote?.cashChangePct ?? undefined)}`} style={style} key={definition.id} title={`纽约 · ${definition.name}`} data-map-id={definition.id} aria-label={`纽约，${definition.name}，${quote?.cashChangePct == null ? "等待行情" : signedPercent(quote.cashChangePct)}`}>
                   <span className="global-marker-dot"><i /></span>
                   <div className="global-marker-label"><small>纽约</small><strong>{compactIndexName(definition.name)}</strong><b>{quote?.cashChangePct == null ? "—" : signedPercent(quote.cashChangePct)}</b></div>
-                </article>
+                </button>
               );
             })}
             </div>
           </div>
-          <footer><span>点位按指数所在地理位置展示</span><span>红涨绿跌 · 数据仅供研究参考</span></footer>
+          <footer><span>点位按交易所城市真实经纬度投影</span><span>红涨绿跌 · 数据仅供研究参考</span></footer>
         </section>
 
         <section className="global-region-board" aria-label="全球指数行情列表">
@@ -265,6 +269,18 @@ function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A�
 }
 
 function feedLabel(state: FeedState) { return state === "loading" ? "连接中" : state === "refreshing" ? "刷新中" : state === "error" ? "自动重试" : "实时行情"; }
+function projectMarketPoint(longitude: number, latitude: number): CSSProperties {
+  const xTable = [1, .9986, .9954, .99, .9822, .973, .96, .9427, .9216, .8962, .8679, .835, .7986, .7597, .7186, .6732, .6213, .5722, .5322];
+  const yTable = [0, .062, .124, .186, .248, .31, .372, .434, .4958, .5571, .6176, .6769, .7346, .7903, .8435, .8936, .9394, .9761, 1];
+  const absoluteLatitude = Math.min(90, Math.abs(latitude));
+  const index = Math.min(17, Math.floor(absoluteLatitude / 5));
+  const fraction = (absoluteLatitude - index * 5) / 5;
+  const xCoefficient = xTable[index] + (xTable[index + 1] - xTable[index]) * fraction;
+  const yCoefficient = yTable[index] + (yTable[index + 1] - yTable[index]) * fraction;
+  const x = (180 + longitude * xCoefficient) / 3.6;
+  const y = (1 - Math.sign(latitude) * yCoefficient) * 50;
+  return { left: `${x.toFixed(3)}%`, top: `${y.toFixed(3)}%` };
+}
 function regionCode(region: GlobalRegion) { return region === "美洲" ? "AMER" : region === "欧洲" ? "EMEA" : region === "亚太" ? "APAC" : "CN-A"; }
 function phaseTone(phase: USMarketPhase | undefined) { return phase === "盘中" ? "is-regular" : phase === "盘前" ? "is-pre" : phase === "盘后" ? "is-post" : phase === "夜盘" ? "is-night" : "is-closed"; }
 function fearTone(value: number | undefined) { return (value ?? 0) >= 40 ? "is-high" : (value ?? 0) >= 30 ? "is-watch" : "is-calm"; }

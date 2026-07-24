@@ -12,7 +12,7 @@ export type USIndexDefinition = {
   futureSymbol: string;
   futureCode: string;
   futureName: string;
-  map?: { x: number; y: number; anchor: "top" | "right" | "bottom" | "left" };
+  map?: { longitude: number; latitude: number; anchor: "top" | "right" | "bottom" | "left" };
 };
 
 export type USIndexSessionQuote = {
@@ -36,7 +36,7 @@ export type USIndexSessionQuote = {
 };
 
 export const US_INDEXES: USIndexDefinition[] = [
-  { id: "dow", code: "DJI", name: "道琼斯工业指数", cashSymbol: "gb_$dji", extendedSymbol: "gb_dia", extendedCode: "DIA", futureSymbol: "hf_YM", futureCode: "YM", futureName: "道指期货", map: { x: 31.1, y: 24.8, anchor: "bottom" } },
+  { id: "dow", code: "DJI", name: "道琼斯工业指数", cashSymbol: "gb_$dji", extendedSymbol: "gb_dia", extendedCode: "DIA", futureSymbol: "hf_YM", futureCode: "YM", futureName: "道指期货", map: { longitude: -74.006, latitude: 40.7128, anchor: "bottom" } },
   { id: "sp500", code: "SPX", name: "标普 500", cashSymbol: "gb_inx", extendedSymbol: "gb_spy", extendedCode: "SPY", futureSymbol: "hf_ES", futureCode: "ES", futureName: "标普 500 期货" },
   { id: "nasdaq", code: "IXIC", name: "纳斯达克综合指数", cashSymbol: "gb_ixic", extendedSymbol: "gb_oneq", extendedCode: "ONEQ", futureSymbol: "hf_NQ", futureCode: "NQ", futureName: "纳指期货" },
   { id: "nasdaq100", code: "NDX", name: "纳斯达克 100", cashSymbol: "gb_ndx", extendedSymbol: "gb_qqq", extendedCode: "QQQ", futureSymbol: "hf_NQ", futureCode: "NQ", futureName: "纳指期货" },

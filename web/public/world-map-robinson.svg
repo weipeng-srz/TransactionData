@@ -7,9 +7,8 @@
 	<style type="text/css">
 		/* countries that have not been styled otherwise are gray */
 		.country {
-			stroke:#ffffff;
-			stroke-width:.1;
-			fill:#c0c0c0; /* gray */
+			stroke:none;
+			fill:#a7a7ad;
 		}
 		/* small-country circles are hidden by default */
 		circle {
@@ -27,8 +26,11 @@
 		 * }
 		 */
 		.water {
-			fill:#ffffff;
+			fill:none;
 			stroke:none;
+		}
+		.ATA {
+			display:none;
 		}
 	</style>
 	<g>

@@ -71,7 +71,8 @@ test("server-renders the global realtime index map", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /全球股指脉动/);
-  assert.match(html, /全球市场实时坐标/);
+  assert.match(html, /全球主要市场板块/);
+  assert.match(html, /点位按交易所城市真实经纬度投影/);
   assert.match(html, /AMER/);
   assert.match(html, /EMEA/);
   assert.match(html, /APAC/);

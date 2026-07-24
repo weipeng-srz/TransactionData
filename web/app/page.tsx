@@ -921,6 +921,9 @@ export default function Home() {
             <span>市场研究工作台</span>
           </div>
         </div>
+        <div className="sidebar-scope">
+          <MarketScopeSwitch scope="stock" stockCode={isDemo ? "" : selectedCode} />
+        </div>
 
         <section className="sidebar-current" aria-label="当前股票">
           <span>当前标的</span>
@@ -971,12 +974,11 @@ export default function Home() {
 
       <div className="app-workspace-shell">
       <header className="topbar">
-        <div className="brand-lockup workspace-heading workspace-heading-with-scope">
+        <div className="brand-lockup workspace-heading">
           <div>
             <p className="eyebrow">MARKET WORKSPACE</p>
             <h1>市场研究</h1>
           </div>
-          <MarketScopeSwitch scope="stock" stockCode={isDemo ? "" : selectedCode} />
         </div>
         <div className="topbar-actions">
           <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>

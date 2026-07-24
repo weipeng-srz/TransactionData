@@ -177,7 +177,7 @@ body:has(.global-page-shell) {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--apple-surface-soft) 72%, transparent), var(--apple-surface));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--apple-surface-soft) 42%, transparent), var(--apple-surface));
 }
 
 .global-map-viewport {
@@ -188,33 +188,15 @@ body:has(.global-page-shell) {
 }
 
 .global-map-viewport::before {
-  content: "";
-  position: absolute;
-  inset: 1%;
-  z-index: -3;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, color-mix(in srgb, var(--apple-accent) 5%, transparent), transparent 70%);
+  content: none;
 }
 
 .global-map-orbit {
-  position: absolute;
-  inset: 4% 1%;
-  z-index: -2;
-  border: 1px solid color-mix(in srgb, var(--apple-accent) 10%, transparent);
-  border-radius: 50%;
+  display: none;
 }
 
 .global-map-grid {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  opacity: .32;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--apple-text) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--apple-text) 5%, transparent) 1px, transparent 1px);
-  background-size: 8.333% 16.666%;
-  -webkit-mask-image: radial-gradient(ellipse, #000 30%, transparent 76%);
-  mask-image: radial-gradient(ellipse, #000 30%, transparent 76%);
+  display: none;
 }
 
 .global-map-land {
@@ -224,13 +206,42 @@ body:has(.global-page-shell) {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  opacity: .58;
-  filter: grayscale(1) contrast(.88);
+  opacity: .38;
+  filter: grayscale(1) contrast(.8);
 }
 
-:root[data-appearance="dark"] .global-map-land { opacity: .34; filter: grayscale(1) brightness(1.25); }
+:root[data-appearance="dark"] .global-map-land { opacity: .28; filter: grayscale(1) brightness(1.36); }
 
-.global-map-marker { position: absolute; z-index: 4; width: 0; height: 0; }
+.global-map-region-label {
+  position: absolute;
+  z-index: 1;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--apple-tertiary);
+  background: color-mix(in srgb, var(--apple-surface) 72%, transparent);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: .12em;
+  pointer-events: none;
+}
+
+.global-map-region-label.is-americas { left: 24%; top: 45%; }
+.global-map-region-label.is-europe { left: 50%; top: 29%; }
+.global-map-region-label.is-asia-pacific { left: 76%; top: 50%; }
+
+.global-map-marker {
+  position: absolute;
+  z-index: 4;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  appearance: none;
+  cursor: help;
+}
 .global-marker-dot {
   position: absolute;
   left: -5px;
@@ -262,6 +273,9 @@ body:has(.global-page-shell) {
   box-shadow: 0 5px 18px rgba(0, 0, 0, .08);
   backdrop-filter: blur(12px) saturate(150%);
   -webkit-backdrop-filter: blur(12px) saturate(150%);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 180ms ease, visibility 180ms ease;
   pointer-events: none;
 }
 
@@ -272,6 +286,23 @@ body:has(.global-page-shell) {
 .anchor-bottom .global-marker-label { transform: translate(-50%, 14px); text-align: center; }
 .anchor-left .global-marker-label { transform: translate(calc(-100% - 15px), -50%); text-align: right; }
 .anchor-right .global-marker-label { transform: translate(15px, -50%); text-align: left; }
+
+.global-map-marker:hover,
+.global-map-marker:focus-visible {
+  z-index: 9;
+  outline: 0;
+}
+
+.global-map-marker:hover .global-marker-label,
+.global-map-marker:focus-visible .global-marker-label {
+  opacity: 1;
+  visibility: visible;
+}
+
+.global-map-marker:focus-visible .global-marker-dot {
+  outline: 3px solid color-mix(in srgb, var(--apple-accent) 34%, transparent);
+  outline-offset: 4px;
+}
 
 .global-map-card > footer {
   min-height: 42px;
@@ -403,6 +434,40 @@ body:has(.global-page-shell) {
 .global-us-close-row span { color: var(--apple-tertiary); font-size: 8px; }
 .global-us-close-row strong { font-size: 10px; font-weight: 630; font-variant-numeric: tabular-nums; }
 .global-us-quote-time { overflow: hidden; color: var(--apple-tertiary); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (min-width: 1181px) {
+  .global-region-board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .global-region-board > .global-region-card:not(.is-us-market) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .global-region-board > .global-region-card:not(.is-us-market) .global-index-list {
+    flex: 1 1 auto;
+    grid-auto-rows: minmax(76px, 1fr);
+  }
+
+  .global-region-board > .global-region-card:last-child {
+    grid-column: span 2;
+  }
+
+  .global-region-board > .global-region-card:last-child .global-index-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .global-region-board > .global-region-card:last-child .global-index-list article {
+    border-right: 1px solid var(--apple-border);
+  }
+
+  .global-region-board > .global-region-card:last-child .global-index-list article:nth-child(2n) {
+    border-right: 0;
+  }
+}
 
 @media (max-width: 1180px) {
   .global-summary { grid-template-columns: 1fr 1fr; }
