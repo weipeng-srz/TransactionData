@@ -27,7 +27,7 @@
   --apple-shadow-float: 0 2px 8px rgba(0, 0, 0, 0.055), 0 18px 54px rgba(0, 0, 0, 0.09);
   --page-gutter: clamp(20px, 3vw, 48px);
   --section-gap: clamp(22px, 2.4vw, 34px);
-  --content-max: 1440px;
+  --content-max: none;
   --control-height: 42px;
 }
 
@@ -80,7 +80,7 @@ select:disabled {
 }
 
 .app-shell {
-  width: min(1728px, 100%);
+  width: 100%;
   min-width: 0;
   padding: 20px var(--page-gutter) 48px !important;
   grid-template-columns: 240px minmax(0, 1fr) !important;
@@ -89,7 +89,7 @@ select:disabled {
 
 .app-workspace-shell {
   width: 100%;
-  max-width: var(--content-max);
+  max-width: none;
   min-width: 0;
 }
 
@@ -1435,42 +1435,42 @@ select:disabled {
   }
 
   .analysis-rail > .conclusion-card {
-    grid-column: 1 / 5;
+    grid-column: 1 / 7;
     grid-row: 1;
   }
 
   .analysis-rail > .focus-card {
-    grid-column: 5 / 9;
+    grid-column: 7 / 10;
     grid-row: 1;
   }
 
   .analysis-rail > .holding-card {
-    grid-column: 9 / 13;
+    grid-column: 10 / 13;
     grid-row: 1;
   }
 
   .analysis-rail > .intent-card {
-    grid-column: 1 / 5;
+    grid-column: 1 / 7;
     grid-row: 2;
   }
 
   .analysis-rail > .data-card {
-    grid-column: 5 / 9;
+    grid-column: 7 / 10;
     grid-row: 2;
   }
 
   .analysis-rail > .indicator-card {
-    grid-column: 9 / 13;
+    grid-column: 10 / 13;
     grid-row: 2;
   }
 
   .analysis-rail > .ownership-card {
-    grid-column: 1 / 9;
+    grid-column: 1 / 7;
     grid-row: 3;
   }
 
   .analysis-rail > .sentiment-card {
-    grid-column: 9 / 13;
+    grid-column: 7 / 13;
     grid-row: 3;
   }
 
