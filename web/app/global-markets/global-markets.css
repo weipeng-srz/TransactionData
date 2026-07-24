@@ -507,3 +507,82 @@ body:has(.global-page-shell) {
   .global-page-shell *::before,
   .global-page-shell *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Native-app mobile shell: keep the market data full width and move route
+   switching into the same floating bottom navigation used by individual stocks. */
+@media (max-width: 820px) {
+  .global-page-shell.app-shell {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px 28px !important;
+    display: block !important;
+  }
+
+  .global-sidebar.app-sidebar {
+    position: fixed;
+    inset: auto 8px 8px;
+    z-index: 100;
+    width: auto;
+    height: 68px;
+    min-height: 68px;
+    margin: 0;
+    padding: 6px;
+    display: block;
+    overflow: hidden;
+    border-radius: 22px;
+    background: var(--apple-elevated);
+    box-shadow: var(--apple-shadow-float);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+  }
+
+  .global-sidebar .sidebar-brand,
+  .global-sidebar .global-sidebar-current,
+  .global-sidebar .global-sidebar-footnote {
+    display: none;
+  }
+
+  .global-sidebar .global-workspace-nav {
+    height: 56px;
+    min-height: 56px;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .global-sidebar .global-workspace-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .global-sidebar .global-workspace-nav a {
+    min-width: 112px;
+    min-height: 56px;
+    padding: 0 12px;
+    flex: 1 0 112px;
+    justify-content: center;
+    border-radius: 16px;
+    font-size: 12px;
+    scroll-snap-align: start;
+  }
+
+  .global-main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .global-topbar {
+    top: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .global-page-shell.app-shell {
+    padding-inline: 10px !important;
+  }
+}

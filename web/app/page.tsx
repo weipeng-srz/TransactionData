@@ -980,15 +980,15 @@ export default function Home() {
         </div>
         <div className="topbar-actions">
           <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>
-          <button className="command-trigger" type="button" onClick={() => setCommandOpen(true)}><span>⌘K</span> 命令中心</button>
-          <button className="view-mode-toggle" type="button" onClick={toggleViewMode}>{viewMode === "pro" ? "专业模式" : "基础模式"}</button>
+          <button className="command-trigger" type="button" aria-haspopup="dialog" aria-expanded={commandOpen} onClick={() => setCommandOpen(true)}><span>⌘K</span> 命令中心</button>
+          <button className="view-mode-toggle" type="button" aria-pressed={viewMode === "pro"} onClick={toggleViewMode}>{viewMode === "pro" ? "专业模式" : "基础模式"}</button>
           <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
             <span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span>
           </button>
         </div>
       </header>
 
-      <section className={`query-strip ${fetchingStock ? "is-loading" : ""}`}>
+      <section className={`query-strip ${fetchingStock ? "is-loading" : ""}`} aria-label="股票查询与数据源状态">
         <div className="query-sources" aria-live="polite">
           <div className="query-source">
             <div className={`source-icon ${marketLoad.phase === "loading" ? "is-loading" : ""}`}>K线</div>
@@ -1395,6 +1395,17 @@ export default function Home() {
         </aside>
       </section>
 
+      <FinancialDashboard dataset={financialDataset} load={financialLoad} />
+      <details className="legacy-financial-summary">
+        <summary>查看原始报告摘要、估值与分红明细</summary>
+        <FundamentalsPanel dataset={financialDataset} load={financialLoad} />
+        <FinancialReports dataset={financialDataset} load={financialLoad} />
+      </details>
+
+      <div className="advanced-only">
+        <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
+      </div>
+
       <ResearchDock
         key={selectedCode}
         code={selectedCode}
@@ -1416,17 +1427,6 @@ export default function Home() {
         onAddAnnotation={addAnnotation}
         onRemoveAnnotation={removeAnnotation}
       />
-
-      <div className="advanced-only">
-        <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
-      </div>
-
-      <FinancialDashboard dataset={financialDataset} load={financialLoad} />
-      <details className="legacy-financial-summary">
-        <summary>查看原始报告摘要、估值与分红明细</summary>
-        <FundamentalsPanel dataset={financialDataset} load={financialLoad} />
-        <FinancialReports dataset={financialDataset} load={financialLoad} />
-      </details>
 
       <section className="recent-card">
         <div className="section-heading">
@@ -1653,7 +1653,7 @@ function FinancialReports({ dataset, load }: { dataset: FinancialDataset; load: 
   const maxRevenue = Math.max(0, ...chartReports.map((report) => report.revenue ?? 0));
 
   return (
-    <section className="financial-card" id="stock-financials">
+    <section className="financial-card" id="stock-financial-reports">
       <div className="section-heading financial-heading">
         <div>
           <p className="eyebrow">FINANCIAL REPORTS</p>

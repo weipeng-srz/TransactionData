@@ -30,7 +30,7 @@ export default function RealtimeTradingPanel({
   const refreshLabel = snapshot?.marketStatus === "交易中" ? "1 秒自动刷新" : "15 秒更新快照";
 
   return (
-    <section className="realtime-panel" id="realtime-trading" aria-live="polite">
+    <section className={`realtime-panel ${snapshot ? "has-data" : "is-empty"}`} id="realtime-trading" aria-live="polite">
       <header className="realtime-header">
         <div>
           <p className="eyebrow">LIVE TRADING DAY</p>
@@ -134,7 +134,7 @@ function MinuteCandlestickChart({
     const node = wrapRef.current;
     if (!node) return;
     const observer = new ResizeObserver(([entry]) => setSize({
-      width: Math.max(560, entry.contentRect.width),
+      width: Math.max(320, entry.contentRect.width),
       height: Math.max(320, entry.contentRect.height),
     }));
     observer.observe(node);
