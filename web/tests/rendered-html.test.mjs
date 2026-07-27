@@ -83,6 +83,7 @@ test("server-renders the global realtime index map", async () => {
   assert.match(html, /标普 500/);
   assert.match(html, /日经 225/);
   assert.match(html, /行情每 10 秒自动刷新/);
+  assert.match(html, /恐慌指数日 K/);
   assert.doesNotMatch(html, /B\/S 信号回测/);
   assert.doesNotMatch(html, /行情监控|\/alerts/);
 });

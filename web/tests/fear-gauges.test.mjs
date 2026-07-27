@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseFearGaugeQuotes, parseGlobalIndexResponse } from "../app/lib/globalIndexes.ts";
+import { parseFearGaugeQuotes, parseGlobalIndexResponse, parseVixHistoryCsv } from "../app/lib/globalIndexes.ts";
 
 test("parses the official US VIX and labels the A-share proxy transparently", () => {
   const body = [
@@ -23,4 +23,31 @@ test("parses the official US VIX and labels the A-share proxy transparently", ()
   assert.equal(aShare?.official, false);
   assert.match(aShare?.source ?? "", /代理模型/);
   assert.ok((aShare?.value ?? -1) >= 0 && (aShare?.value ?? 101) <= 100);
+});
+
+test("parses official CBOE VIX daily OHLC history for the K-line chart", () => {
+  const candles = parseVixHistoryCsv([
+    "DATE,OPEN,HIGH,LOW,CLOSE",
+    "07/20/2026,18.000000,19.200000,17.500000,18.800000",
+    "07/21/2026,18.700000,18.900000,16.900000,17.040000",
+    "invalid,10,12,9,11",
+  ].join("\n"));
+
+  assert.deepEqual(candles, [
+    { date: "2026-07-20", open: 18, high: 19.2, low: 17.5, close: 18.8 },
+    { date: "2026-07-21", open: 18.7, high: 18.9, low: 16.9, close: 17.04 },
+  ]);
+});
+
+test("attaches VIX history only to the official fear gauge", () => {
+  const body = [
+    'var hq_str_b_VIX="VIX恐慌指数,17.0400,-1.62,-8.68,,,2026-07-22,04:13:01,17.4800";',
+    'var hq_str_s_sh000001="上证指数,3869.0265,-4.6594,-0.12,3867183,79683838";',
+  ].join("\n");
+  const quotes = parseGlobalIndexResponse(body, new Date("2026-07-22T02:00:00.000Z"));
+  const history = [{ date: "2026-07-21", open: 18.7, high: 18.9, low: 16.9, close: 17.04 }];
+  const gauges = parseFearGaugeQuotes(body, quotes, new Date("2026-07-22T02:00:00.000Z"), history);
+
+  assert.deepEqual(gauges.find((gauge) => gauge.id === "us-vix")?.history, history);
+  assert.deepEqual(gauges.find((gauge) => gauge.id === "a-share-fear")?.history, []);
 });

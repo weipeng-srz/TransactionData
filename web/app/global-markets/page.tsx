@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import MarketScopeSwitch from "../components/MarketScopeSwitch";
-import { GLOBAL_INDEXES, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
+import { GLOBAL_INDEXES, type FearGaugeCandle, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
 import "./global-markets.css";
 
@@ -252,7 +252,7 @@ function RegionPanel({ region, definitions, quoteById, fearGauge }: { region: Gl
 
 function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A股" | "美股" }) {
   return (
-    <article className={`global-fear-card ${fearTone(gauge?.value)}`} aria-label={`${market}恐慌指标`}>
+    <article className={`global-fear-card ${market === "美股" ? "has-chart" : ""} ${fearTone(gauge?.value)}`} aria-label={`${market}恐慌指标`}>
       <div className="global-fear-heading">
         <span>{gauge?.code ?? (market === "美股" ? "VIX" : "CN-FEAR")}</span>
         <div><strong>{gauge?.name ?? `${market}恐慌指标`}</strong><small>{gauge?.official ? "官方指数 · 延时行情" : "市场压力代理 · 非交易所官方指数"}</small></div>
@@ -264,7 +264,90 @@ function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A�
       </div>
       <p>{gauge?.description ?? "正在获取并计算最新市场压力数据。"}</p>
       <small>{gauge ? `${gauge.source} · ${gauge.updatedAt}` : "行情时间 —"}</small>
+      {market === "美股" ? <FearKlineChart candles={gauge?.history ?? []} /> : null}
     </article>
+  );
+}
+
+function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
+  const [period, setPeriod] = useState<20 | 60 | 120>(60);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const visible = useMemo(() => candles.slice(-period), [candles, period]);
+  const width = 720;
+  const height = 210;
+  const padding = { top: 12, right: 52, bottom: 24, left: 8 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const low = visible.length ? Math.min(...visible.map((candle) => candle.low)) : 0;
+  const high = visible.length ? Math.max(...visible.map((candle) => candle.high)) : 1;
+  const rangePadding = Math.max((high - low) * .08, .6);
+  const minimum = Math.max(0, low - rangePadding);
+  const maximum = high + rangePadding;
+  const step = plotWidth / Math.max(1, visible.length);
+  const bodyWidth = Math.max(2.2, Math.min(8, step * .58));
+  const y = (value: number) => padding.top + ((maximum - value) / Math.max(.001, maximum - minimum)) * plotHeight;
+  const activeIndex = hoverIndex == null ? Math.max(0, visible.length - 1) : Math.min(visible.length - 1, hoverIndex);
+  const active = visible[activeIndex];
+  const activeX = padding.left + (activeIndex + .5) * step;
+
+  return (
+    <section className="global-fear-chart" aria-label="CBOE VIX 历史日 K">
+      <header>
+        <div><span>VIX DAILY</span><strong>恐慌指数日 K</strong></div>
+        <div className="global-fear-periods" aria-label="VIX K线周期">
+          {([20, 60, 120] as const).map((value) => (
+            <button key={value} type="button" className={period === value ? "is-active" : ""} aria-pressed={period === value} onClick={() => { setPeriod(value); setHoverIndex(null); }}>{value}日</button>
+          ))}
+        </div>
+      </header>
+      {visible.length ? (
+        <>
+          <div
+            className="global-fear-chart-stage"
+            onPointerLeave={() => setHoverIndex(null)}
+            onPointerMove={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              const pointerX = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+              setHoverIndex(Math.max(0, Math.min(visible.length - 1, Math.floor((pointerX / Math.max(1, bounds.width)) * visible.length))));
+            }}
+          >
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`VIX 最近 ${visible.length} 个交易日日 K`}>
+              {[0, .5, 1].map((position) => {
+                const gridY = padding.top + position * plotHeight;
+                const label = maximum - position * (maximum - minimum);
+                return (
+                  <g key={position}>
+                    <line className="fear-grid-line" x1={padding.left} x2={width - padding.right} y1={gridY} y2={gridY} />
+                    <text className="fear-axis-label" x={width - 4} y={gridY + 3} textAnchor="end">{label.toFixed(1)}</text>
+                  </g>
+                );
+              })}
+              {visible.map((candle, index) => {
+                const x = padding.left + (index + .5) * step;
+                const openY = y(candle.open);
+                const closeY = y(candle.close);
+                const rising = candle.close >= candle.open;
+                return (
+                  <g className={rising ? "is-up" : "is-down"} key={candle.date}>
+                    <line className="fear-candle-wick" x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} />
+                    <rect className="fear-candle-body" x={x - bodyWidth / 2} y={Math.min(openY, closeY)} width={bodyWidth} height={Math.max(1.5, Math.abs(closeY - openY))} rx={1} />
+                  </g>
+                );
+              })}
+              {active ? <line className="fear-crosshair" x1={activeX} x2={activeX} y1={padding.top} y2={height - padding.bottom} /> : null}
+            </svg>
+            {active ? (
+              <div className="global-fear-tooltip" style={{ left: `${Math.max(12, Math.min(88, (activeX / width) * 100))}%` }}>
+                <strong>{active.date}</strong>
+                <span>开 {active.open.toFixed(2)}</span><span>高 {active.high.toFixed(2)}</span>
+                <span>低 {active.low.toFixed(2)}</span><span>收 {active.close.toFixed(2)}</span>
+              </div>
+            ) : null}
+          </div>
+          <footer><span>{visible[0]?.date ?? "—"}</span><small>CBOE 官方日线 · 延时行情</small><span>{visible.at(-1)?.date ?? "—"}</span></footer>
+        </>
+      ) : <div className="global-fear-chart-empty"><span className="loading-spinner" />正在加载 CBOE VIX 历史日线…</div>}
+    </section>
   );
 }
 

@@ -1,7 +1,12 @@
 import { parseUSMarketResponse, US_INDEXES, US_QUOTE_SYMBOLS, type USIndexSessionQuote } from "./usMarketIndexes.ts";
 
 const quoteEndpoint = "https://hq.sinajs.cn/list=";
+const vixHistoryEndpoint = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv";
 const maxResponseBytes = 512 * 1024;
+const maxVixHistoryBytes = 1024 * 1024;
+const vixHistoryCacheTtlMs = 6 * 60 * 60 * 1000;
+
+let vixHistoryCache: { candles: FearGaugeCandle[]; expiresAt: number } | null = null;
 
 export type GlobalRegion = "美洲" | "欧洲" | "亚太" | "A股";
 
@@ -49,6 +54,15 @@ export type FearGaugeQuote = {
   updatedAt: string;
   source: string;
   official: boolean;
+  history: FearGaugeCandle[];
+};
+
+export type FearGaugeCandle = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 };
 
 export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
@@ -76,16 +90,19 @@ export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
 
 export async function fetchGlobalIndexFeed(now = new Date()): Promise<GlobalIndexFeed> {
   const symbols = [...new Set([...GLOBAL_INDEXES.map((item) => item.symbol), ...US_QUOTE_SYMBOLS, "b_VIX"])].join(",");
-  const body = await fetchQuoteText(`${quoteEndpoint}${symbols}`);
+  const [body, vixHistory] = await Promise.all([
+    fetchQuoteText(`${quoteEndpoint}${symbols}`),
+    fetchVixHistory(),
+  ]);
   const quotes = parseGlobalIndexResponse(body, now);
   const usQuotes = parseUSMarketResponse(body, now);
-  const fearGauges = parseFearGaugeQuotes(body, quotes, now);
+  const fearGauges = parseFearGaugeQuotes(body, quotes, now, vixHistory);
   if (quotes.length < Math.ceil(GLOBAL_INDEXES.length / 2)) throw new Error("全球行情服务暂未返回足够的有效指数");
   if (usQuotes.length < Math.ceil(US_INDEXES.length / 2)) throw new Error("美股现货与延长时段行情暂不可用");
   return { quotes, usQuotes, fearGauges, source: "新浪财经全球指数、CBOE VIX、ETF 延长时段与指数期货 HTTPS 行情", fetchedAt: now.toISOString() };
 }
 
-export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], now = new Date()): FearGaugeQuote[] {
+export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], now = new Date(), vixHistory: FearGaugeCandle[] = []): FearGaugeQuote[] {
   const gauges: FearGaugeQuote[] = [];
   const vixPayload = body.match(/var hq_str_b_VIX="([\s\S]*?)";/)?.[1];
   if (vixPayload) {
@@ -109,6 +126,7 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
         updatedAt: `${date} ${time}`,
         source: "CBOE VIX · 延时行情",
         official: true,
+        history: vixHistory.slice(-160),
       });
     }
   }
@@ -132,10 +150,81 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
       updatedAt: `${latest.date} ${latest.time}`,
       source: "TrendSight 市场压力代理模型",
       official: false,
+      history: [],
     });
   }
 
   return gauges;
+}
+
+export function parseVixHistoryCsv(value: string): FearGaugeCandle[] {
+  const lines = value.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((item) => item.trim().toUpperCase());
+  const dateIndex = headers.indexOf("DATE");
+  const openIndex = headers.indexOf("OPEN");
+  const highIndex = headers.indexOf("HIGH");
+  const lowIndex = headers.indexOf("LOW");
+  const closeIndex = headers.indexOf("CLOSE");
+  if ([dateIndex, openIndex, highIndex, lowIndex, closeIndex].some((index) => index < 0)) return [];
+
+  const candles = new Map<string, FearGaugeCandle>();
+  for (const line of lines.slice(1)) {
+    const fields = line.split(",").map((item) => item.trim());
+    const date = normalizeCboeDate(fields[dateIndex]);
+    const open = finiteNumber(fields[openIndex]);
+    const high = finiteNumber(fields[highIndex]);
+    const low = finiteNumber(fields[lowIndex]);
+    const close = finiteNumber(fields[closeIndex]);
+    if (
+      !date
+      || open == null
+      || high == null
+      || low == null
+      || close == null
+      || open <= 0
+      || high < Math.max(open, close)
+      || low > Math.min(open, close)
+      || low <= 0
+    ) continue;
+    candles.set(date, { date, open, high, low, close });
+  }
+  return [...candles.values()].sort((left, right) => left.date.localeCompare(right.date)).slice(-160);
+}
+
+async function fetchVixHistory(): Promise<FearGaugeCandle[]> {
+  const now = Date.now();
+  if (vixHistoryCache && vixHistoryCache.expiresAt > now) return vixHistoryCache.candles;
+  try {
+    const response = await fetch(vixHistoryEndpoint, {
+      cache: "no-store",
+      headers: { Accept: "text/csv" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maxVixHistoryBytes) throw new Error("历史响应超过安全上限");
+    const candles = parseVixHistoryCsv(body);
+    if (candles.length < 20) throw new Error("历史数据不足");
+    vixHistoryCache = { candles, expiresAt: now + vixHistoryCacheTtlMs };
+    return candles;
+  } catch {
+    return vixHistoryCache?.candles ?? [];
+  }
+}
+
+function normalizeCboeDate(value: string | undefined): string {
+  const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  const [, month, day, year] = match;
+  const parsed = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  if (
+    Number.isNaN(parsed.getTime())
+    || parsed.getUTCFullYear() !== Number(year)
+    || parsed.getUTCMonth() + 1 !== Number(month)
+    || parsed.getUTCDate() !== Number(day)
+  ) return "";
+  return `${year}-${month}-${day}`;
 }
 
 function fearLevel(value: number): string {
