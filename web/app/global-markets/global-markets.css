@@ -889,7 +889,7 @@ body:has(.global-page-shell) {
   .global-summary,
   .global-map-card,
   .global-region-card {
-    border-color: color-mix(in srgb, var(--apple-border) 62%, var(--apple-glass-edge));
+    border-color: var(--apple-glass-border);
     background:
       linear-gradient(138deg, var(--apple-glass-highlight), transparent 34%),
       linear-gradient(315deg, color-mix(in srgb, var(--apple-accent) 3.5%, transparent), transparent 42%),
@@ -917,11 +917,11 @@ body:has(.global-page-shell) {
   }
 
   .global-fear-card {
-    border-color: color-mix(in srgb, var(--apple-border) 66%, var(--apple-glass-edge));
+    border-color: var(--apple-glass-border);
     background:
       linear-gradient(145deg, color-mix(in srgb, var(--apple-glass-highlight) 65%, transparent), transparent 44%),
       var(--apple-glass-soft);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--apple-glass-edge) 66%, transparent);
+    box-shadow: none;
     backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
   }
@@ -939,7 +939,7 @@ body:has(.global-page-shell) {
 
   .global-marker-label,
   .global-fear-tooltip {
-    border-color: color-mix(in srgb, var(--apple-border) 56%, var(--apple-glass-edge));
+    border-color: var(--apple-glass-border);
     background:
       linear-gradient(145deg, var(--apple-glass-highlight), transparent 48%),
       var(--apple-glass-strong);
