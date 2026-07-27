@@ -866,3 +866,83 @@ body:has(.global-page-shell) {
     padding-inline: 10px !important;
   }
 }
+
+/* Desktop liquid-glass refinement for market data surfaces. */
+@media (min-width: 1181px) {
+  html:has(.global-page-shell),
+  body:has(.global-page-shell) {
+    background:
+      radial-gradient(circle at 14% 4%, color-mix(in srgb, var(--apple-accent) 7%, transparent), transparent 34rem),
+      radial-gradient(circle at 86% 12%, color-mix(in srgb, #8f7cff 5%, transparent), transparent 38rem),
+      linear-gradient(180deg, color-mix(in srgb, var(--apple-page) 90%, white), var(--apple-page));
+    background-attachment: fixed;
+  }
+
+  :root[data-appearance="dark"] body:has(.global-page-shell) {
+    background:
+      radial-gradient(circle at 14% 4%, color-mix(in srgb, var(--apple-accent) 10%, transparent), transparent 36rem),
+      radial-gradient(circle at 86% 12%, color-mix(in srgb, #8f7cff 7%, transparent), transparent 40rem),
+      linear-gradient(180deg, #151519, var(--apple-page));
+    background-attachment: fixed;
+  }
+
+  .global-summary,
+  .global-map-card,
+  .global-region-card {
+    border-color: color-mix(in srgb, var(--apple-border) 62%, var(--apple-glass-edge));
+    background:
+      linear-gradient(138deg, var(--apple-glass-highlight), transparent 34%),
+      linear-gradient(315deg, color-mix(in srgb, var(--apple-accent) 3.5%, transparent), transparent 42%),
+      var(--apple-glass);
+    box-shadow: var(--apple-glass-shadow);
+    backdrop-filter: blur(26px) saturate(175%);
+    -webkit-backdrop-filter: blur(26px) saturate(175%);
+  }
+
+  .global-summary article {
+    background: linear-gradient(145deg, color-mix(in srgb, var(--apple-glass-highlight) 42%, transparent), transparent 52%);
+  }
+
+  .global-map-card > header,
+  .global-map-card > footer,
+  .global-region-card > header {
+    background: color-mix(in srgb, var(--apple-glass-strong) 62%, transparent);
+  }
+
+  .global-map-stage {
+    background:
+      radial-gradient(circle at 72% 38%, color-mix(in srgb, var(--apple-accent) 5%, transparent), transparent 28%),
+      radial-gradient(circle at 22% 68%, color-mix(in srgb, #8f7cff 3%, transparent), transparent 32%),
+      linear-gradient(180deg, color-mix(in srgb, var(--apple-glass-soft) 58%, transparent), transparent);
+  }
+
+  .global-fear-card {
+    border-color: color-mix(in srgb, var(--apple-border) 66%, var(--apple-glass-edge));
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--apple-glass-highlight) 65%, transparent), transparent 44%),
+      var(--apple-glass-soft);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--apple-glass-edge) 66%, transparent);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  .global-fear-card.is-high {
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--apple-glass-highlight) 58%, transparent), transparent 44%),
+      color-mix(in srgb, var(--apple-rise) 5%, var(--apple-glass-soft));
+  }
+
+  .global-fear-chart,
+  .global-fear-chart-stage {
+    background: color-mix(in srgb, var(--apple-surface) 64%, transparent);
+  }
+
+  .global-marker-label,
+  .global-fear-tooltip {
+    border-color: color-mix(in srgb, var(--apple-border) 56%, var(--apple-glass-edge));
+    background:
+      linear-gradient(145deg, var(--apple-glass-highlight), transparent 48%),
+      var(--apple-glass-strong);
+    box-shadow: var(--apple-glass-shadow);
+  }
+}
