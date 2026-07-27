@@ -11,4 +11,7 @@ test("renders the A-share board before the global map and loads the map as an im
   assert.ok(aSharePosition >= 0);
   assert.ok(mapPosition > aSharePosition);
   assert.match(pageSource, /<img className="global-map-land" src="\/world-map-robinson\.svg"/);
+  assert.match(pageSource, /<MarketMapMarker/);
+  assert.doesNotMatch(pageSource, /global-map-region-label/);
+  assert.doesNotMatch(pageSource, /<button[^>]+global-map-marker/);
 });

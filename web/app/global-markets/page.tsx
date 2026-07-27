@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import Link from "next/link";
 import MarketScopeSwitch from "../components/MarketScopeSwitch";
 import { GLOBAL_INDEXES, type FearGaugeCandle, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
+import { projectRobinsonPoint } from "../lib/robinsonProjection";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
 import "./global-markets.css";
 
@@ -11,6 +12,21 @@ type FeedState = "loading" | "live" | "refreshing" | "error";
 type Appearance = "light" | "dark";
 
 const appearanceStorageKey = "ticklens.appearance.v1";
+const mapLabelOffsets: Record<string, { x: number; y: number }> = {
+  tsx: { x: -116, y: -52 },
+  dow: { x: 17, y: 13 },
+  bovespa: { x: 18, y: -18 },
+  ftse: { x: -126, y: -48 },
+  dax: { x: 18, y: -52 },
+  cac: { x: 20, y: 17 },
+  sensex: { x: -150, y: 30 },
+  shanghai: { x: 18, y: 19 },
+  hsi: { x: 18, y: 41 },
+  kospi: { x: -66, y: -58 },
+  nikkei: { x: 17, y: -13 },
+  sti: { x: -126, y: 15 },
+  asx: { x: -124, y: 13 },
+};
 
 export default function GlobalMarketsPage() {
   const [quotes, setQuotes] = useState<GlobalIndexQuote[]>([]);
@@ -85,6 +101,7 @@ export default function GlobalMarketsPage() {
   const falling = marketMoves.filter((quote) => quote.changePct < 0).length;
   const openMarkets = quotes.filter((quote) => quote.marketStatus === "交易中").length + (usQuotes[0]?.phase === "盘中" ? 1 : 0);
   const leader = [...marketMoves].sort((left, right) => Math.abs(right.changePct) - Math.abs(left.changePct))[0];
+  const mappedMarketCount = GLOBAL_INDEXES.filter((item) => item.map).length + US_INDEXES.filter((item) => item.map).length;
 
   const toggleAppearance = () => {
     const next: Appearance = appearance === "light" ? "dark" : "light";
@@ -141,40 +158,51 @@ export default function GlobalMarketsPage() {
         </section>
 
         <section className="global-map-card" aria-label="全球主要股指地图">
-          <header><div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div><div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div></header>
+          <header>
+            <div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div>
+            <div className="global-map-header-meta">
+              <span className="global-map-count">{mappedMarketCount} 个交易所地标</span>
+              <div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div>
+            </div>
+          </header>
           <div className="global-map-stage">
             <div className="global-map-viewport">
-            {/* The land silhouette and every market use the same Robinson projection. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
-            <span className="global-map-region-label is-americas" aria-hidden="true">美洲</span>
-            <span className="global-map-region-label is-europe" aria-hidden="true">欧洲</span>
-            <span className="global-map-region-label is-asia-pacific" aria-hidden="true">亚太</span>
-            {GLOBAL_INDEXES.filter((item) => item.map).map((definition) => {
-              const quote = quoteById.get(definition.id);
-              const map = definition.map!;
-              const style = projectMarketPoint(map.longitude, map.latitude);
-              return (
-                <button type="button" className={`global-map-marker anchor-${map.anchor} ${tone(quote?.changePct)}`} style={style} key={definition.id} title={`${definition.city} · ${definition.name}`} data-map-id={definition.id} aria-label={`${definition.city}，${definition.name}，${quote ? signedPercent(quote.changePct) : "等待行情"}`}>
-                  <span className="global-marker-dot"><i /></span>
-                  <div className="global-marker-label"><small>{definition.city}</small><strong>{compactIndexName(definition.name)}</strong><b>{quote ? signedPercent(quote.changePct) : "—"}</b></div>
-                </button>
-              );
-            })}
-            {US_INDEXES.filter((item) => item.map).map((definition) => {
-              const quote = usQuoteById.get(definition.id);
-              const map = definition.map!;
-              const style = projectMarketPoint(map.longitude, map.latitude);
-              return (
-                <button type="button" className={`global-map-marker anchor-${map.anchor} ${tone(quote?.cashChangePct ?? undefined)}`} style={style} key={definition.id} title={`纽约 · ${definition.name}`} data-map-id={definition.id} aria-label={`纽约，${definition.name}，${quote?.cashChangePct == null ? "等待行情" : signedPercent(quote.cashChangePct)}`}>
-                  <span className="global-marker-dot"><i /></span>
-                  <div className="global-marker-label"><small>纽约</small><strong>{compactIndexName(definition.name)}</strong><b>{quote?.cashChangePct == null ? "—" : signedPercent(quote.cashChangePct)}</b></div>
-                </button>
-              );
-            })}
+              {/* The land silhouette and every market use the exact same Robinson viewBox. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
+              {GLOBAL_INDEXES.filter((item) => item.map).map((definition) => {
+                const quote = quoteById.get(definition.id);
+                const map = definition.map!;
+                return (
+                  <MarketMapMarker
+                    key={definition.id}
+                    id={definition.id}
+                    city={definition.city}
+                    name={definition.name}
+                    longitude={map.longitude}
+                    latitude={map.latitude}
+                    changePct={quote?.changePct}
+                  />
+                );
+              })}
+              {US_INDEXES.filter((item) => item.map).map((definition) => {
+                const quote = usQuoteById.get(definition.id);
+                const map = definition.map!;
+                return (
+                  <MarketMapMarker
+                    key={definition.id}
+                    id={definition.id}
+                    city="纽约"
+                    name={definition.name}
+                    longitude={map.longitude}
+                    latitude={map.latitude}
+                    changePct={quote?.cashChangePct ?? undefined}
+                  />
+                );
+              })}
             </div>
           </div>
-          <footer><span>点位按交易所城市真实经纬度投影</span><span>红涨绿跌 · 数据仅供研究参考</span></footer>
+          <footer><span>地理锚点按交易所城市真实经纬度映射，标签仅做避让</span><span>红涨绿跌 · 行情每 10 秒刷新</span></footer>
         </section>
 
         <section className="global-region-board" aria-label="全球指数行情列表">
@@ -185,6 +213,28 @@ export default function GlobalMarketsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function MarketMapMarker({ id, city, name, longitude, latitude, changePct }: { id: string; city: string; name: string; longitude: number; latitude: number; changePct?: number }) {
+  const projected = projectRobinsonPoint(longitude, latitude);
+  const offset = mapLabelOffsets[id] ?? { x: 14, y: -18 };
+  const style = {
+    left: `${projected.left.toFixed(3)}%`,
+    top: `${projected.top.toFixed(3)}%`,
+    "--marker-label-x": `${offset.x}px`,
+    "--marker-label-y": `${offset.y}px`,
+  } as CSSProperties;
+  const changeLabel = changePct == null ? "等待行情" : signedPercent(changePct);
+
+  return (
+    <article className={`global-map-marker ${tone(changePct)}`} style={style} title={`${city} · ${name} · ${changeLabel}`} data-map-id={id} aria-label={`${city}，${name}，${changeLabel}`}>
+      <span className="global-marker-dot" aria-hidden="true"><i /></span>
+      <div className="global-marker-label">
+        <small>{city}</small>
+        <span><strong>{compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
+      </div>
+    </article>
   );
 }
 
@@ -337,7 +387,7 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
               {active ? <line className="fear-crosshair" x1={activeX} x2={activeX} y1={padding.top} y2={height - padding.bottom} /> : null}
             </svg>
             {active ? (
-              <div className="global-fear-tooltip" style={{ left: `${Math.max(12, Math.min(88, (activeX / width) * 100))}%` }}>
+              <div className="global-fear-tooltip" style={{ left: `${Math.max(16, Math.min(84, (activeX / width) * 100))}%` }}>
                 <strong>{active.date}</strong>
                 <span>开 {active.open.toFixed(2)}</span><span>高 {active.high.toFixed(2)}</span>
                 <span>低 {active.low.toFixed(2)}</span><span>收 {active.close.toFixed(2)}</span>
@@ -352,18 +402,6 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
 }
 
 function feedLabel(state: FeedState) { return state === "loading" ? "连接中" : state === "refreshing" ? "刷新中" : state === "error" ? "自动重试" : "实时行情"; }
-function projectMarketPoint(longitude: number, latitude: number): CSSProperties {
-  const xTable = [1, .9986, .9954, .99, .9822, .973, .96, .9427, .9216, .8962, .8679, .835, .7986, .7597, .7186, .6732, .6213, .5722, .5322];
-  const yTable = [0, .062, .124, .186, .248, .31, .372, .434, .4958, .5571, .6176, .6769, .7346, .7903, .8435, .8936, .9394, .9761, 1];
-  const absoluteLatitude = Math.min(90, Math.abs(latitude));
-  const index = Math.min(17, Math.floor(absoluteLatitude / 5));
-  const fraction = (absoluteLatitude - index * 5) / 5;
-  const xCoefficient = xTable[index] + (xTable[index + 1] - xTable[index]) * fraction;
-  const yCoefficient = yTable[index] + (yTable[index + 1] - yTable[index]) * fraction;
-  const x = (180 + longitude * xCoefficient) / 3.6;
-  const y = (1 - Math.sign(latitude) * yCoefficient) * 50;
-  return { left: `${x.toFixed(3)}%`, top: `${y.toFixed(3)}%` };
-}
 function regionCode(region: GlobalRegion) { return region === "美洲" ? "AMER" : region === "欧洲" ? "EMEA" : region === "亚太" ? "APAC" : "CN-A"; }
 function phaseTone(phase: USMarketPhase | undefined) { return phase === "盘中" ? "is-regular" : phase === "盘前" ? "is-pre" : phase === "盘后" ? "is-post" : phase === "夜盘" ? "is-night" : "is-closed"; }
 function fearTone(value: number | undefined) { return (value ?? 0) >= 40 ? "is-high" : (value ?? 0) >= 30 ? "is-watch" : "is-calm"; }
