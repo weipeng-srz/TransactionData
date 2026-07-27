@@ -31,6 +31,10 @@
   --apple-glass-border: rgba(67, 72, 82, 0.13);
   --apple-glass-highlight: rgba(255, 255, 255, 0.34);
   --apple-glass-shadow: 0 18px 48px rgba(48, 55, 66, 0.085);
+  --apple-ambient-blue: rgba(77, 148, 226, 0.17);
+  --apple-ambient-cyan: rgba(91, 184, 190, 0.11);
+  --apple-ambient-violet: rgba(144, 121, 216, 0.125);
+  --apple-ambient-warm: rgba(224, 164, 135, 0.08);
   --page-gutter: clamp(20px, 3vw, 48px);
   --section-gap: clamp(22px, 2.4vw, 34px);
   --content-max: none;
@@ -60,6 +64,10 @@
   --apple-glass-border: rgba(255, 255, 255, 0.15);
   --apple-glass-highlight: rgba(255, 255, 255, 0.065);
   --apple-glass-shadow: 0 22px 58px rgba(0, 0, 0, 0.32);
+  --apple-ambient-blue: rgba(51, 137, 229, 0.22);
+  --apple-ambient-cyan: rgba(56, 170, 179, 0.14);
+  --apple-ambient-violet: rgba(124, 96, 207, 0.18);
+  --apple-ambient-warm: rgba(200, 126, 97, 0.1);
 }
 
 html {
@@ -68,19 +76,61 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% 3%, color-mix(in srgb, var(--apple-accent) 7%, transparent), transparent 34rem),
-    radial-gradient(circle at 88% 10%, color-mix(in srgb, #8f7cff 5%, transparent), transparent 38rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--apple-page) 90%, white), var(--apple-page));
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--apple-page) 92%, white), var(--apple-page));
   background-attachment: fixed;
 }
 
 :root[data-appearance="dark"] body {
-  background:
-    radial-gradient(circle at 12% 3%, color-mix(in srgb, var(--apple-accent) 10%, transparent), transparent 36rem),
-    radial-gradient(circle at 88% 10%, color-mix(in srgb, #8f7cff 7%, transparent), transparent 40rem),
-    linear-gradient(180deg, #151519, var(--apple-page));
+  background: linear-gradient(180deg, #151519, var(--apple-page));
   background-attachment: fixed;
+}
+
+@media (min-width: 1181px) {
+  body::before {
+    content: "";
+    position: absolute;
+    inset: -18vh -12vw;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 42vw 46rem at 12% 4%, var(--apple-ambient-blue), transparent 74%),
+      radial-gradient(ellipse 38vw 50rem at 88% 16%, var(--apple-ambient-violet), transparent 76%),
+      radial-gradient(ellipse 40vw 54rem at 70% 32%, var(--apple-ambient-cyan), transparent 75%),
+      radial-gradient(ellipse 34vw 48rem at 18% 43%, var(--apple-ambient-warm), transparent 77%),
+      radial-gradient(ellipse 42vw 56rem at 82% 58%, var(--apple-ambient-blue), transparent 76%),
+      radial-gradient(ellipse 38vw 52rem at 20% 70%, var(--apple-ambient-violet), transparent 76%),
+      radial-gradient(ellipse 42vw 54rem at 74% 84%, var(--apple-ambient-cyan), transparent 75%),
+      radial-gradient(ellipse 34vw 46rem at 22% 96%, var(--apple-ambient-warm), transparent 78%);
+    filter: blur(58px) saturate(110%);
+    transform: translate3d(-3vw, -4vh, 0) scale(1.03);
+    transform-origin: center;
+    pointer-events: none;
+    will-change: transform;
+  }
+}
+
+@keyframes apple-ambient-scroll {
+  0% {
+    transform: translate3d(-3vw, -4vh, 0) scale(1.03);
+  }
+  46% {
+    transform: translate3d(4vw, 1vh, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-1vw, 7vh, 0) scale(1.045);
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  @media (min-width: 1181px) {
+    body::before {
+      animation: apple-ambient-scroll linear both;
+      animation-duration: 1s;
+      animation-timeline: scroll(root block);
+      animation-range: 0% 100%;
+    }
+  }
 }
 
 ::selection {
@@ -104,6 +154,8 @@ select:disabled {
 }
 
 .app-shell {
+  position: relative;
+  z-index: 1;
   width: 100%;
   min-width: 0;
   padding: 20px var(--page-gutter) 48px !important;
@@ -1985,6 +2037,12 @@ select:disabled {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  body::before {
+    animation: none !important;
+    transform: translate3d(0, 0, 0) scale(1.04);
+    will-change: auto;
   }
 }
 
