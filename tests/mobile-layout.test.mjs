@@ -27,3 +27,19 @@ test("adds touch-friendly horizontal tracks only within mobile media rules", () 
   assert.match(mobilePolish, /-webkit-overflow-scrolling: touch;/);
   assert.doesNotMatch(mobilePolish, /@media \(min-width:/);
 });
+
+test("keeps mobile touch targets large and closed action menus non-interactive", () => {
+  const marker = appleStyles.indexOf("/* Mobile touch target and spacing guard. */");
+  const mobileTouchGuard = appleStyles.slice(marker);
+
+  assert.ok(marker >= 0);
+  assert.match(mobileTouchGuard, /^\/\* Mobile touch target and spacing guard\. \*\/[\s\S]*?@media \(max-width: 820px\)/);
+  assert.match(mobileTouchGuard, /button,\s+summary,\s+select,[\s\S]*?min-height: 44px;/);
+  assert.match(mobileTouchGuard, /\.appearance-toggle,[\s\S]*?min-width: 44px;/);
+  assert.match(mobileTouchGuard, /\.research-more-actions:not\(\[open\]\) > div \{\s+display: none !important;/);
+  assert.match(mobileTouchGuard, /\.app-sidebar \{\s+pointer-events: none;/);
+  assert.match(mobileTouchGuard, /\.app-sidebar \.workspace-nav \{[\s\S]*?pointer-events: auto;/);
+  assert.match(mobileTouchGuard, /\.table-wrap > table \{\s+min-width: 680px;/);
+  assert.match(mobileTouchGuard, /\.recent-card \.table-wrap > table \{\s+min-width: 980px;/);
+  assert.doesNotMatch(mobileTouchGuard, /@media \(min-width:/);
+});
