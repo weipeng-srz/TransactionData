@@ -867,6 +867,7 @@ select:disabled {
 
   .analysis-rail {
     grid-column: 1;
+    min-width: 0;
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
@@ -1435,48 +1436,48 @@ select:disabled {
   }
 
   .analysis-rail > .conclusion-card {
-    grid-column: 1 / 7;
-    grid-row: 1;
+    grid-column: 1 / 7 !important;
+    grid-row: 1 !important;
   }
 
   .analysis-rail > .focus-card {
-    grid-column: 7 / 10;
-    grid-row: 1;
+    grid-column: 7 / 10 !important;
+    grid-row: 1 !important;
   }
 
   .analysis-rail > .holding-card {
-    grid-column: 10 / 13;
-    grid-row: 1;
+    grid-column: 10 / 13 !important;
+    grid-row: 1 !important;
   }
 
   .analysis-rail > .intent-card {
-    grid-column: 1 / 7;
-    grid-row: 2;
+    grid-column: 1 / 7 !important;
+    grid-row: 2 !important;
   }
 
   .analysis-rail > .data-card {
-    grid-column: 7 / 10;
-    grid-row: 2;
+    grid-column: 7 / 10 !important;
+    grid-row: 2 !important;
   }
 
   .analysis-rail > .indicator-card {
-    grid-column: 10 / 13;
-    grid-row: 2;
+    grid-column: 10 / 13 !important;
+    grid-row: 2 !important;
   }
 
   .analysis-rail > .ownership-card {
-    grid-column: 1 / 7;
-    grid-row: 3;
+    grid-column: 1 / 7 !important;
+    grid-row: 3 !important;
   }
 
   .analysis-rail > .sentiment-card {
-    grid-column: 7 / 13;
-    grid-row: 3;
+    grid-column: 7 / 13 !important;
+    grid-row: 3 !important;
   }
 
   .analysis-rail > .backtest-card {
-    grid-column: 1 / -1;
-    grid-row: 4;
+    grid-column: 1 / -1 !important;
+    grid-row: 4 !important;
   }
 
   .focus-card .detail-list {
