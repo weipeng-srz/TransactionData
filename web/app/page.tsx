@@ -203,6 +203,7 @@ export default function Home() {
   const [holdings, setHoldings] = useState<StockHoldings>({});
   const [cloudStatus, setCloudStatus] = useState<"loading" | "synced" | "local" | "error">("loading");
   const [commandOpen, setCommandOpen] = useState(false);
+  const [compactQuoteVisible, setCompactQuoteVisible] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const requestControllerRef = useRef<AbortController | null>(null);
   const realtimeControllerRef = useRef<AbortController | null>(null);
@@ -387,6 +388,13 @@ export default function Home() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  useEffect(() => {
+    const updateCompactQuote = () => setCompactQuoteVisible(window.scrollY > 120);
+    updateCompactQuote();
+    window.addEventListener("scroll", updateCompactQuote, { passive: true });
+    return () => window.removeEventListener("scroll", updateCompactQuote);
   }, []);
 
   useEffect(() => () => requestControllerRef.current?.abort(), []);
@@ -1040,11 +1048,21 @@ export default function Home() {
       </aside>
 
       <div className="app-workspace-shell">
-      <header className="topbar">
+      <header className={`topbar ${compactQuoteVisible ? "is-compact-quote" : ""}`}>
         <div className="brand-lockup workspace-heading">
           <div>
             <p className="eyebrow">MARKET WORKSPACE</p>
             <h1>市场研究</h1>
+          </div>
+        </div>
+        <div className="mobile-topbar-quote" aria-label="当前股票实时行情">
+          <div className="mobile-topbar-identity">
+            <strong>{selectedName || selectedCode}</strong>
+            {selectedName ? <small>{selectedCode}</small> : null}
+          </div>
+          <div className="mobile-topbar-values">
+            <b className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</b>
+            <em className={directionClass}>{liveQuote ? `${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}%` : latest ? `${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}</em>
           </div>
         </div>
         <div className="topbar-actions">
