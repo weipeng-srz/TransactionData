@@ -342,9 +342,9 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
   const step = plotWidth / Math.max(1, visible.length);
   const bodyWidth = Math.max(2.2, Math.min(8, step * .58));
   const y = (value: number) => padding.top + ((maximum - value) / Math.max(.001, maximum - minimum)) * plotHeight;
-  const activeIndex = hoverIndex == null ? Math.max(0, visible.length - 1) : Math.min(visible.length - 1, hoverIndex);
-  const active = visible[activeIndex];
-  const activeX = padding.left + (activeIndex + .5) * step;
+  const activeIndex = hoverIndex == null || !visible.length ? null : Math.min(visible.length - 1, hoverIndex);
+  const active = activeIndex == null ? undefined : visible[activeIndex];
+  const activeX = activeIndex == null ? 0 : padding.left + (activeIndex + .5) * step;
 
   return (
     <section className="global-fear-chart" aria-label="CBOE VIX 历史日 K">
@@ -401,7 +401,6 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
                 <g>
                   <line className="fear-crosshair" x1={activeX} x2={activeX} y1={padding.top} y2={height - padding.bottom} />
                   <line className="fear-crosshair is-horizontal" x1={padding.left} x2={width - padding.right} y1={y(active.close)} y2={y(active.close)} />
-                  <circle className="fear-crosshair-point" cx={activeX} cy={y(active.close)} r={3.2} />
                 </g>
               ) : null}
             </svg>

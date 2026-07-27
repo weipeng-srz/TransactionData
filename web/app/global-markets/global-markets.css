@@ -505,13 +505,6 @@ body:has(.global-page-shell) {
   opacity: .55;
 }
 
-.fear-crosshair-point {
-  fill: var(--apple-surface);
-  stroke: var(--apple-accent);
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-}
-
 .global-fear-tooltip {
   position: absolute;
   top: 10px;
