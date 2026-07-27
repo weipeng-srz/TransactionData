@@ -1562,6 +1562,396 @@ select:disabled {
   }
 }
 
+/* Eight-dimension stock score */
+.stock-score-card {
+  margin: 0 0 22px;
+  overflow: hidden;
+  border: 1px solid var(--apple-border);
+  border-radius: var(--apple-radius-lg);
+  background:
+    radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--apple-accent) 5%, transparent), transparent 30%),
+    var(--apple-surface);
+  box-shadow: var(--apple-shadow-card);
+}
+
+.stock-score-header {
+  min-height: 78px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid var(--apple-border);
+}
+
+.stock-score-header h2 {
+  margin: 0;
+  color: var(--apple-text);
+  font-size: 20px;
+  font-weight: 680;
+  letter-spacing: -.025em;
+}
+
+.stock-score-header > div:first-child > span {
+  display: block;
+  margin-top: 5px;
+  color: var(--apple-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.stock-score-meta {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  color: var(--apple-secondary);
+  font-size: 11px;
+}
+
+.stock-score-meta strong {
+  color: var(--apple-text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-score-meta small {
+  color: var(--apple-tertiary);
+  font-size: 9px;
+}
+
+.stock-score-layout {
+  min-width: 0;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(190px, .52fr) minmax(280px, .76fr) minmax(400px, 1.7fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.stock-score-verdict,
+.stock-score-radar,
+.stock-score-breakdown {
+  min-width: 0;
+}
+
+.stock-score-verdict {
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  border: 1px solid var(--apple-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--apple-surface-soft) 72%, transparent);
+  text-align: center;
+}
+
+.stock-score-number {
+  position: relative;
+  width: 138px;
+  height: 138px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  border-radius: 50%;
+  background: var(--apple-surface);
+  box-shadow: inset 0 0 0 1px var(--apple-border), 0 12px 28px rgba(0, 0, 0, .055);
+}
+
+.stock-score-number > span {
+  z-index: 1;
+  color: var(--apple-tertiary);
+  font-size: 10px;
+}
+
+.stock-score-number > strong {
+  z-index: 1;
+  color: var(--apple-text);
+  font-size: 42px;
+  line-height: .95;
+  font-weight: 700;
+  letter-spacing: -.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-score-number > strong small {
+  margin-left: 2px;
+  color: var(--apple-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.stock-score-number > i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(var(--apple-accent) var(--score-progress), color-mix(in srgb, var(--apple-text) 7%, transparent) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 0);
+  pointer-events: none;
+}
+
+.stock-score-signal {
+  min-width: 138px;
+  margin-top: 14px;
+  padding: 9px 14px;
+  display: grid;
+  gap: 3px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--apple-accent) 8%, transparent);
+}
+
+.stock-score-signal span {
+  color: var(--apple-tertiary);
+  font-size: 9px;
+}
+
+.stock-score-signal strong {
+  color: var(--apple-accent);
+  font-size: 15px;
+  font-weight: 680;
+}
+
+.stock-score-signal.is-buy {
+  background: color-mix(in srgb, var(--apple-rise) 8%, transparent);
+}
+
+.stock-score-signal.is-buy strong { color: var(--apple-rise); }
+.stock-score-signal.is-sell {
+  background: color-mix(in srgb, var(--apple-fall) 9%, transparent);
+}
+.stock-score-signal.is-sell strong { color: var(--apple-fall); }
+
+.stock-score-copy {
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--apple-border);
+}
+
+.stock-score-copy strong {
+  color: var(--apple-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.stock-score-copy p,
+.stock-score-disclaimer {
+  margin: 7px 0 0;
+  color: var(--apple-secondary);
+  font-size: 10px;
+  line-height: 1.58;
+}
+
+.stock-score-disclaimer {
+  margin-top: 14px;
+  color: var(--apple-tertiary);
+  font-size: 9px;
+}
+
+.stock-score-radar {
+  margin: 0;
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--apple-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--apple-surface-soft) 44%, transparent);
+}
+
+.stock-score-radar figcaption {
+  min-height: 34px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-score-radar figcaption strong {
+  color: var(--apple-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.stock-score-radar figcaption span {
+  color: var(--apple-tertiary);
+  font-size: 9px;
+}
+
+.stock-score-radar svg {
+  width: 100%;
+  min-height: 270px;
+  max-height: 340px;
+  display: block;
+}
+
+.stock-score-radar-grid,
+.stock-score-radar-axis {
+  fill: none;
+  stroke: color-mix(in srgb, var(--apple-text) 9%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.stock-score-radar-area {
+  fill: color-mix(in srgb, var(--apple-accent) 15%, transparent);
+}
+
+.stock-score-radar-line {
+  fill: none;
+  stroke: var(--apple-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.stock-score-radar-point {
+  fill: var(--apple-surface);
+  stroke: var(--apple-accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.stock-score-radar-label text {
+  fill: var(--apple-secondary);
+  font: 10px var(--apple-sans);
+}
+
+.stock-score-radar-label text.is-score {
+  fill: var(--apple-text);
+  font: 650 10px var(--apple-mono);
+}
+
+.stock-score-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 10px;
+}
+
+.stock-score-dimension {
+  min-width: 0;
+  padding: 11px 12px 10px;
+  border: 1px solid var(--apple-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--apple-surface-soft) 52%, transparent);
+}
+
+.stock-score-dimension.is-positive {
+  border-color: color-mix(in srgb, var(--apple-rise) 19%, var(--apple-border));
+}
+
+.stock-score-dimension.is-negative {
+  border-color: color-mix(in srgb, var(--apple-fall) 20%, var(--apple-border));
+}
+
+.stock-score-dimension-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stock-score-dimension-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.stock-score-dimension-head span {
+  color: var(--apple-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.stock-score-dimension-head small {
+  overflow: hidden;
+  color: var(--apple-tertiary);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-score-dimension-head > strong {
+  color: var(--apple-text);
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 690;
+  letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-score-dimension.is-positive .stock-score-dimension-head > strong { color: var(--apple-rise); }
+.stock-score-dimension.is-negative .stock-score-dimension-head > strong { color: var(--apple-fall); }
+
+.stock-score-dimension ul {
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  list-style: none;
+}
+
+.stock-score-dimension li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: start;
+  gap: 4px;
+  color: var(--apple-secondary);
+  font-size: 8px;
+  line-height: 1.42;
+}
+
+.stock-score-dimension li i {
+  width: 13px;
+  height: 13px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--apple-tertiary);
+  background: color-mix(in srgb, var(--apple-text) 5%, transparent);
+  font: 700 9px/1 var(--apple-mono);
+}
+
+.stock-score-dimension li.is-positive i {
+  color: var(--apple-rise);
+  background: color-mix(in srgb, var(--apple-rise) 9%, transparent);
+}
+
+.stock-score-dimension li.is-negative i {
+  color: var(--apple-fall);
+  background: color-mix(in srgb, var(--apple-fall) 9%, transparent);
+}
+
+@media (min-width: 1181px) and (max-width: 1460px) {
+  .stock-score-layout {
+    grid-template-columns: minmax(180px, .5fr) minmax(260px, .72fr) minmax(360px, 1.55fr);
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .stock-score-verdict,
+  .stock-score-radar {
+    padding: 12px;
+  }
+
+  .stock-score-dimension {
+    padding: 9px 10px;
+  }
+
+  .stock-score-dimension li:nth-child(n + 3) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stock-score-card * {
+    transition-duration: .01ms !important;
+  }
+}
+
 @media (max-width: 760px) {
   .sidebar-scope {
     display: none;

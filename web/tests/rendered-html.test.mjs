@@ -72,12 +72,13 @@ test("server-renders the global realtime index map", async () => {
   const html = await response.text();
   assert.match(html, /全球股指脉动/);
   assert.match(html, /全球主要市场板块/);
-  assert.match(html, /个交易所地标/);
-  assert.match(html, /地理锚点按交易所城市真实经纬度映射/);
+  assert.match(html, /个市场数值框/);
+  assert.match(html, /数值框边缘贴近交易所坐标/);
   assert.match(html, /AMER/);
   assert.match(html, /EMEA/);
   assert.match(html, /APAC/);
   assert.match(html, /A股核心指数/);
+  assert.match(html, /A股恐慌指标/);
   assert.match(html, /沪深 300/);
   assert.match(html, /创业板指/);
   assert.match(html, /北证 50/);

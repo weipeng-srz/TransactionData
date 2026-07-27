@@ -179,11 +179,17 @@ body:has(.global-page-shell) {
   font-size: 10px;
   font-weight: 600;
 }
-.global-legend { display: flex; align-items: center; gap: 14px; color: var(--apple-secondary); font-size: 11px; }
-.global-legend span { display: flex; align-items: center; gap: 6px; }
-.global-legend i { width: 7px; height: 7px; border-radius: 50%; background: var(--apple-tertiary); }
-.global-legend i.is-up { background: var(--global-up); }
-.global-legend i.is-down { background: var(--global-down); }
+.global-legend { display: flex; align-items: center; gap: 6px; color: var(--apple-secondary); font-size: 10px; }
+.global-legend span {
+  min-height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 7px;
+  background: var(--apple-surface-soft);
+}
+.global-legend span.is-up { color: var(--global-up); background: color-mix(in srgb, var(--global-up) 7%, transparent); }
+.global-legend span.is-down { color: var(--global-down); background: color-mix(in srgb, var(--global-down) 7%, transparent); }
 
 .global-map-stage {
   position: relative;
@@ -244,21 +250,6 @@ body:has(.global-page-shell) {
   pointer-events: none;
 }
 
-.global-marker-dot {
-  position: absolute;
-  left: -5px;
-  top: -5px;
-  width: 11px;
-  height: 11px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--apple-surface);
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 11%, transparent), 0 2px 10px color-mix(in srgb, currentColor 30%, transparent);
-}
-
-.global-marker-dot i { width: 2px; height: 2px; border-radius: 50%; background: #fff; }
 .global-map-marker.is-up { color: var(--global-up); }
 .global-map-marker.is-down { color: var(--global-down); }
 .global-map-marker.is-flat { color: var(--apple-secondary); }
@@ -357,6 +348,42 @@ body:has(.global-page-shell) {
 .global-fear-value em { font-size: 11px; font-style: normal; font-weight: 670; }
 .global-fear-card p { margin: 0; color: var(--apple-secondary); font-size: 11px; line-height: 1.55; }
 .global-fear-card > small { grid-column: 1 / -1; color: var(--apple-tertiary); font-size: 9px; }
+
+.global-fear-scale {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.global-fear-scale > div {
+  grid-column: 1 / -1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--apple-text) 7%, transparent);
+}
+
+.global-fear-scale > div i {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--apple-fall), var(--apple-warning), var(--apple-rise));
+  transition: width 240ms ease;
+}
+
+.global-fear-scale span {
+  color: var(--apple-tertiary);
+  font-size: 8px;
+}
+
+.global-fear-scale span:last-child { text-align: right; }
+.global-fear-scale b {
+  color: var(--apple-secondary);
+  font: 650 9px var(--apple-mono);
+  text-align: center;
+}
 
 .global-fear-chart {
   min-width: 0;
@@ -471,6 +498,17 @@ body:has(.global-page-shell) {
   stroke: color-mix(in srgb, var(--apple-text) 30%, transparent);
   stroke-width: 1;
   stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.fear-crosshair.is-horizontal {
+  opacity: .55;
+}
+
+.fear-crosshair-point {
+  fill: var(--apple-surface);
+  stroke: var(--apple-accent);
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
 

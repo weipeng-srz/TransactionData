@@ -11,6 +11,7 @@ import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import CommandPalette, { type CommandItem } from "./components/CommandPalette";
 import MarketScopeSwitch from "./components/MarketScopeSwitch";
 import HoldingProfitCard from "./components/HoldingProfitCard";
+import StockScoreCard from "./components/StockScoreCard";
 import {
   aggregateCandles,
   analyzeKlineConclusion,
@@ -50,6 +51,7 @@ import { readCachedText, writeCachedText } from "./lib/browserCache";
 import { reportTelemetry } from "./lib/telemetry";
 import type { RealtimeSnapshot } from "./lib/realtimeMarket";
 import { parseHoldings, type StockHoldings } from "./lib/holdings";
+import { buildStockScore } from "./lib/stockScore";
 
 const timeframes: Array<{ key: Timeframe; label: string }> = [
   { key: "1d", label: "日K" },
@@ -405,14 +407,20 @@ export default function Home() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  const dailyCandles = useMemo(
+    () => aggregateCandles(dataset.rows, selectedCode, "1d"),
+    [dataset.rows, selectedCode],
+  );
   const candles = useMemo(
     () => aggregateCandles(dataset.rows, selectedCode, timeframe),
     [dataset.rows, selectedCode, timeframe],
   );
   const benchmarkCandles = useMemo(() => benchmarkDataset ? aggregateCandles(benchmarkDataset.rows, benchmarkDataset.codes[0], "1d") : [], [benchmarkDataset]);
   const indicators = useMemo(() => calculateIndicators(candles), [candles]);
+  const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles), [dailyCandles]);
   const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], { benchmark: timeframe === "1d" ? benchmarkCandles : [] }), [benchmarkCandles, candles, indicators, timeframe]);
-  const riskMetrics = useMemo(() => calculateRiskMetrics(timeframe === "1d" ? candles : aggregateCandles(dataset.rows, selectedCode, "1d"), benchmarkCandles), [benchmarkCandles, candles, dataset.rows, selectedCode, timeframe]);
+  const scoreBacktest = useMemo(() => backtestGuideSignals(dailyCandles, dailyIndicators, [5, 10, 20], { benchmark: benchmarkCandles }), [benchmarkCandles, dailyCandles, dailyIndicators]);
+  const riskMetrics = useMemo(() => calculateRiskMetrics(dailyCandles, benchmarkCandles), [benchmarkCandles, dailyCandles]);
 
   const selectedIndex = hoverIndex ?? Math.max(0, candles.length - 1);
   const selectedCandle = candles[selectedIndex];
@@ -454,8 +462,19 @@ export default function Home() {
     () => buildChartEvents(selectedNews, financialDataset, selectedCode),
     [financialDataset, selectedCode, selectedNews],
   );
-  const factorProfile = useMemo(() => buildFactorProfile(aggregateCandles(dataset.rows, selectedCode, "1d"), financialDataset, riskMetrics), [dataset.rows, financialDataset, riskMetrics, selectedCode]);
-  const eventStudies = useMemo(() => buildEventStudies(chartEvents, aggregateCandles(dataset.rows, selectedCode, "1d")), [chartEvents, dataset.rows, selectedCode]);
+  const factorProfile = useMemo(() => buildFactorProfile(dailyCandles, financialDataset, riskMetrics), [dailyCandles, financialDataset, riskMetrics]);
+  const eventStudies = useMemo(() => buildEventStudies(chartEvents, dailyCandles), [chartEvents, dailyCandles]);
+  const stockScore = useMemo(() => buildStockScore({
+    candles: dailyCandles,
+    indicators: dailyIndicators,
+    currentPrice,
+    intent,
+    financials: financialDataset,
+    newsItems: selectedNews,
+    risk: riskMetrics,
+    backtest: scoreBacktest,
+    dataQuality: dataset.quality,
+  }), [currentPrice, dailyCandles, dailyIndicators, dataset.quality, financialDataset, intent, riskMetrics, scoreBacktest, selectedNews]);
   const dailyOnly = dataset.dataLevel.includes("日K聚合");
 
   const rememberRecentStock = useCallback((code: string, name: string) => {
@@ -981,6 +1000,7 @@ export default function Home() {
         </section>
 
         <nav className="workspace-nav" aria-label="工作台章节导航">
+          <a href="#stock-score"><span>评分</span><small>Score</small></a>
           <a href="#realtime-trading"><span>实时</span><small>Live</small></a>
           <a href="#stock-market"><span>行情</span><small>Market</small></a>
           <a href="#kline-analysis"><span>研判</span><small>Insight</small></a>
@@ -1150,6 +1170,8 @@ export default function Home() {
           正在加载 {pendingQuery || "新股票"}；下方行情仍是 {selectedName || selectedCode} 的上一份成功数据，加载完成前不会替换。
         </div>
       ) : null}
+
+      <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
 
       <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} onRefresh={() => void refreshRealtime(selectedCode)} />
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import MarketScopeSwitch from "../components/MarketScopeSwitch";
+import { plotIndexFromPointer } from "../lib/chartInteraction";
 import { GLOBAL_INDEXES, type FearGaugeCandle, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion } from "../lib/globalIndexes";
 import { projectRobinsonPoint } from "../lib/robinsonProjection";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
@@ -161,8 +162,8 @@ export default function GlobalMarketsPage() {
           <header>
             <div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div>
             <div className="global-map-header-meta">
-              <span className="global-map-count">{mappedMarketCount} 个交易所地标</span>
-              <div className="global-legend"><span><i className="is-up" />上涨</span><span><i className="is-down" />下跌</span><span><i />平盘</span></div>
+              <span className="global-map-count">{mappedMarketCount} 个市场数值框</span>
+              <div className="global-legend"><span className="is-up">上涨</span><span className="is-down">下跌</span><span>平盘</span></div>
             </div>
           </header>
           <div className="global-map-stage">
@@ -202,7 +203,7 @@ export default function GlobalMarketsPage() {
               })}
             </div>
           </div>
-          <footer><span>地理锚点按交易所城市真实经纬度映射，标签仅做避让</span><span>红涨绿跌 · 行情每 10 秒刷新</span></footer>
+          <footer><span>数值框边缘贴近交易所坐标，位置采用 Robinson 投影并仅做防重叠避让</span><span>红涨绿跌 · 行情每 10 秒刷新</span></footer>
         </section>
 
         <section className="global-region-board" aria-label="全球指数行情列表">
@@ -229,7 +230,6 @@ function MarketMapMarker({ id, city, name, longitude, latitude, changePct }: { i
 
   return (
     <article className={`global-map-marker ${tone(changePct)}`} style={style} title={`${city} · ${name} · ${changeLabel}`} data-map-id={id} aria-label={`${city}，${name}，${changeLabel}`}>
-      <span className="global-marker-dot" aria-hidden="true"><i /></span>
       <div className="global-marker-label">
         <small>{city}</small>
         <span><strong>{compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
@@ -314,6 +314,12 @@ function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A�
       </div>
       <p>{gauge?.description ?? "正在获取并计算最新市场压力数据。"}</p>
       <small>{gauge ? `${gauge.source} · ${gauge.updatedAt}` : "行情时间 —"}</small>
+      {market === "A股" && gauge ? (
+        <div className="global-fear-scale" aria-label={`A股恐慌指数 ${gauge.value.toFixed(1)} 分，满分 100`}>
+          <div><i style={{ width: `${Math.max(0, Math.min(100, gauge.value))}%` }} /></div>
+          <span>0 平静</span><b>{gauge.value.toFixed(1)} / 100</b><span>100 恐慌</span>
+        </div>
+      ) : null}
       {market === "美股" ? <FearKlineChart candles={gauge?.history ?? []} /> : null}
     </article>
   );
@@ -358,7 +364,14 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
             onPointerMove={(event) => {
               const bounds = event.currentTarget.getBoundingClientRect();
               const pointerX = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
-              setHoverIndex(Math.max(0, Math.min(visible.length - 1, Math.floor((pointerX / Math.max(1, bounds.width)) * visible.length))));
+              setHoverIndex(plotIndexFromPointer({
+                pointerX,
+                containerWidth: bounds.width,
+                viewBoxWidth: width,
+                plotLeft: padding.left,
+                plotWidth,
+                pointCount: visible.length,
+              }));
             }}
           >
             <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`VIX 最近 ${visible.length} 个交易日日 K`}>
@@ -384,7 +397,13 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
                   </g>
                 );
               })}
-              {active ? <line className="fear-crosshair" x1={activeX} x2={activeX} y1={padding.top} y2={height - padding.bottom} /> : null}
+              {active ? (
+                <g>
+                  <line className="fear-crosshair" x1={activeX} x2={activeX} y1={padding.top} y2={height - padding.bottom} />
+                  <line className="fear-crosshair is-horizontal" x1={padding.left} x2={width - padding.right} y1={y(active.close)} y2={y(active.close)} />
+                  <circle className="fear-crosshair-point" cx={activeX} cy={y(active.close)} r={3.2} />
+                </g>
+              ) : null}
             </svg>
             {active ? (
               <div className="global-fear-tooltip" style={{ left: `${Math.max(16, Math.min(84, (activeX / width) * 100))}%` }}>

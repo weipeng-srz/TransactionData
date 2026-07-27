@@ -14,4 +14,5 @@ test("renders the A-share board before the global map and loads the map as an im
   assert.match(pageSource, /<MarketMapMarker/);
   assert.doesNotMatch(pageSource, /global-map-region-label/);
   assert.doesNotMatch(pageSource, /<button[^>]+global-map-marker/);
+  assert.doesNotMatch(pageSource, /global-marker-dot/);
 });

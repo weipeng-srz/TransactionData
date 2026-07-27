@@ -66,13 +66,13 @@ export type FearGaugeCandle = {
 };
 
 export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
-  { id: "tsx", symbol: "b_GSPTSE", code: "GSPTSE", name: "加拿大 S&P/TSX", city: "多伦多", country: "加拿大", region: "美洲", timezone: "America/Toronto", session: { open: "09:30", close: "16:00" }, map: { longitude: -79.3832, latitude: 43.6532, anchor: "top" } },
-  { id: "bovespa", symbol: "b_IBOV", code: "IBOV", name: "巴西 BOVESPA", city: "圣保罗", country: "巴西", region: "美洲", timezone: "America/Sao_Paulo", session: { open: "10:00", close: "17:55" }, map: { longitude: -46.6333, latitude: -23.5505, anchor: "right" } },
-  { id: "ftse", symbol: "b_FTSE", code: "FTSE", name: "英国富时 100", city: "伦敦", country: "英国", region: "欧洲", timezone: "Europe/London", session: { open: "08:00", close: "16:30" }, map: { longitude: -0.1276, latitude: 51.5072, anchor: "left" } },
-  { id: "dax", symbol: "b_DAX", code: "GDAXI", name: "德国 DAX", city: "法兰克福", country: "德国", region: "欧洲", timezone: "Europe/Berlin", session: { open: "09:00", close: "17:30" }, map: { longitude: 8.6821, latitude: 50.1109, anchor: "top" } },
+  { id: "tsx", symbol: "b_GSPTSE", code: "GSPTSE", name: "加拿大 S&P/TSX", city: "多伦多", country: "加拿大", region: "美洲", timezone: "America/Toronto", session: { open: "09:30", close: "16:00" }, map: { longitude: -79.3841, latitude: 43.6486, anchor: "top" } },
+  { id: "bovespa", symbol: "b_IBOV", code: "IBOV", name: "巴西 BOVESPA", city: "圣保罗", country: "巴西", region: "美洲", timezone: "America/Sao_Paulo", session: { open: "10:00", close: "17:55" }, map: { longitude: -46.6356, latitude: -23.5456, anchor: "right" } },
+  { id: "ftse", symbol: "b_FTSE", code: "FTSE", name: "英国富时 100", city: "伦敦", country: "英国", region: "欧洲", timezone: "Europe/London", session: { open: "08:00", close: "16:30" }, map: { longitude: -0.0994, latitude: 51.5151, anchor: "left" } },
+  { id: "dax", symbol: "b_DAX", code: "GDAXI", name: "德国 DAX", city: "法兰克福", country: "德国", region: "欧洲", timezone: "Europe/Berlin", session: { open: "09:00", close: "17:30" }, map: { longitude: 8.6777, latitude: 50.1151, anchor: "top" } },
   { id: "cac", symbol: "b_CAC", code: "FCHI", name: "法国 CAC 40", city: "巴黎", country: "法国", region: "欧洲", timezone: "Europe/Paris", session: { open: "09:00", close: "17:30" }, map: { longitude: 2.3522, latitude: 48.8566, anchor: "bottom" } },
-  { id: "sensex", symbol: "b_SENSEX", code: "SENSEX", name: "印度 SENSEX", city: "孟买", country: "印度", region: "亚太", timezone: "Asia/Kolkata", session: { open: "09:15", close: "15:30" }, map: { longitude: 72.8777, latitude: 19.076, anchor: "left" } },
-  { id: "shanghai", symbol: "s_sh000001", code: "000001", name: "上证指数", city: "上海", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" }, map: { longitude: 121.4737, latitude: 31.2304, anchor: "left" } },
+  { id: "sensex", symbol: "b_SENSEX", code: "SENSEX", name: "印度 SENSEX", city: "孟买", country: "印度", region: "亚太", timezone: "Asia/Kolkata", session: { open: "09:15", close: "15:30" }, map: { longitude: 72.8777, latitude: 18.9297, anchor: "left" } },
+  { id: "shanghai", symbol: "s_sh000001", code: "000001", name: "上证指数", city: "上海", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" }, map: { longitude: 121.475, latitude: 31.2359, anchor: "left" } },
   { id: "csi300", symbol: "s_sh000300", code: "000300", name: "沪深 300", city: "沪深", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
   { id: "szse", symbol: "s_sz399001", code: "399001", name: "深证成指", city: "深圳", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
   { id: "chinext", symbol: "s_sz399006", code: "399006", name: "创业板指", city: "深圳", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
@@ -81,11 +81,11 @@ export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
   { id: "csi500", symbol: "s_sh000905", code: "000905", name: "中证 500", city: "沪深", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
   { id: "csi1000", symbol: "s_sh000852", code: "000852", name: "中证 1000", city: "沪深", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
   { id: "bse50", symbol: "s_bj899050", code: "899050", name: "北证 50", city: "北京", country: "中国", region: "A股", timezone: "Asia/Shanghai", session: { open: "09:30", close: "15:00", breakStart: "11:30", breakEnd: "13:00" } },
-  { id: "hsi", symbol: "b_HSI", code: "HSI", name: "恒生指数", city: "香港", country: "中国香港", region: "亚太", timezone: "Asia/Hong_Kong", session: { open: "09:30", close: "16:00", breakStart: "12:00", breakEnd: "13:00" }, map: { longitude: 114.1694, latitude: 22.3193, anchor: "bottom" } },
-  { id: "nikkei", symbol: "b_NKY", code: "N225", name: "日经 225", city: "东京", country: "日本", region: "亚太", timezone: "Asia/Tokyo", session: { open: "09:00", close: "15:30", breakStart: "11:30", breakEnd: "12:30" }, map: { longitude: 139.6917, latitude: 35.6895, anchor: "right" } },
-  { id: "kospi", symbol: "b_KOSPI", code: "KS11", name: "韩国 KOSPI", city: "首尔", country: "韩国", region: "亚太", timezone: "Asia/Seoul", session: { open: "09:00", close: "15:30" }, map: { longitude: 126.978, latitude: 37.5665, anchor: "top" } },
-  { id: "sti", symbol: "b_STI", code: "STI", name: "新加坡海峡时报", city: "新加坡", country: "新加坡", region: "亚太", timezone: "Asia/Singapore", session: { open: "09:00", close: "17:00", breakStart: "12:00", breakEnd: "13:00" }, map: { longitude: 103.8198, latitude: 1.3521, anchor: "left" } },
-  { id: "asx", symbol: "b_AS30", code: "AS30", name: "澳大利亚 ASX 200", city: "悉尼", country: "澳大利亚", region: "亚太", timezone: "Australia/Sydney", session: { open: "10:00", close: "16:00" }, map: { longitude: 151.2093, latitude: -33.8688, anchor: "right" } },
+  { id: "hsi", symbol: "b_HSI", code: "HSI", name: "恒生指数", city: "香港", country: "中国香港", region: "亚太", timezone: "Asia/Hong_Kong", session: { open: "09:30", close: "16:00", breakStart: "12:00", breakEnd: "13:00" }, map: { longitude: 114.1589, latitude: 22.2847, anchor: "bottom" } },
+  { id: "nikkei", symbol: "b_NKY", code: "N225", name: "日经 225", city: "东京", country: "日本", region: "亚太", timezone: "Asia/Tokyo", session: { open: "09:00", close: "15:30", breakStart: "11:30", breakEnd: "12:30" }, map: { longitude: 139.7777, latitude: 35.6827, anchor: "right" } },
+  { id: "kospi", symbol: "b_KOSPI", code: "KS11", name: "韩国 KOSPI", city: "首尔", country: "韩国", region: "亚太", timezone: "Asia/Seoul", session: { open: "09:00", close: "15:30" }, map: { longitude: 126.924, latitude: 37.5234, anchor: "top" } },
+  { id: "sti", symbol: "b_STI", code: "STI", name: "新加坡海峡时报", city: "新加坡", country: "新加坡", region: "亚太", timezone: "Asia/Singapore", session: { open: "09:00", close: "17:00", breakStart: "12:00", breakEnd: "13:00" }, map: { longitude: 103.8507, latitude: 1.2791, anchor: "left" } },
+  { id: "asx", symbol: "b_AS30", code: "AS30", name: "澳大利亚 ASX 200", city: "悉尼", country: "澳大利亚", region: "亚太", timezone: "Australia/Sydney", session: { open: "10:00", close: "16:00" }, map: { longitude: 151.2094, latitude: -33.8648, anchor: "right" } },
 ];
 
 export async function fetchGlobalIndexFeed(now = new Date()): Promise<GlobalIndexFeed> {
@@ -133,7 +133,9 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
 
   const aShareQuotes = quotes.filter((quote) => quote.region === "A股");
   if (aShareQuotes.length) {
-    const decliningRatio = aShareQuotes.filter((quote) => quote.changePct < 0).length / aShareQuotes.length;
+    const decliningCount = aShareQuotes.filter((quote) => quote.changePct < 0).length;
+    const advancingCount = aShareQuotes.filter((quote) => quote.changePct > 0).length;
+    const decliningRatio = decliningCount / aShareQuotes.length;
     const averageChangePct = aShareQuotes.reduce((sum, quote) => sum + quote.changePct, 0) / aShareQuotes.length;
     const value = Math.round(clamp(15 + decliningRatio * 55 + Math.max(0, -averageChangePct) * 10, 0, 100) * 10) / 10;
     const latest = aShareQuotes[0];
@@ -141,12 +143,12 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
       id: "a-share-fear",
       market: "A股",
       code: "CN-FEAR",
-      name: "A股恐慌温度",
+      name: "A股恐慌指数（代理）",
       value,
       change: null,
       changePct: null,
-      level: fearLevel(value),
-      description: `由 ${aShareQuotes.length} 个核心指数的下跌家数与平均跌幅计算，用于观察市场压力。`,
+      level: aShareFearLevel(value),
+      description: `综合 ${aShareQuotes.length} 个核心指数：上涨 ${advancingCount}、下跌 ${decliningCount}，平均涨跌 ${averageChangePct >= 0 ? "+" : ""}${averageChangePct.toFixed(2)}%。数值越高代表市场压力越大。`,
       updatedAt: `${latest.date} ${latest.time}`,
       source: "TrendSight 市场压力代理模型",
       official: false,
@@ -233,6 +235,15 @@ function fearLevel(value: number): string {
   if (value < 30) return "正常";
   if (value < 40) return "警惕";
   if (value < 60) return "恐慌";
+  return "极度恐慌";
+}
+
+function aShareFearLevel(value: number): string {
+  if (value < 20) return "极度平静";
+  if (value < 35) return "平静";
+  if (value < 50) return "中性";
+  if (value < 65) return "警惕";
+  if (value < 80) return "恐慌";
   return "极度恐慌";
 }
 
