@@ -1,49 +1,44 @@
-# macOS / Windows
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/package-lock.json
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/.vinext/
+/out/
+
+# misc
 .DS_Store
-Thumbs.db
-
-# Editors and IDEs
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Local environment and secrets
-.env
-.env.*
-!.env.example
-!.env.*.example
-.dev.vars
-.dev.vars.*
-!.dev.vars.example
 *.pem
-*.key
 
-# Logs and temporary files
-*.log
-tmp/
-.cache/
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Local code-intelligence metadata
-/.gitnexus/
-/.claude/
-/AGENTS.md
-/CLAUDE.md
+# env files (can opt-in for committing if needed)
+.env*
 
-# Web dependencies and generated output
-/web/node_modules/
-/web/.next/
-/web/.vinext/
-/web/.vite/
-/web/.turbo/
-/web/.vercel/
-/web/.wrangler/
-/web/out/
-/web/build/
-/web/dist/
-/web/coverage/
-/web/outputs/
-/web/work/
-/web/next-env.d.ts
-/web/*.tsbuildinfo
+# vercel
+.vercel
+
+# typescript
+next-env.d.ts
+*.tsbuildinfo
+/dist/
+/.wrangler/
+/outputs/
+/work/

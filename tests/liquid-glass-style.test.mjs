@@ -15,6 +15,11 @@ test("defines readable liquid-glass surfaces for light and dark appearances", ()
   assert.match(appleStyles, /backdrop-filter: blur\(26px\) saturate\(175%\)/);
   assert.match(appleStyles, /\.quote-head,/);
   assert.match(appleStyles, /\.stock-score-card \{/);
+  assert.match(appleStyles, /body::before \{/);
+  assert.match(appleStyles, /@keyframes apple-ambient-scroll/);
+  assert.match(appleStyles, /animation-duration: 1s/);
+  assert.match(appleStyles, /animation-timeline: scroll\(root block\)/);
+  assert.match(appleStyles, /body::before \{\s+animation: none !important/);
   assert.doesNotMatch(appleGlassBlock, /inset 0 1px/);
 });
 

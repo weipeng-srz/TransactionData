@@ -871,18 +871,12 @@ body:has(.global-page-shell) {
 @media (min-width: 1181px) {
   html:has(.global-page-shell),
   body:has(.global-page-shell) {
-    background:
-      radial-gradient(circle at 14% 4%, color-mix(in srgb, var(--apple-accent) 7%, transparent), transparent 34rem),
-      radial-gradient(circle at 86% 12%, color-mix(in srgb, #8f7cff 5%, transparent), transparent 38rem),
-      linear-gradient(180deg, color-mix(in srgb, var(--apple-page) 90%, white), var(--apple-page));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--apple-page) 92%, white), var(--apple-page));
     background-attachment: fixed;
   }
 
   :root[data-appearance="dark"] body:has(.global-page-shell) {
-    background:
-      radial-gradient(circle at 14% 4%, color-mix(in srgb, var(--apple-accent) 10%, transparent), transparent 36rem),
-      radial-gradient(circle at 86% 12%, color-mix(in srgb, #8f7cff 7%, transparent), transparent 40rem),
-      linear-gradient(180deg, #151519, var(--apple-page));
+    background: linear-gradient(180deg, #151519, var(--apple-page));
     background-attachment: fixed;
   }
 
