@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     if (new TextEncoder().encode(body).byteLength > 2048) throw new Error("请求内容过大");
     const payload = normalizeRealtimeRequest(JSON.parse(body));
     const snapshot = await fetchRealtimeSnapshot(payload.code);
-    return Response.json(snapshot, { headers: { "Cache-Control": "no-store", "X-TickLens-Source": "sina-realtime-https" } });
+    return Response.json(snapshot, { headers: { "Cache-Control": "no-store", "X-TickLens-Source": "realtime-market-auto-fallback" } });
   } catch (reason) {
     return Response.json({ error: reason instanceof Error ? reason.message : "获取实时行情失败" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }

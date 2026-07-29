@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  fetchRealtimeSnapshot,
   normalizeRealtimeRequest,
+  parseEastmoneyMinuteResponse,
   parseMinuteKlineResponse,
   parseQuoteResponse,
+  parseTencentQuoteResponse,
 } from "../app/lib/realtimeMarket.ts";
 import { analyzeRealtimeSignals } from "../app/lib/realtimeSignals.ts";
 
@@ -43,6 +46,98 @@ test("parses JSONP minute candles and rejects malformed payloads", () => {
     amount: 1100000,
   });
   assert.throws(() => parseMinuteKlineResponse("not jsonp"), /异常内容/);
+});
+
+test("parses Tencent quote and Eastmoney minute fallback payloads", () => {
+  const fields = Array(40).fill("");
+  Object.assign(fields, {
+    1: "浦发银行",
+    2: "600000",
+    3: "9.28",
+    4: "9.19",
+    5: "9.19",
+    6: "1109627",
+    9: "9.28",
+    10: "1854",
+    19: "9.29",
+    20: "921",
+    30: "20260729161433",
+    33: "9.35",
+    34: "9.17",
+    35: "9.28/1109627/1031569486",
+  });
+  const quote = parseTencentQuoteResponse(`v_sh600000="${fields.join("~")}";`);
+  const candles = parseEastmoneyMinuteResponse(JSON.stringify({
+    data: {
+      klines: [
+        "2026-07-29 09:31,9.19,9.24,9.25,9.17,18810,17340147.00,0.87,0.54,0.05,0.01",
+      ],
+    },
+  }));
+
+  assert.equal(quote.name, "浦发银行");
+  assert.equal(quote.price, 9.28);
+  assert.equal(quote.date, "2026-07-29");
+  assert.equal(quote.time, "16:14:33");
+  assert.equal(quote.volume, 110962700);
+  assert.equal(quote.amount, 1031569486);
+  assert.deepEqual(quote.bids[0], { level: 1, price: 9.28, volume: 185400 });
+  assert.deepEqual(quote.asks[0], { level: 1, price: 9.29, volume: 92100 });
+  assert.deepEqual(candles[0], {
+    time: "2026-07-29 09:31:00",
+    open: 9.19,
+    high: 9.25,
+    low: 9.17,
+    close: 9.24,
+    volume: 1881000,
+    amount: 17340147,
+  });
+});
+
+test("falls back after Sina returns 403 and coalesces concurrent refreshes", async () => {
+  const originalFetch = globalThis.fetch;
+  const fields = Array(40).fill("");
+  Object.assign(fields, {
+    1: "PFBank",
+    2: "600000",
+    3: "9.28",
+    4: "9.19",
+    5: "9.19",
+    6: "1109627",
+    9: "9.28",
+    10: "1854",
+    19: "9.29",
+    20: "921",
+    30: "20260729143000",
+    33: "9.35",
+    34: "9.17",
+    35: "9.28/1109627/1031569486",
+  });
+  let requestCount = 0;
+  globalThis.fetch = async (input) => {
+    requestCount += 1;
+    const url = String(input);
+    if (url.includes("sina.")) return new Response("", { status: 403 });
+    if (url.includes("qt.gtimg.cn")) return new Response(`v_sh600000="${fields.join("~")}";`);
+    if (url.includes("push2his.eastmoney.com")) {
+      return Response.json({ data: { klines: ["2026-07-29 14:30,9.27,9.28,9.29,9.27,100,92800.00"] } });
+    }
+    return new Response("", { status: 500 });
+  };
+
+  try {
+    const [first, second] = await Promise.all([
+      fetchRealtimeSnapshot("600000"),
+      fetchRealtimeSnapshot("600000"),
+    ]);
+    assert.equal(first.price, 9.28);
+    assert.equal(first.minuteCandles.length, 1);
+    assert.match(first.source, /自动降级/);
+    assert.deepEqual(second, first);
+    assert.equal(requestCount, 4);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("builds realtime B/S guide points and marks the forming candle", () => {
