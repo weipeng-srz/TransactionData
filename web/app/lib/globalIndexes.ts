@@ -2,11 +2,15 @@ import { parseUSMarketResponse, US_INDEXES, US_QUOTE_SYMBOLS, type USIndexSessio
 
 const quoteEndpoint = "https://hq.sinajs.cn/list=";
 const vixHistoryEndpoint = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv";
+const shanghaiHistoryEndpoint = "https://q.stock.sohu.com/hisHq";
 const maxResponseBytes = 512 * 1024;
 const maxVixHistoryBytes = 1024 * 1024;
+const maxShanghaiHistoryBytes = 2 * 1024 * 1024;
 const vixHistoryCacheTtlMs = 6 * 60 * 60 * 1000;
+const shanghaiHistoryCacheTtlMs = 5 * 60 * 1000;
 
 let vixHistoryCache: { candles: FearGaugeCandle[]; expiresAt: number } | null = null;
+let shanghaiHistoryCache: { candles: ShanghaiIndexCandle[]; expiresAt: number } | null = null;
 
 export type GlobalRegion = "美洲" | "欧洲" | "亚太" | "A股";
 
@@ -37,6 +41,7 @@ export type GlobalIndexFeed = {
   quotes: GlobalIndexQuote[];
   usQuotes: USIndexSessionQuote[];
   fearGauges: FearGaugeQuote[];
+  shanghaiHistory: ShanghaiIndexCandle[];
   source: string;
   fetchedAt: string;
 };
@@ -65,6 +70,25 @@ export type FearGaugeCandle = {
   close: number;
 };
 
+export type ShanghaiIndexCandle = FearGaugeCandle & {
+  amountCny: number;
+};
+
+export type ShanghaiVolumeState = "放量" | "缩量" | "量能平稳";
+
+export type ShanghaiIndexAnalysis = {
+  date: string;
+  volumeState: ShanghaiVolumeState;
+  amountChangePct: number;
+  amountVs5DayPct: number;
+  amountVs20DayPct: number;
+  priceChangePct: number;
+  fiveDayPriceChangePct: number;
+  signal: "价涨量增" | "价涨量缩" | "价跌量增" | "价跌量缩" | "量价变化温和";
+  headline: string;
+  detail: string;
+};
+
 export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
   { id: "tsx", symbol: "b_GSPTSE", code: "GSPTSE", name: "加拿大 S&P/TSX", city: "多伦多", country: "加拿大", region: "美洲", timezone: "America/Toronto", session: { open: "09:30", close: "16:00" }, map: { longitude: -79.3841, latitude: 43.6486, anchor: "top" } },
   { id: "bovespa", symbol: "b_IBOV", code: "IBOV", name: "巴西 BOVESPA", city: "圣保罗", country: "巴西", region: "美洲", timezone: "America/Sao_Paulo", session: { open: "10:00", close: "17:55" }, map: { longitude: -46.6356, latitude: -23.5456, anchor: "right" } },
@@ -90,16 +114,17 @@ export const GLOBAL_INDEXES: GlobalIndexDefinition[] = [
 
 export async function fetchGlobalIndexFeed(now = new Date()): Promise<GlobalIndexFeed> {
   const symbols = [...new Set([...GLOBAL_INDEXES.map((item) => item.symbol), ...US_QUOTE_SYMBOLS, "b_VIX"])].join(",");
-  const [body, vixHistory] = await Promise.all([
+  const [body, vixHistory, shanghaiHistory] = await Promise.all([
     fetchQuoteText(`${quoteEndpoint}${symbols}`),
     fetchVixHistory(),
+    fetchShanghaiIndexHistory(now),
   ]);
   const quotes = parseGlobalIndexResponse(body, now);
   const usQuotes = parseUSMarketResponse(body, now);
   const fearGauges = parseFearGaugeQuotes(body, quotes, now, vixHistory);
   if (quotes.length < Math.ceil(GLOBAL_INDEXES.length / 2)) throw new Error("全球行情服务暂未返回足够的有效指数");
   if (usQuotes.length < Math.ceil(US_INDEXES.length / 2)) throw new Error("美股现货与延长时段行情暂不可用");
-  return { quotes, usQuotes, fearGauges, source: "新浪财经全球指数、CBOE VIX、ETF 延长时段与指数期货 HTTPS 行情", fetchedAt: now.toISOString() };
+  return { quotes, usQuotes, fearGauges, shanghaiHistory, source: "新浪财经全球指数、搜狐财经上证与深证综指历史日线、CBOE VIX、ETF 延长时段与指数期货 HTTPS 行情", fetchedAt: now.toISOString() };
 }
 
 export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], now = new Date(), vixHistory: FearGaugeCandle[] = []): FearGaugeQuote[] {
@@ -194,6 +219,96 @@ export function parseVixHistoryCsv(value: string): FearGaugeCandle[] {
   return [...candles.values()].sort((left, right) => left.date.localeCompare(right.date)).slice(-160);
 }
 
+export function parseShanghaiIndexHistory(value: string): ShanghaiIndexCandle[] {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(value);
+  } catch {
+    return [];
+  }
+  const first = Array.isArray(payload) ? payload[0] as { hq?: unknown } | undefined : undefined;
+  if (!first || !Array.isArray(first.hq)) return [];
+
+  const candles = new Map<string, ShanghaiIndexCandle>();
+  for (const item of first.hq) {
+    if (!Array.isArray(item)) continue;
+    const date = String(item[0] ?? "").slice(0, 10);
+    const open = finiteNumber(item[1]);
+    const close = finiteNumber(item[2]);
+    const low = finiteNumber(item[5]);
+    const high = finiteNumber(item[6]);
+    const amountTenThousandCny = finiteNumber(item[8]);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      || open == null
+      || close == null
+      || low == null
+      || high == null
+      || amountTenThousandCny == null
+      || open <= 0
+      || close <= 0
+      || low <= 0
+      || high < Math.max(open, close)
+      || low > Math.min(open, close)
+      || amountTenThousandCny <= 0
+    ) continue;
+    candles.set(date, { date, open, high, low, close, amountCny: amountTenThousandCny * 10_000 });
+  }
+  return [...candles.values()].sort((left, right) => left.date.localeCompare(right.date)).slice(-260);
+}
+
+export function mergeShanghaiIndexWithShenzhenTurnover(
+  shanghaiCandles: ShanghaiIndexCandle[],
+  shenzhenCandles: ShanghaiIndexCandle[],
+): ShanghaiIndexCandle[] {
+  const shenzhenByDate = new Map(shenzhenCandles.map((candle) => [candle.date, candle]));
+  return shanghaiCandles.flatMap((candle) => {
+    const shenzhen = shenzhenByDate.get(candle.date);
+    return shenzhen ? [{ ...candle, amountCny: candle.amountCny + shenzhen.amountCny }] : [];
+  });
+}
+
+export function analyzeShanghaiIndexHistory(candles: ShanghaiIndexCandle[]): ShanghaiIndexAnalysis | null {
+  if (candles.length < 2) return null;
+  const latest = candles.at(-1)!;
+  const previous = candles.at(-2)!;
+  const previousFive = candles.slice(-6, -1);
+  const previousTwenty = candles.slice(-21, -1);
+  const amountChangePct = percentChange(latest.amountCny, previous.amountCny);
+  const amountVs5DayPct = percentChange(latest.amountCny, average(previousFive.map((item) => item.amountCny)));
+  const amountVs20DayPct = percentChange(latest.amountCny, average(previousTwenty.map((item) => item.amountCny)));
+  const priceChangePct = percentChange(latest.close, previous.close);
+  const fiveDayAnchor = candles.at(-6) ?? candles[0];
+  const fiveDayPriceChangePct = percentChange(latest.close, fiveDayAnchor.close);
+  const volumeState: ShanghaiVolumeState = amountChangePct > 5 ? "放量" : amountChangePct < -5 ? "缩量" : "量能平稳";
+  const priceDirection = priceChangePct > .15 ? "up" : priceChangePct < -.15 ? "down" : "flat";
+  const amountDirection = amountChangePct > 5 ? "up" : amountChangePct < -5 ? "down" : "flat";
+  const signal = priceDirection === "up" && amountDirection === "up" ? "价涨量增"
+    : priceDirection === "up" && amountDirection === "down" ? "价涨量缩"
+      : priceDirection === "down" && amountDirection === "up" ? "价跌量增"
+        : priceDirection === "down" && amountDirection === "down" ? "价跌量缩"
+          : "量价变化温和";
+  const headline = signal === "价涨量增" ? "量价配合偏强"
+    : signal === "价涨量缩" ? "上涨但跟量不足"
+      : signal === "价跌量增" ? "放量回落，抛压偏强"
+        : signal === "价跌量缩" ? "缩量回落，抛压边际减弱"
+          : "量价变化仍在常态区间";
+  const amountHundredMillion = latest.amountCny / 100_000_000;
+  const comparison = amountVs20DayPct >= 0 ? `高于20日均额 ${amountVs20DayPct.toFixed(1)}%` : `低于20日均额 ${Math.abs(amountVs20DayPct).toFixed(1)}%`;
+  return {
+    date: latest.date,
+    volumeState,
+    amountChangePct,
+    amountVs5DayPct,
+    amountVs20DayPct,
+    priceChangePct,
+    fiveDayPriceChangePct,
+    signal,
+    headline,
+    detail: `${latest.date} 沪深两市成交额 ${amountHundredMillion.toFixed(0)} 亿元，较前一交易日${amountChangePct >= 0 ? "增加" : "减少"} ${Math.abs(amountChangePct).toFixed(1)}%，${comparison}。`,
+  };
+}
+
 async function fetchVixHistory(): Promise<FearGaugeCandle[]> {
   const now = Date.now();
   if (vixHistoryCache && vixHistoryCache.expiresAt > now) return vixHistoryCache.candles;
@@ -213,6 +328,44 @@ async function fetchVixHistory(): Promise<FearGaugeCandle[]> {
   } catch {
     return vixHistoryCache?.candles ?? [];
   }
+}
+
+async function fetchShanghaiIndexHistory(now: Date): Promise<ShanghaiIndexCandle[]> {
+  const cacheNow = Date.now();
+  if (shanghaiHistoryCache && shanghaiHistoryCache.expiresAt > cacheNow) return shanghaiHistoryCache.candles;
+  try {
+    const start = new Date(now.getTime() - 550 * 24 * 60 * 60 * 1000);
+    const startDate = zonedDate(start, "Asia/Shanghai").replaceAll("-", "");
+    const endDate = zonedDate(now, "Asia/Shanghai").replaceAll("-", "");
+    const shanghaiCandles = await fetchSohuIndexHistory("zs_000001", startDate, endDate);
+    const shenzhenCandles = await fetchSohuIndexHistory("zs_399106", startDate, endDate);
+    const candles = mergeShanghaiIndexWithShenzhenTurnover(shanghaiCandles, shenzhenCandles);
+    if (candles.length < 20) throw new Error("上证历史日线不足");
+    shanghaiHistoryCache = { candles, expiresAt: cacheNow + shanghaiHistoryCacheTtlMs };
+    return candles;
+  } catch {
+    return shanghaiHistoryCache?.candles ?? [];
+  }
+}
+
+async function fetchSohuIndexHistory(code: "zs_000001" | "zs_399106", startDate: string, endDate: string): Promise<ShanghaiIndexCandle[]> {
+  const endpoint = new URL(shanghaiHistoryEndpoint);
+  endpoint.searchParams.set("code", code);
+  endpoint.searchParams.set("start", startDate);
+  endpoint.searchParams.set("end", endDate);
+  endpoint.searchParams.set("stat", "1");
+  endpoint.searchParams.set("order", "D");
+  endpoint.searchParams.set("period", "d");
+  endpoint.searchParams.set("rt", "json");
+  const response = await fetch(endpoint, {
+    cache: "no-store",
+    headers: { Accept: "application/json", Referer: "https://q.stock.sohu.com/", "User-Agent": "Mozilla/5.0 (compatible; TickLens/2.0)" },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`${code} HTTP ${response.status}`);
+  const body = await response.text();
+  if (new TextEncoder().encode(body).byteLength > maxShanghaiHistoryBytes) throw new Error(`${code} 历史响应超过安全上限`);
+  return parseShanghaiIndexHistory(body);
 }
 
 function normalizeCboeDate(value: string | undefined): string {
@@ -333,4 +486,12 @@ function zonedTime(value: Date, timezone: string): string {
 function finiteNumber(value: unknown): number | null {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function average(values: number[]): number {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function percentChange(value: number, baseline: number): number {
+  return baseline > 0 ? ((value / baseline) - 1) * 100 : 0;
 }

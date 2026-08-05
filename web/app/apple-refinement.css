@@ -881,6 +881,12 @@ select:disabled {
   background: var(--apple-surface);
 }
 
+.chart-stage canvas { cursor: grab; touch-action: pan-y; }
+.chart-stage.is-dragging canvas { cursor: grabbing; }
+.chart-stage .kline-viewport-controls { right: 82px; }
+.realtime-canvas-wrap .kline-viewport-controls { right: 90px; }
+.chart-hint { right: auto; left: 14px; }
+
 .chart-float,
 .realtime-hover-card {
   border-radius: 14px;
@@ -1646,6 +1652,10 @@ select:disabled {
   .chart-stage {
     height: 390px;
   }
+
+  .chart-hint { display: none; }
+  .chart-stage .kline-viewport-controls { right: 74px; }
+  .realtime-canvas-wrap .kline-viewport-controls { right: 82px; }
 
   .ohlc-ribbon {
     overflow-x: auto;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import KlineViewportControls from "./KlineViewportControls";
+import { klineRangeLength, normalizeKlineRange, normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange, type KlineRange } from "../lib/klineViewport";
 import type { RealtimeMinuteCandle, RealtimeSnapshot } from "../lib/realtimeMarket";
 import { analyzeRealtimeSignals, type RealtimeGuidePoint } from "../lib/realtimeSignals";
 
@@ -73,13 +75,14 @@ export default function RealtimeTradingPanel({
               <small>规则模型辅助信号，不构成投资建议</small>
             </div>
             <MinuteCandlestickChart
+              key={`${snapshot.code}-${snapshot.date}`}
               candles={snapshot.minuteCandles}
               previousClose={snapshot.previousClose}
               guidePoints={signalAnalysis.guidePoints}
             />
             <div className="realtime-chart-footer">
               <span>1 分钟 K 线 · {snapshot.minuteCandles.length} 根 · B/S {signalAnalysis.signalCount} 个</span>
-              <span>鼠标悬浮查看坐标 · ← → 键逐根定位</span>
+              <span>滚轮缩放 · 横向拖拽 · 双击复位 · ← → 定位</span>
               <span title={snapshot.source}>新浪 L1 · 更新：{formatFetchedAt(snapshot.fetchedAt)}</span>
             </div>
           </section>
@@ -124,11 +127,30 @@ function MinuteCandlestickChart({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dragRef = useRef<{ x: number; range: KlineRange } | null>(null);
+  const previousTotalRef = useRef(candles.length);
   const [size, setSize] = useState({ width: 960, height: 360 });
   const [hover, setHover] = useState<HoverPoint | null>(null);
-  const plot = useMemo(() => calculatePlot(candles, previousClose, size), [candles, previousClose, size]);
+  const [range, setRange] = useState(() => rangeForLatest(candles.length, 120));
+  const [isDragging, setIsDragging] = useState(false);
+  const visibleCandles = useMemo(() => candles.slice(range.from, range.to + 1), [candles, range]);
+  const visibleGuides = useMemo(() => guidePoints.slice(range.from, range.to + 1), [guidePoints, range]);
+  const plot = useMemo(() => calculatePlot(visibleCandles, previousClose, size), [previousClose, size, visibleCandles]);
   const hoveredCandle = hover ? candles[hover.index] : null;
   const hoveredGuide = hover ? guidePoints[hover.index] : null;
+
+  useEffect(() => {
+    const previousTotal = previousTotalRef.current;
+    setRange((current) => {
+      if (!candles.length) return { from: 0, to: 0 };
+      if (!previousTotal || candles.length < previousTotal) return rangeForLatest(candles.length, 120);
+      const visibleCount = Math.max(12, klineRangeLength(current));
+      return current.to >= previousTotal - 1
+        ? rangeForLatest(candles.length, visibleCount)
+        : normalizeKlineRange(current, candles.length);
+    });
+    previousTotalRef.current = candles.length;
+  }, [candles.length]);
 
   useEffect(() => {
     const node = wrapRef.current;
@@ -161,7 +183,7 @@ function MinuteCandlestickChart({
     const grid = styles.getPropertyValue("--apple-border").trim() || "rgba(0,0,0,.08)";
     const surface = styles.getPropertyValue("--apple-elevated").trim() || "#fff";
     const accent = styles.getPropertyValue("--apple-accent").trim() || "#0071e3";
-    if (!candles.length) {
+    if (!visibleCandles.length) {
       context.fillStyle = text;
       context.font = "13px system-ui";
       context.fillText("当前交易日尚无分钟成交数据", 24, 42);
@@ -211,8 +233,8 @@ function MinuteCandlestickChart({
     context.font = "600 9px system-ui";
     context.fillText("昨收 · 0.00%", plotRight - 8, previousY - 6);
 
-    const candleWidth = Math.max(1, Math.min(6, (plotWidth / candles.length) * 0.66));
-    candles.forEach((item, index) => {
+    const candleWidth = Math.max(1.2, Math.min(9, (plotWidth / visibleCandles.length) * 0.64));
+    visibleCandles.forEach((item, index) => {
       const color = item.close >= item.open ? up : down;
       const candleX = x(index);
       context.strokeStyle = color;
@@ -227,16 +249,16 @@ function MinuteCandlestickChart({
       else context.strokeRect(candleX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
     });
 
-    const maxVolume = Math.max(...candles.map((item) => item.volume), 1);
-    candles.forEach((item, index) => {
+    const maxVolume = Math.max(...visibleCandles.map((item) => item.volume), 1);
+    visibleCandles.forEach((item, index) => {
       const height = (item.volume / maxVolume) * (bottom - volumeTop);
       context.fillStyle = item.close >= item.open ? `${up}99` : `${down}99`;
       context.fillRect(x(index) - candleWidth / 2, bottom - height, candleWidth, height);
     });
 
-    guidePoints.forEach((guide, index) => {
-      if (!guide || !candles[index]) return;
-      const candle = candles[index];
+    visibleGuides.forEach((guide, index) => {
+      if (!guide || !visibleCandles[index]) return;
+      const candle = visibleCandles[index];
       const markerX = x(index);
       const markerY = guide.type === "buy"
         ? Math.min(priceBottom - 9, y(candle.low) + 16)
@@ -257,11 +279,11 @@ function MinuteCandlestickChart({
     context.textAlign = "center";
     context.font = "11px ui-monospace, Menlo, monospace";
     [0, 0.25, 0.5, 0.75, 1].forEach((ratio) => {
-      const index = Math.min(candles.length - 1, Math.round((candles.length - 1) * ratio));
-      context.fillText(candles[index].time, x(index), size.height - 6);
+      const index = Math.min(visibleCandles.length - 1, Math.round((visibleCandles.length - 1) * ratio));
+      context.fillText(visibleCandles[index].time, x(index), size.height - 6);
     });
 
-    if (hover && candles[hover.index]) {
+    if (hover && candles[hover.index] && hover.index >= range.from && hover.index <= range.to) {
       context.strokeStyle = accent;
       context.lineWidth = 1;
       context.setLineDash([3, 4]);
@@ -292,30 +314,42 @@ function MinuteCandlestickChart({
       context.textAlign = "left";
       context.fillText(`${hoverChangePct > 0 ? "+" : ""}${hoverChangePct.toFixed(2)}%`, rightBadgeX + 7, hover.y + 4);
     }
-  }, [candles, guidePoints, hover, plot, previousClose, size]);
+  }, [candles, hover, plot, previousClose, range, size, visibleCandles, visibleGuides]);
 
   const pointFromIndex = (index: number): HoverPoint => {
     const candle = candles[index];
-    return { index, x: plot.x(index), y: plot.y(candle.close), price: candle.close };
+    return { index, x: plot.x(index - range.from), y: plot.y(candle.close), price: candle.close };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!candles.length) return;
+    if (!visibleCandles.length) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const pointerX = (event.clientX - rect.left) * (size.width / Math.max(rect.width, 1));
     const pointerY = (event.clientY - rect.top) * (size.height / Math.max(rect.height, 1));
-    const index = Math.max(0, Math.min(candles.length - 1, Math.floor(((pointerX - plot.left) / Math.max(plot.plotWidth, 1)) * candles.length)));
+    const localIndex = Math.max(0, Math.min(visibleCandles.length - 1, Math.floor(((pointerX - plot.left) / Math.max(plot.plotWidth, 1)) * visibleCandles.length)));
+    const index = range.from + localIndex;
     const y = Math.max(plot.top, Math.min(plot.priceBottom, pointerY));
     const price = plot.max - ((y - plot.top) / Math.max(plot.priceBottom - plot.top, 1)) * (plot.max - plot.min);
-    setHover({ index, x: plot.x(index), y, price });
+    setHover({ index, x: plot.x(index - range.from), y, price });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
-    if (!candles.length || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-    event.preventDefault();
-    const current = hover?.index ?? candles.length - 1;
-    const index = Math.max(0, Math.min(candles.length - 1, current + (event.key === "ArrowRight" ? 1 : -1)));
-    setHover(pointFromIndex(index));
+    if (!candles.length) return;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const current = hover?.index ?? range.to;
+      const index = Math.max(range.from, Math.min(range.to, current + (event.key === "ArrowRight" ? 1 : -1)));
+      setHover(pointFromIndex(index));
+    } else if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      setRange(zoomKlineRange({ range, total: candles.length, deltaY: -120, anchorRatio: 1, minVisible: 12 }));
+    } else if (event.key === "-") {
+      event.preventDefault();
+      setRange(zoomKlineRange({ range, total: candles.length, deltaY: 120, anchorRatio: 1, minVisible: 12 }));
+    } else if (event.key === "0") {
+      event.preventDefault();
+      setRange(rangeForLatest(candles.length, 120));
+    }
   };
 
   const previous = hover && hover.index > 0 ? candles[hover.index - 1].close : previousClose;
@@ -323,15 +357,50 @@ function MinuteCandlestickChart({
   const hoveredChangePct = hoveredCandle && previous > 0 ? (hoveredChange / previous) * 100 : 0;
 
   return (
-    <div className="realtime-canvas-wrap" ref={wrapRef}>
+    <div className={`realtime-canvas-wrap ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
       <canvas
         ref={canvasRef}
         role="img"
         tabIndex={0}
-        aria-label={`当前交易日1分钟K线，共${candles.length}根；左轴为价格，右轴为相对昨收涨跌幅；可用鼠标悬浮或方向键查看坐标`}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={() => setHover(null)}
-        onFocus={() => { if (!hover && candles.length) setHover(pointFromIndex(candles.length - 1)); }}
+        aria-label={`当前交易日1分钟K线，共${candles.length}根，当前显示第${range.from + 1}至${range.to + 1}根；可滚轮缩放、横向拖拽或用键盘操作`}
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          dragRef.current = { x: event.clientX, range };
+          setIsDragging(true);
+          setHover(null);
+        }}
+        onPointerMove={(event) => {
+          if (!dragRef.current || !visibleCandles.length) return handlePointerMove(event);
+          const rect = event.currentTarget.getBoundingClientRect();
+          const candleWidth = (plot.plotWidth / visibleCandles.length) * (rect.width / Math.max(size.width, 1));
+          const delta = Math.round((dragRef.current.x - event.clientX) / Math.max(candleWidth, 1));
+          setRange(panKlineRange(dragRef.current.range, candles.length, delta));
+        }}
+        onPointerUp={(event) => {
+          dragRef.current = null;
+          setIsDragging(false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+          handlePointerMove(event);
+        }}
+        onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
+        onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
+        onPointerLeave={() => { if (!dragRef.current) setHover(null); }}
+        onWheel={(event) => {
+          event.preventDefault();
+          const rect = event.currentTarget.getBoundingClientRect();
+          const pointerX = (event.clientX - rect.left) * (size.width / Math.max(rect.width, 1));
+          setRange(zoomKlineRange({
+            range,
+            total: candles.length,
+            deltaY: normalizeWheelDelta(event.deltaY, event.deltaMode, size.height),
+            anchorRatio: (pointerX - plot.left) / Math.max(plot.plotWidth, 1),
+            minVisible: 12,
+          }));
+          setHover(null);
+        }}
+        onDoubleClick={() => { setRange(rangeForLatest(candles.length, 120)); setHover(null); }}
+        onFocus={() => { if (!hover && candles.length) setHover(pointFromIndex(range.to)); }}
         onKeyDown={handleKeyDown}
       />
       {hover && hoveredCandle ? (
@@ -339,7 +408,7 @@ function MinuteCandlestickChart({
           className="realtime-hover-card"
           role="status"
           style={{
-            left: Math.min(size.width - 274, Math.max(8, hover.x + 14)),
+            ...(hover.x < size.width / 2 ? { right: 90 } : { left: 8 }),
             top: Math.min(size.height - 176, Math.max(8, hover.y - 48)),
           }}
         >
@@ -349,6 +418,7 @@ function MinuteCandlestickChart({
           {hoveredGuide ? <p className={hoveredGuide.type === "buy" ? "is-up" : "is-down"}><b>{hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</b> {hoveredGuide.reasons.join(" · ")}{hoveredGuide.provisional ? " · 形成中" : ""}</p> : null}
         </div>
       ) : null}
+      <KlineViewportControls className="is-apple" range={range} total={candles.length} minVisible={12} resetVisible={120} onRangeChange={(next) => { setRange(next); setHover(null); }} />
     </div>
   );
 }
@@ -356,7 +426,7 @@ function MinuteCandlestickChart({
 function calculatePlot(candles: RealtimeMinuteCandle[], previousClose: number, size: { width: number; height: number }) {
   const left = 72;
   const right = 82;
-  const top = 24;
+  const top = 42;
   const priceBottom = Math.round(size.height * 0.72);
   const volumeTop = priceBottom + 24;
   const bottom = size.height - 24;

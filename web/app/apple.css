@@ -2163,7 +2163,8 @@ body {
   background: linear-gradient(180deg, color-mix(in srgb, var(--apple-surface-soft) 55%, transparent), transparent);
 }
 
-.realtime-canvas-wrap canvas { display: block; cursor: crosshair; }
+.realtime-canvas-wrap canvas { display: block; cursor: grab; touch-action: pan-y; }
+.realtime-canvas-wrap.is-dragging canvas { cursor: grabbing; }
 .realtime-chart-footer { min-height: 40px; padding: 0 14px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; border-top: 1px solid var(--apple-border); color: var(--apple-tertiary); font-size: 9px; }
 .realtime-chart-footer span:nth-child(2) { text-align: center; }
 .realtime-chart-footer span:last-child { text-align: right; }
@@ -2192,6 +2193,53 @@ body {
 .realtime-hover-card > div b { color: var(--apple-text); font: 650 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .realtime-hover-card footer { color: var(--apple-secondary); font-size: 9px; }
 .realtime-hover-card p { margin: 9px 0 0; padding-top: 8px; border-top: 1px solid var(--apple-border); font-size: 9px; line-height: 1.45; }
+
+.kline-viewport-controls {
+  position: absolute;
+  top: 8px;
+  right: 84px;
+  z-index: 5;
+  min-height: 30px;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--apple-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--apple-elevated) 88%, transparent);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .08);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+}
+
+.kline-viewport-controls.is-inline { position: static; }
+.kline-viewport-controls button {
+  min-width: 26px;
+  min-height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--apple-secondary);
+  background: transparent;
+  font: 650 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+
+.kline-viewport-controls button:hover,
+.kline-viewport-controls button:focus-visible { color: var(--apple-text); background: var(--apple-surface-soft); }
+.kline-viewport-controls button:disabled { opacity: .32; cursor: default; }
+.kline-viewport-controls button.is-reset { min-width: 38px; font-family: var(--sans); font-size: 9px; }
+.kline-viewport-controls > span {
+  min-width: 42px;
+  padding: 0 5px;
+  color: var(--apple-text);
+  font: 650 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+  white-space: nowrap;
+}
+.kline-viewport-controls > span small { margin-left: 2px; color: var(--apple-tertiary); font: inherit; font-size: 8px; }
+.kline-viewport-controls.is-compact > span { min-width: 34px; }
+.kline-viewport-controls.is-compact button { min-width: 24px; padding-inline: 4px; }
 
 .orderbook-card {
   min-width: 0;

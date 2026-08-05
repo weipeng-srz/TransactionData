@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import KlineViewportControls from "./KlineViewportControls";
+import { normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange } from "../lib/klineViewport";
 import type { Candle, IndicatorSet, LowerIndicator } from "../lib/market";
 import { formatNumber } from "../lib/market";
 import type { ChartAnnotation, ChartEvent } from "../lib/research";
@@ -15,6 +17,7 @@ type Props = {
   overlays: Record<OverlayKey, boolean>;
   lowerIndicator: LowerIndicator;
   range: { from: number; to: number };
+  resetVisible: number;
   events: ChartEvent[];
   annotations: ChartAnnotation[];
   onRangeChange: (range: { from: number; to: number }) => void;
@@ -99,6 +102,7 @@ export default function MarketChart({
   overlays,
   lowerIndicator,
   range,
+  resetVisible,
   events,
   annotations,
   onRangeChange,
@@ -111,6 +115,7 @@ export default function MarketChart({
   const dragRef = useRef<{ x: number; from: number; to: number } | null>(null);
   const [size, setSize] = useState({ width: 960, height: 560 });
   const [hover, setHover] = useState<HoverState>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!wrapRef.current) return;
@@ -549,13 +554,11 @@ export default function MarketChart({
   };
 
   const shiftRange = (delta: number) => {
-    const length = range.to - range.from;
-    const from = Math.max(0, Math.min(candles.length - length - 1, range.from + delta));
-    onRangeChange({ from, to: from + length });
+    onRangeChange(panKlineRange(range, candles.length, delta));
   };
 
   return (
-    <div className="chart-stage" ref={wrapRef}>
+    <div className={`chart-stage ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
       <canvas
         ref={canvasRef}
         role="img"
@@ -563,24 +566,29 @@ export default function MarketChart({
         aria-label={`K线图，共 ${candles.length} 根，当前显示第 ${range.from + 1} 到 ${range.to + 1} 根，叠加 ${events.length} 个新闻或财务事件、${annotations.length} 个研究标注`}
         tabIndex={0}
         onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
           event.currentTarget.setPointerCapture(event.pointerId);
           dragRef.current = { x: event.clientX, from: range.from, to: range.to };
+          setIsDragging(true);
+          setHover(null);
+          onHover(null);
         }}
         onPointerMove={(event) => {
           if (dragRef.current && layoutRef.current) {
             const candleDelta = Math.round((dragRef.current.x - event.clientX) / layoutRef.current.candleWidth);
-            const length = dragRef.current.to - dragRef.current.from;
-            const from = Math.max(0, Math.min(candles.length - length - 1, dragRef.current.from + candleDelta));
-            onRangeChange({ from, to: from + length });
+            onRangeChange(panKlineRange({ from: dragRef.current.from, to: dragRef.current.to }, candles.length, candleDelta));
           } else {
             updateHover(event.clientX, event.clientY);
           }
         }}
         onPointerUp={(event) => {
           dragRef.current = null;
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          setIsDragging(false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
           updateHover(event.clientX, event.clientY);
         }}
+        onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
+        onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
         onPointerLeave={() => {
           if (!dragRef.current) {
             setHover(null);
@@ -589,15 +597,20 @@ export default function MarketChart({
         }}
         onWheel={(event) => {
           event.preventDefault();
-          const currentLength = range.to - range.from + 1;
-          const nextLength = Math.max(10, Math.min(candles.length, Math.round(currentLength * (event.deltaY > 0 ? 1.16 : 0.86))));
+          const layout = layoutRef.current;
           const rect = event.currentTarget.getBoundingClientRect();
-          const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left - 12) / Math.max(rect.width - 84, 1)));
-          const anchor = range.from + Math.round(currentLength * ratio);
-          let from = anchor - Math.round(nextLength * ratio);
-          from = Math.max(0, Math.min(candles.length - nextLength, from));
-          onRangeChange({ from, to: from + nextLength - 1 });
+          if (!layout) return;
+          const pointerX = (event.clientX - rect.left) * (size.width / Math.max(rect.width, 1));
+          const anchorRatio = (pointerX - layout.left) / Math.max(layout.plotWidth, 1);
+          onRangeChange(zoomKlineRange({
+            range,
+            total: candles.length,
+            deltaY: normalizeWheelDelta(event.deltaY, event.deltaMode, size.height),
+            anchorRatio,
+            minVisible: 10,
+          }));
         }}
+        onDoubleClick={() => onRangeChange(rangeForLatest(candles.length, resetVisible))}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
             event.preventDefault();
@@ -607,19 +620,20 @@ export default function MarketChart({
             onHover(index);
           } else if (event.key === "+" || event.key === "=") {
             event.preventDefault();
-            const length = Math.max(10, Math.round((range.to - range.from + 1) * 0.8));
-            onRangeChange({ from: Math.max(0, range.to - length + 1), to: range.to });
+            onRangeChange(zoomKlineRange({ range, total: candles.length, deltaY: -120, anchorRatio: 1, minVisible: 10 }));
           } else if (event.key === "-") {
             event.preventDefault();
-            const length = Math.min(candles.length, Math.round((range.to - range.from + 1) * 1.2));
-            onRangeChange({ from: Math.max(0, range.to - length + 1), to: range.to });
+            onRangeChange(zoomKlineRange({ range, total: candles.length, deltaY: 120, anchorRatio: 1, minVisible: 10 }));
+          } else if (event.key === "0") {
+            event.preventDefault();
+            onRangeChange(rangeForLatest(candles.length, resetVisible));
           }
         }}
       />
       {hover && candles[hover.index] ? (
         <div
-          className="chart-float"
-          style={{ left: Math.min(size.width - 170, Math.max(12, hover.x + 14)), top: Math.min(size.height - 92, Math.max(12, hover.y - 28)) }}
+          className={`chart-float ${hover.x < size.width / 2 ? "is-edge-end" : "is-edge-start"}`}
+          style={{ ...(hover.x < size.width / 2 ? { right: 84 } : { left: 12 }), top: Math.min(size.height - 92, Math.max(42, hover.y - 28)) }}
         >
           <span>{candles[hover.index].key}</span>
           <strong>{formatNumber(candles[hover.index].close, 3)}</strong>
@@ -627,7 +641,8 @@ export default function MarketChart({
           {eventsByDate.get(candles[hover.index].date)?.[0] ? <small className="chart-event-detail">{eventsByDate.get(candles[hover.index].date)?.[0].label}</small> : null}
         </div>
       ) : null}
-      <div className="chart-hint">滚轮缩放 · 拖拽平移 · ← → 定位{benchmarkCandles.length ? " · 青色虚线为沪深300归一化走势" : ""}</div>
+      <div className="chart-hint">指针锚定缩放 · 拖拽平移 · 双击复位{benchmarkCandles.length ? " · 青色虚线为沪深300归一化走势" : ""}</div>
+      <KlineViewportControls range={range} total={candles.length} minVisible={10} resetVisible={resetVisible} onRangeChange={onRangeChange} />
       <button className="chart-nudge chart-nudge-left" type="button" onClick={() => shiftRange(-Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向前移动图表">
         ‹
       </button>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GLOBAL_INDEXES, parseGlobalIndexResponse } from "../app/lib/globalIndexes.ts";
+import { analyzeShanghaiIndexHistory, GLOBAL_INDEXES, mergeShanghaiIndexWithShenzhenTurnover, parseGlobalIndexResponse, parseShanghaiIndexHistory } from "../app/lib/globalIndexes.ts";
 import { parseUSMarketResponse, resolveUSMarketPhase, US_INDEXES } from "../app/lib/usMarketIndexes.ts";
 
 test("parses mixed global index quote formats and keeps catalog metadata", () => {
@@ -36,6 +36,54 @@ test("ignores empty or malformed global quotes without losing valid markets", ()
   assert.ok(GLOBAL_INDEXES.length >= 20);
   assert.ok(GLOBAL_INDEXES.filter((item) => item.region === "A股").length >= 9);
   assert.ok(US_INDEXES.length >= 5);
+});
+
+test("parses Shanghai Composite candles and converts turnover from ten-thousand yuan to yuan", () => {
+  const body = JSON.stringify([{ status: 0, hq: [
+    ["2026-08-04", "3816.37", "3822.28", "12.62", "0.33%", "3799.52", "3831.94", "540324928", "100838248.00", "-"],
+    ["2026-08-03", "3812.61", "3809.66", "-22.60", "-0.59%", "3797.64", "3827.64", "524516960", "95225688.00", "-"],
+    ["bad-date", "3812", "3809", "0", "0%", "3797", "3827", "1", "2", "-"],
+  ] }]);
+  const candles = parseShanghaiIndexHistory(body);
+
+  assert.equal(candles.length, 2);
+  assert.deepEqual(candles.map((candle) => candle.date), ["2026-08-03", "2026-08-04"]);
+  assert.equal(candles[1].high, 3831.94);
+  assert.equal(candles[1].amountCny, 1_008_382_480_000);
+});
+
+test("adds Shanghai and Shenzhen turnover only for aligned trading dates", () => {
+  const shanghai = [
+    { date: "2026-08-03", open: 3812, high: 3828, low: 3798, close: 3810, amountCny: 952_256_880_000 },
+    { date: "2026-08-04", open: 3816, high: 3832, low: 3800, close: 3822, amountCny: 1_008_382_480_000 },
+  ];
+  const shenzhen = [
+    { date: "2026-08-04", open: 2439, high: 2493, low: 2432, close: 2486, amountCny: 1_205_209_280_000 },
+  ];
+
+  const merged = mergeShanghaiIndexWithShenzhenTurnover(shanghai, shenzhen);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].date, "2026-08-04");
+  assert.equal(merged[0].close, 3822);
+  assert.equal(merged[0].amountCny, 2_213_591_760_000);
+});
+
+test("classifies a rising close with lower turnover as price-up volume-down", () => {
+  const candles = [
+    ["2026-07-28", 3790, 3810, 3780, 3800, 100_000_000_000],
+    ["2026-07-29", 3800, 3820, 3790, 3810, 105_000_000_000],
+    ["2026-07-30", 3810, 3830, 3800, 3820, 102_000_000_000],
+    ["2026-07-31", 3820, 3840, 3810, 3830, 101_000_000_000],
+    ["2026-08-03", 3825, 3835, 3790, 3800, 100_000_000_000],
+    ["2026-08-04", 3805, 3840, 3800, 3820, 80_000_000_000],
+  ].map(([date, open, high, low, close, amountCny]) => ({ date, open, high, low, close, amountCny }));
+  const analysis = analyzeShanghaiIndexHistory(candles);
+
+  assert.equal(analysis?.volumeState, "缩量");
+  assert.equal(analysis?.signal, "价涨量缩");
+  assert.equal(analysis?.headline, "上涨但跟量不足");
+  assert.ok((analysis?.amountChangePct ?? 0) < -19.9);
 });
 
 test("resolves pre-market, regular, post-market, overnight and weekend US stages", () => {

@@ -1264,6 +1264,7 @@ export default function Home() {
             overlays={overlays}
             lowerIndicator={lowerIndicator}
             range={range}
+            resetVisible={timeframe === "1d" ? 120 : 140}
             events={chartEvents}
             annotations={annotations.filter((item) => item.code === selectedCode)}
             onRangeChange={setRange}
