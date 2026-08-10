@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import Link from "next/link";
 import KlineViewportControls from "../components/KlineViewportControls";
-import MarketScopeSwitch from "../components/MarketScopeSwitch";
+import SiteBanner from "../components/SiteBanner";
 import { plotIndexFromPointer } from "../lib/chartInteraction";
 import { analyzeShanghaiIndexHistory, GLOBAL_INDEXES, type FearGaugeCandle, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion, type ShanghaiIndexCandle } from "../lib/globalIndexes";
 import { normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange, type KlineRange } from "../lib/klineViewport";
@@ -116,55 +115,51 @@ export default function GlobalMarketsPage() {
   };
 
   return (
-    <main className="app-shell global-page-shell">
-      <aside className="app-sidebar global-sidebar">
-        <Link className="sidebar-brand global-brand" href={preservedStock ? `/?stock=${preservedStock}` : "/"} aria-label="返回 TrendSight 市场研究">
-          <div className="brand-mark" aria-hidden="true" /><div><strong>TrendSight</strong><span>市场研究工作台</span></div>
-        </Link>
-        <div className="sidebar-scope">
-          <MarketScopeSwitch scope="global" stockCode={preservedStock} />
-        </div>
-        <section className="sidebar-current global-sidebar-current" aria-label="全球市场状态">
+    <div className="global-page">
+      <SiteBanner
+        activePage="global"
+        currentStockCode={preservedStock}
+        appearance={appearance}
+        onToggleAppearance={toggleAppearance}
+        statusText={fetchedAt ? `${feedLabel(feedState)} · ${formatFetchedAt(fetchedAt)}` : feedLabel(feedState)}
+      />
+      <main className="app-shell global-page-shell">
+      <aside className="app-sidebar global-sidebar global-navigation-sidebar">
+        <section className="sidebar-menu-summary global-sidebar-summary" aria-label="全球市场汇总">
           <span>全球市场</span>
           <strong>{openMarkets ? "实时交易中" : "主要市场休市"}</strong>
-          <small>行情每 10 秒自动刷新</small>
-          <b>{openMarkets}</b>
-          <em className={openMarkets ? "is-open" : ""}>{openMarkets ? "个市场交易中" : "等待下一交易时段"}</em>
+          <small>{rising} 涨 · {falling} 跌 · {openMarkets} 个市场交易中</small>
+          <button className="global-sidebar-refresh" type="button" disabled={feedState === "refreshing"} onClick={() => void refresh()}>{feedState === "refreshing" ? "刷新中…" : "刷新行情"}</button>
         </section>
-        <nav className="workspace-nav global-workspace-nav" aria-label="工作台页面导航">
-          <Link href={preservedStock ? `/?stock=${preservedStock}` : "/"}><span>个股研究</span><small>Research</small></Link>
-          <Link className="is-active" href={preservedStock ? `/global-markets?stock=${preservedStock}` : "/global-markets"} aria-current="page"><span>全球股指</span><small>Global</small></Link>
+        <nav className="workspace-nav global-workspace-nav" aria-label="全球股指快速导航">
+          <a href="#global-overview"><span>市场概览</span><small>Overview</small></a>
+          <a href="#a-share-indexes"><span>A股核心</span><small>A Share</small></a>
+          <a href="#shanghai-index"><span>上证指数</span><small>Shanghai</small></a>
+          <a href="#global-map"><span>全球地图</span><small>Map</small></a>
+          <a href="#us-indexes"><span>美股</span><small>US</small></a>
+          <a href="#americas-indexes"><span>美洲</span><small>Americas</small></a>
+          <a href="#europe-indexes"><span>欧洲</span><small>Europe</small></a>
+          <a href="#asia-indexes"><span>亚太</span><small>Asia</small></a>
         </nav>
-        <p className="sidebar-footnote global-sidebar-footnote">指数、扩展时段代理和压力指标仅供市场研究，不构成投资建议。</p>
       </aside>
 
       <div className="app-workspace-shell global-main">
-        <header className="topbar global-topbar">
-          <div className="workspace-heading"><div><p className="eyebrow">GLOBAL MARKET</p><h1>全球股指</h1></div></div>
-          <div className="topbar-actions global-topbar-actions">
-            <span className={`topbar-sync global-feed-state is-${feedState}`}><i />{feedLabel(feedState)}</span>
-            <time dateTime={fetchedAt}>{fetchedAt ? `更新 ${formatFetchedAt(fetchedAt)}` : "正在连接全球行情"}</time>
-            <button className="global-refresh-button" type="button" disabled={feedState === "refreshing"} onClick={() => void refresh()}>{feedState === "refreshing" ? "刷新中…" : "立即刷新"}</button>
-            <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}><span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span></button>
-          </div>
-        </header>
-
         {error ? <div className="global-error" role="status"><strong>行情连接提示</strong><span>{error}，页面将在下一个刷新周期自动重试。</span></div> : null}
 
-        <section className="global-summary" aria-label="全球市场概览">
+        <section id="global-overview" className="global-summary" aria-label="全球市场概览">
           <article><span>覆盖指数</span><strong>{quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length}</strong><small>美股 · A股 · 美洲 · 欧洲 · 亚太</small></article>
           <article><span>上涨 / 下跌</span><strong><em className="is-up">{rising}</em><b>/</b><em className="is-down">{falling}</em></strong><small>按最新涨跌幅统计</small></article>
           <article><span>交易中市场</span><strong>{openMarkets}</strong><small>依据各交易所当地时段</small></article>
           <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
         </section>
 
-        <section className="global-a-share-board" aria-label="A股核心指数行情">
+        <section id="a-share-indexes" className="global-a-share-board" aria-label="A股核心指数行情">
           <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} fearGauge={fearGaugeByMarket.get("A股")} />
         </section>
 
         <ShanghaiIndexPanel key={`shanghai-${shanghaiHistory.length}`} candles={shanghaiHistory} />
 
-        <section className="global-map-card" aria-label="全球主要股指地图">
+        <section id="global-map" className="global-map-card" aria-label="全球主要股指地图">
           <header>
             <div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div>
             <div className="global-map-header-meta">
@@ -219,7 +214,8 @@ export default function GlobalMarketsPage() {
           ))}
         </section>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -267,7 +263,7 @@ function ShanghaiIndexPanel({ candles }: { candles: ShanghaiIndexCandle[] }) {
   const activeVolumeState = volumeState(activeAmountChangePct);
 
   return (
-    <section className="global-shanghai-panel" aria-label="上证指数日K与沪深两市成交额">
+    <section id="shanghai-index" className="global-shanghai-panel" aria-label="上证指数日K与沪深两市成交额">
       <header className="global-shanghai-header">
         <div><p>SHANGHAI COMPOSITE · 000001</p><h2>上证指数日 K 与沪深两市成交额</h2><small>上证指数价格 · 沪深两市成交额 · 单位亿元</small></div>
         <div className="global-shanghai-latest">
@@ -474,7 +470,7 @@ function USMarketPanel({ quotes, fearGauge }: { quotes: USIndexSessionQuote[]; f
   const quoteById = new Map(quotes.map((quote) => [quote.id, quote]));
   const phase = quotes[0]?.phase;
   return (
-    <section className="global-region-card is-us-market">
+    <section id="us-indexes" className="global-region-card is-us-market">
       <header>
         <div><span>US</span><h3>美股核心指数</h3></div>
         <small>{phase ? `当前阶段 · ${phase}` : "等待美股行情"}</small>
@@ -513,8 +509,9 @@ function USMarketPanel({ quotes, fearGauge }: { quotes: USIndexSessionQuote[]; f
 
 function RegionPanel({ region, definitions, quoteById, fearGauge }: { region: GlobalRegion; definitions: typeof GLOBAL_INDEXES; quoteById: Map<string, GlobalIndexQuote>; fearGauge?: FearGaugeQuote }) {
   const open = definitions.filter((definition) => quoteById.get(definition.id)?.marketStatus === "交易中").length;
+  const anchorId = region === "美洲" ? "americas-indexes" : region === "欧洲" ? "europe-indexes" : region === "亚太" ? "asia-indexes" : undefined;
   return (
-    <section className={`global-region-card ${region === "A股" ? "is-a-share" : ""}`}>
+    <section id={anchorId} className={`global-region-card ${region === "A股" ? "is-a-share" : ""}`}>
       <header><div><span>{regionCode(region)}</span><h3>{region === "A股" ? "A股核心指数" : `${region}市场`}</h3></div><small>{open ? `${open} 交易中` : "当前休市"}</small></header>
       {region === "A股" ? <FearGaugeCard gauge={fearGauge} market="A股" /> : null}
       <div className="global-index-list">

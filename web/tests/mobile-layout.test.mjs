@@ -4,14 +4,15 @@ import test from "node:test";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
+const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
 
-test("shows a compact live quote in the mobile top bar after scrolling", () => {
-  assert.match(pageSource, /compactQuoteVisible/);
-  assert.match(pageSource, /window\.scrollY > 120/);
-  assert.match(pageSource, /className="mobile-topbar-quote"/);
-  assert.match(pageSource, /当前股票实时行情/);
-  assert.match(appleStyles, /\.mobile-topbar-quote \{\s+display: none;/);
-  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.topbar\.is-compact-quote \.mobile-topbar-quote/);
+test("keeps the shared stock banner and search touch-friendly on mobile", () => {
+  assert.match(pageSource, /<SiteBanner activePage="stock"/);
+  assert.match(pageSource, /currentStockCode=\{selectedCode\}/);
+  assert.match(bannerStyles, /position: sticky;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \{/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?min-height: 44px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.suggestionActions button \{ flex: 1;/);
 });
 
 test("adds touch-friendly horizontal tracks only within mobile media rules", () => {
@@ -30,9 +31,11 @@ test("adds touch-friendly horizontal tracks only within mobile media rules", () 
 
 test("keeps mobile touch targets large and closed action menus non-interactive", () => {
   const marker = appleStyles.indexOf("/* Mobile touch target and spacing guard. */");
-  const mobileTouchGuard = appleStyles.slice(marker);
+  const end = appleStyles.indexOf("/* Final shell precedence", marker);
+  const mobileTouchGuard = appleStyles.slice(marker, end);
 
   assert.ok(marker >= 0);
+  assert.ok(end > marker);
   assert.match(mobileTouchGuard, /^\/\* Mobile touch target and spacing guard\. \*\/[\s\S]*?@media \(max-width: 820px\)/);
   assert.match(mobileTouchGuard, /button,\s+summary,\s+select,[\s\S]*?min-height: 44px;/);
   assert.match(mobileTouchGuard, /\.appearance-toggle,[\s\S]*?min-width: 44px;/);

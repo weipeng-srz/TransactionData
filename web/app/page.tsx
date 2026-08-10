@@ -1,17 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import MarketChart from "./components/MarketChart";
 import RealtimeTradingPanel from "./components/RealtimeTradingPanel";
 import FinancialDashboard from "./components/FinancialDashboard";
 import ResearchDock from "./components/ResearchDock";
 import SignalBacktestCard from "./components/SignalBacktestCard";
 import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
-import CommandPalette, { type CommandItem } from "./components/CommandPalette";
-import MarketScopeSwitch from "./components/MarketScopeSwitch";
 import HoldingProfitCard from "./components/HoldingProfitCard";
 import StockScoreCard from "./components/StockScoreCard";
+import PortfolioHome from "./components/PortfolioHome";
+import SiteBanner from "./components/SiteBanner";
 import {
   aggregateCandles,
   analyzeKlineConclusion,
@@ -95,10 +94,6 @@ function defaultRange(length: number, timeframe: Timeframe) {
   return { from: Math.max(0, length - visibleCount), to: Math.max(0, length - 1) };
 }
 
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 async function resolveStockQuery(value: string, signal?: AbortSignal): Promise<{ code: string; name: string }> {
   if (stockCodePattern.test(value)) {
     return {
@@ -144,6 +139,43 @@ function parseRecentStocks(value: unknown): RecentStock[] {
 }
 
 export default function Home() {
+  const [analysisCode, setAnalysisCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncRoute = () => {
+      const stock = new URLSearchParams(window.location.search).get("stock") ?? "";
+      setAnalysisCode(/^\d{6}$/.test(stock) ? stock : null);
+    };
+    syncRoute();
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
+
+  const navigateToStock = useCallback((code: string) => {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.searchParams.set("stock", code);
+    window.history.pushState({ stock: code }, "", url);
+    setAnalysisCode(code);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  const navigateHome = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.search = "";
+    window.history.pushState({ portfolio: true }, "", url);
+    setAnalysisCode(null);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  return analysisCode
+    ? <StockAnalysisPage key={analysisCode} initialStockCode={analysisCode} onBackHome={navigateHome} onOpenStock={navigateToStock} />
+    : <PortfolioHome onOpenStock={navigateToStock} />;
+}
+
+function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { initialStockCode: string; onBackHome: () => void; onOpenStock: (code: string) => void }) {
+  const [initialRouteState, setInitialRouteState] = useState<"loading" | "ready" | "error">("loading");
+  const [initialRouteError, setInitialRouteError] = useState("");
   const [dataset, setDataset] = useState<ParsedDataset>(initialDataset);
   const [benchmarkDataset, setBenchmarkDataset] = useState<ParsedDataset | null>(null);
   const [newsDataset, setNewsDataset] = useState<ParsedNewsDataset>(() => emptyNewsDataset());
@@ -165,8 +197,8 @@ export default function Home() {
   });
   const [realtimeLoad, setRealtimeLoad] = useState<LoadState>({ phase: "idle", detail: "输入股票后自动获取当前交易日分钟 K 线与五档盘口" });
   const [realtimeSnapshot, setRealtimeSnapshot] = useState<RealtimeSnapshot | null>(null);
-  const [isDemo, setIsDemo] = useState(true);
-  const [selectedCode, setSelectedCode] = useState("000001");
+  const [isDemo, setIsDemo] = useState(false);
+  const [selectedCode, setSelectedCode] = useState(initialStockCode);
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
   const [lowerIndicator, setLowerIndicator] = useState<LowerIndicator>("VOL");
   const [overlays, setOverlays] = useState({
@@ -184,9 +216,8 @@ export default function Home() {
     defaultRange(aggregateCandles(initialDataset.rows, initialDataset.codes[0], "1d").length, "1d"),
   );
   const [error, setError] = useState("");
-  const [queryText, setQueryText] = useState("");
-  const [stockSuggestion, setStockSuggestion] = useState<{ code: string; name: string } | null>(null);
-  const [recentStocks, setRecentStocks] = useState<RecentStock[]>([]);
+  const [queryText, setQueryText] = useState(initialStockCode);
+  const [, setRecentStocks] = useState<RecentStock[]>([]);
   const [fetchingStock, setFetchingStock] = useState(false);
   const [newsFilter, setNewsFilter] = useState<"全部" | NewsSentiment>("全部");
   const [pendingQuery, setPendingQuery] = useState("");
@@ -202,8 +233,6 @@ export default function Home() {
   const [savedWorkspace, setSavedWorkspace] = useState<SavedWorkspace | null>(null);
   const [holdings, setHoldings] = useState<StockHoldings>({});
   const [cloudStatus, setCloudStatus] = useState<"loading" | "synced" | "local" | "error">("loading");
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [compactQuoteVisible, setCompactQuoteVisible] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const requestControllerRef = useRef<AbortController | null>(null);
   const realtimeControllerRef = useRef<AbortController | null>(null);
@@ -243,19 +272,6 @@ export default function Home() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
-
-  useEffect(() => {
-    const query = queryText.trim();
-    if (query.length < 2 || stockCodePattern.test(query) || fetchingStock) return;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
-      try {
-        const result = await resolveStockQuery(query, controller.signal);
-        setStockSuggestion(result);
-      } catch { setStockSuggestion(null); }
-    }, 260);
-    return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [fetchingStock, queryText]);
 
   useEffect(() => {
     if (isDemo) return;
@@ -379,24 +395,6 @@ export default function Home() {
     }
   }, [holdings, storageHydrated]);
 
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setCommandOpen(true);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  useEffect(() => {
-    const updateCompactQuote = () => setCompactQuoteVisible(window.scrollY > 120);
-    updateCompactQuote();
-    window.addEventListener("scroll", updateCompactQuote, { passive: true });
-    return () => window.removeEventListener("scroll", updateCompactQuote);
-  }, []);
-
   useEffect(() => () => requestControllerRef.current?.abort(), []);
   useEffect(() => { reportTelemetry("app_loaded", performance.now()); }, []);
 
@@ -503,15 +501,6 @@ export default function Home() {
     });
   }, []);
 
-  const clearRecentStocks = () => {
-    setRecentStocks([]);
-    try {
-      localStorage.removeItem(recentStocksStorageKey);
-    } catch {
-      // Ignore storage restrictions and keep the in-memory list cleared.
-    }
-  };
-
   const saveHolding = useCallback((shares: number, cost: number) => {
     if (isDemo || !/^\d{6}$/.test(selectedCode)) return;
     setHoldings((current) => ({
@@ -563,7 +552,6 @@ export default function Home() {
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
     setFetchingStock(true);
-    setStockSuggestion(null);
     setError("");
     setPendingQuery(query);
     setLastAttemptedQuery(query);
@@ -664,6 +652,8 @@ export default function Home() {
             phase: "success",
             detail: `${resultCandles.length.toLocaleString("zh-CN")} 个交易日日K已加载，图表与风险指标已更新`,
           });
+          setInitialRouteState((current) => current === "loading" ? "ready" : current);
+          setInitialRouteError("");
           setFreshness((current) => ({ ...current, market: new Date().toISOString() }));
           reportTelemetry("market_success", performance.now() - sourceStartedAt);
         })
@@ -671,6 +661,8 @@ export default function Home() {
           if (isAbortError(reason) || requestVersion !== requestVersionRef.current) throw reason;
           const message = reason instanceof Error ? reason.message : "获取失败";
           setMarketLoad({ phase: "error", detail: `${message}；仍显示 ${selectedName || selectedCode} 的上一份成功行情` });
+          setInitialRouteState((current) => current === "loading" ? "error" : current);
+          setInitialRouteError(message);
           reportTelemetry("market_error", performance.now() - sourceStartedAt);
           throw new Error(`行情：${message}`);
         });
@@ -742,6 +734,8 @@ export default function Home() {
       setNewsLoad({ phase: "error", detail: "未能识别股票，新闻查询未启动" });
       setFinancialLoad({ phase: "error", detail: "未能识别股票，财报查询未启动" });
       setError(message);
+      setInitialRouteState((current) => current === "loading" ? "error" : current);
+      setInitialRouteError(message);
     } finally {
       if (requestVersion === requestVersionRef.current) {
         setFetchingStock(false);
@@ -776,7 +770,6 @@ export default function Home() {
     setError("");
     setPendingQuery("");
     setQueryText("");
-    setStockSuggestion(null);
     setBenchmarkDataset(null);
     setTimeframe("1d");
     setFreshness({ market: "", financial: "", news: "" });
@@ -914,13 +907,6 @@ export default function Home() {
     }
   };
 
-  const toggleViewMode = () => {
-    const next = viewMode === "pro" ? "basic" : "pro";
-    setViewMode(next);
-    try { localStorage.setItem(viewModeStorageKey, next); } catch { /* preference remains in memory */ }
-    setWorkspaceNotice(next === "basic" ? "已切换基础模式：优先展示结论与关键依据。" : "已切换专业模式：展示完整风险、因子、回测与数据口径。");
-  };
-
   const addAnnotation = (text: string) => {
     const next = [{ id: crypto.randomUUID?.() ?? `${selectedCode}-${Date.now()}`, code: selectedCode, date: selectedCandle?.date ?? latest?.date ?? "", price: selectedCandle?.close ?? latest?.close ?? null, text: text.slice(0, 180), createdAt: new Date().toISOString() }, ...annotations].slice(0, 100);
     setAnnotations(next);
@@ -957,18 +943,6 @@ export default function Home() {
     reportTelemetry("report_exported");
   };
 
-  const commands: CommandItem[] = [
-    { id: "search", label: "查询股票", description: "聚焦股票名称或代码输入框", shortcut: "/", run: () => document.getElementById("stock-query")?.focus() },
-    { id: "mode", label: viewMode === "pro" ? "切换基础模式" : "切换专业模式", description: "调整页面信息密度与研究深度", shortcut: "M", run: toggleViewMode },
-    { id: "refresh", label: "刷新当前股票", description: selectedName || selectedCode, shortcut: "R", run: () => { if (!isDemo) void fetchStockData(selectedCode); } },
-    { id: "save", label: "保存当前研究视图", description: "保存周期、指标、范围和股票", shortcut: "S", run: saveWorkspace },
-    { id: "theme", label: appearance === "light" ? "切换深色外观" : "切换浅色外观", description: "跟随不同阅读环境", shortcut: "T", run: toggleAppearance },
-    { id: "market", label: "前往行情图表", description: "价格、成交量和技术指标", run: () => scrollToSection("stock-market") },
-    { id: "advanced", label: "前往高级研究", description: "风险、因子和事件研究", run: () => scrollToSection("advanced-research") },
-    { id: "financials", label: "前往财报诊断", description: "增长、质量、现金流与估值", run: () => scrollToSection("stock-financials") },
-    { id: "news", label: "前往舆情资讯", description: "新闻、情绪和来源核验", run: () => scrollToSection("stock-news") },
-  ];
-
   const currentIndicator = {
     ma5: indicators.ma5[selectedIndex],
     ma10: indicators.ma10[selectedIndex],
@@ -984,30 +958,36 @@ export default function Home() {
     guide: indicators.guidePoints[selectedIndex],
   };
 
-  return (
-    <main className={`app-shell view-${viewMode}`}>
-      <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />
-      <aside className="app-sidebar">
-        <div className="sidebar-brand">
-          <div className="brand-mark" aria-hidden="true" />
-          <div>
-            <strong>TrendSight</strong>
-            <span>市场研究工作台</span>
-          </div>
-        </div>
-        <div className="sidebar-scope">
-          <MarketScopeSwitch scope="stock" stockCode={isDemo ? "" : selectedCode} />
-        </div>
+  if (initialRouteState !== "ready") {
+    return (
+      <div className="research-page">
+        <SiteBanner activePage="stock" currentStockCode={initialStockCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} statusText={initialRouteState === "loading" ? `正在加载 ${initialStockCode}` : "数据连接待重试"} />
+        <StockInitialLoading
+          code={initialStockCode}
+          phase={initialRouteState}
+          error={initialRouteError}
+          onBackHome={onBackHome}
+          onRetry={() => {
+            setInitialRouteState("loading");
+            setInitialRouteError("");
+            void fetchStockData(initialStockCode);
+          }}
+        />
+      </div>
+    );
+  }
 
-        <section className="sidebar-current" aria-label="当前股票">
-          <span>当前标的</span>
+  return (
+    <div className="research-page">
+      <SiteBanner activePage="stock" currentStockCode={selectedCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
+      <main className={`app-shell view-${viewMode}`}>
+      <aside className="app-sidebar research-sidebar">
+        <section className="sidebar-menu-summary" aria-label="当前个股导航">
+          <span>个股信息</span>
           <strong>{selectedName || selectedCode}</strong>
           <small>{selectedCode} · {dataset.dataLevel}</small>
-          <b className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</b>
-          <em className={directionClass}>{liveQuote ? `${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}% · 实时` : latest ? `${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}</em>
         </section>
-
-        <nav className="workspace-nav" aria-label="工作台章节导航">
+        <nav className="workspace-nav" aria-label="个股信息章节导航">
           <a href="#stock-score"><span>评分</span><small>Score</small></a>
           <a href="#realtime-trading"><span>实时</span><small>Live</small></a>
           <a href="#stock-market"><span>行情</span><small>Market</small></a>
@@ -1017,64 +997,10 @@ export default function Home() {
           <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
           <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻</span><small>News</small></a>
-          <Link className="global-markets-nav-link" href={isDemo ? "/global-markets" : `/global-markets?stock=${selectedCode}`}><span>全球股指</span><small>Global ↗</small></Link>
         </nav>
-
-        <section className={`recent-query-strip sidebar-recents ${recentStocks.length ? "" : "is-empty"}`} aria-label="最近查询的股票">
-          <div className="sidebar-section-heading">
-            <span className="recent-query-label">最近查询</span>
-            {recentStocks.length > 0 ? <button className="recent-query-clear" type="button" onClick={clearRecentStocks} disabled={busy}>清空</button> : null}
-          </div>
-          <div className="recent-query-list">
-            {recentStocks.length > 0 ? recentStocks.map((stock) => (
-              <button
-                key={stock.code}
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setQueryText(stock.name);
-                  void fetchStockData(stock.code);
-                }}
-                title={`再次查询 ${stock.name} ${stock.code}`}
-              >
-                <strong>{stock.name}</strong>
-                <span>{stock.code}</span>
-              </button>
-            )) : <span className="recent-query-empty">查询过的股票会显示在这里</span>}
-          </div>
-        </section>
-
-        <p className="sidebar-footnote">公开数据与规则模型仅供研究参考，不构成投资建议。</p>
       </aside>
 
       <div className="app-workspace-shell">
-      <header className={`topbar ${compactQuoteVisible ? "is-compact-quote" : ""}`}>
-        <div className="brand-lockup workspace-heading">
-          <div>
-            <p className="eyebrow">MARKET WORKSPACE</p>
-            <h1>市场研究</h1>
-          </div>
-        </div>
-        <div className="mobile-topbar-quote" aria-label="当前股票实时行情">
-          <div className="mobile-topbar-identity">
-            <strong>{selectedName || selectedCode}</strong>
-            {selectedName ? <small>{selectedCode}</small> : null}
-          </div>
-          <div className="mobile-topbar-values">
-            <b className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</b>
-            <em className={directionClass}>{liveQuote ? `${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}%` : latest ? `${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}</em>
-          </div>
-        </div>
-        <div className="topbar-actions">
-          <span className="topbar-sync"><i aria-hidden="true" />行情、基本面与新闻并行更新</span>
-          <button className="command-trigger" type="button" aria-haspopup="dialog" aria-expanded={commandOpen} onClick={() => setCommandOpen(true)}><span>⌘K</span> 命令中心</button>
-          <button className="view-mode-toggle" type="button" aria-pressed={viewMode === "pro"} onClick={toggleViewMode}>{viewMode === "pro" ? "专业模式" : "基础模式"}</button>
-          <button className="appearance-toggle" type="button" onClick={toggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
-            <span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span>
-          </button>
-        </div>
-      </header>
-
       <section className={`query-strip ${fetchingStock ? "is-loading" : ""}`} aria-label="股票查询与数据源状态">
         <div className="query-sources" aria-live="polite">
           <div className="query-source">
@@ -1110,35 +1036,12 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="query-actions">
-          {error ? <span className="error-message" role="alert">{error}</span> : null}
-          {error && lastAttemptedQuery ? <button className="retry-button" type="button" onClick={() => void fetchStockData(lastAttemptedQuery)} disabled={busy}>重试</button> : null}
-          <form
-            className="stock-search"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void fetchStockData();
-            }}
-          >
-            <label className="sr-only" htmlFor="stock-query">股票代码或名称</label>
-            <input
-              id="stock-query"
-              value={queryText}
-              onChange={(event) => { setQueryText(event.target.value); setStockSuggestion(null); }}
-              placeholder="股票名称或代码，如 平安银行 / 000001"
-              autoComplete="off"
-              maxLength={40}
-              disabled={busy}
-            />
-            <button type="submit" disabled={busy}>{fetchingStock ? "数据加载中…" : "获取行情 + 基本面 + 新闻"}</button>
-            {stockSuggestion ? <button className="stock-suggestion" type="button" onClick={() => { setQueryText(stockSuggestion.name); void fetchStockData(stockSuggestion.code); }}><span><strong>{stockSuggestion.name}</strong><small>{stockSuggestion.code} · 沪深A股</small></span><em>打开 ↵</em></button> : null}
-          </form>
-          {!isDemo ? (
-            <button className="button ghost" type="button" onClick={resetDemo}>
-              恢复演示
-            </button>
-          ) : null}
-        </div>
+        {error ? (
+          <div className="query-actions">
+            <span className="error-message" role="alert">{error}</span>
+            {lastAttemptedQuery ? <button className="retry-button" type="button" onClick={() => void fetchStockData(lastAttemptedQuery)} disabled={busy}>重试</button> : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="quote-head">
@@ -1623,6 +1526,51 @@ export default function Home() {
         <span>日K聚合、Level-1、九转、B/S、因子、主力行为与新闻情绪均为研究代理，只供投资参考，不构成投资建议。</span>
       </footer>
       </div>
+      </main>
+    </div>
+  );
+}
+
+function StockInitialLoading({
+  code,
+  phase,
+  error,
+  onBackHome,
+  onRetry,
+}: {
+  code: string;
+  phase: "loading" | "error";
+  error: string;
+  onBackHome: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <main className="stock-initial-shell">
+      <header className="stock-initial-header">
+        <button type="button" onClick={onBackHome} aria-label="返回自选股"><span aria-hidden="true">‹</span> 返回自选股</button>
+        <div className="stock-initial-brand"><i aria-hidden="true" /><span><strong>TrendSight</strong><small>市场研究工作台</small></span></div>
+        <span className="stock-initial-code">{code}</span>
+      </header>
+      <section className={`stock-initial-card ${phase === "error" ? "is-error" : ""}`} aria-live="polite">
+        <div className="stock-initial-orbit" aria-hidden="true"><i /><i /><span>{phase === "loading" ? "···" : "!"}</span></div>
+        <p>STOCK RESEARCH</p>
+        <h1>{phase === "loading" ? `正在加载 ${code}` : `${code} 暂时加载失败`}</h1>
+        <h2>{phase === "loading" ? "个股研究数据加载中" : error || "数据服务暂时不可用"}</h2>
+        <div className="stock-initial-sources">
+          {[
+            ["行情与 K 线", "价格、成交量、技术指标"],
+            ["基本面", "估值、分红、财务报表"],
+            ["舆情资讯", "新闻、事件与情绪"],
+          ].map(([name, detail], index) => (
+            <div key={name}>
+              <i className={phase === "loading" ? `delay-${index}` : "is-stopped"} aria-hidden="true" />
+              <span><strong>{name}</strong><small>{detail}</small></span>
+              <em>{phase === "loading" ? "加载中" : "未完成"}</em>
+            </div>
+          ))}
+        </div>
+        {phase === "error" ? <button className="stock-initial-retry" type="button" onClick={onRetry}>重新加载</button> : <small className="stock-initial-note">数据就绪后将自动进入分析页面</small>}
+      </section>
     </main>
   );
 }
