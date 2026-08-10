@@ -1,5 +1,5 @@
 .banner {
-  width: min(calc(100% - 32px), 1600px);
+  width: min(calc(100% - var(--site-frame-inset, 40px)), var(--site-frame-max, 1600px));
   min-height: 68px;
   margin: 12px auto 0;
   padding: 0 18px;
@@ -307,7 +307,6 @@
 
 @media (max-width: 820px) {
   .banner {
-    width: calc(100% - 20px);
     margin-top: 8px;
     top: max(8px, env(safe-area-inset-top));
     border-radius: 15px;

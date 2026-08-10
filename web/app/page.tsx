@@ -481,6 +481,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     backtest: scoreBacktest,
     dataQuality: dataset.quality,
   }), [currentPrice, dailyCandles, dailyIndicators, dataset.quality, financialDataset, intent, riskMetrics, scoreBacktest, selectedNews]);
+  const latestSidebarGuide = [...dailyIndicators.guidePoints].reverse().find((guide) => guide != null);
+  const sidebarChangePct = liveQuote?.changePct ?? latest?.changePct ?? null;
   const dailyOnly = dataset.dataLevel.includes("日K聚合");
 
   const rememberRecentStock = useCallback((code: string, name: string) => {
@@ -986,6 +988,23 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <span>个股信息</span>
           <strong>{selectedName || selectedCode}</strong>
           <small>{selectedCode} · {dataset.dataLevel}</small>
+          <div className="sidebar-snapshot-grid" aria-label="个股实时汇总">
+            <div className="sidebar-snapshot-primary">
+              <span>实时价格</span>
+              <strong>{currentPrice == null ? "—" : `¥${formatNumber(currentPrice, currentPrice >= 100 ? 2 : 3)}`}</strong>
+              <em className={directionClass}>{sidebarChangePct == null ? "等待行情" : `${sidebarChangePct >= 0 ? "+" : ""}${formatNumber(sidebarChangePct, 2)}%`}</em>
+            </div>
+            <div>
+              <span>研究评分</span>
+              <strong>{stockScore.score}<small>/100</small></strong>
+              <em className={`is-${stockScore.signal.tone}`}>{stockScore.signal.action} · 覆盖 {stockScore.coverage}%</em>
+            </div>
+            <div>
+              <span>最新 B/S</span>
+              <strong>{latestSidebarGuide ? `${latestSidebarGuide.type === "buy" ? "B" : "S"} ${latestSidebarGuide.score}` : "—"}</strong>
+              <em className={latestSidebarGuide?.type === "buy" ? "is-buy" : latestSidebarGuide?.type === "sell" ? "is-sell" : ""}>{latestSidebarGuide ? latestSidebarGuide.type === "buy" ? "买入信号" : "卖出信号" : "近 5 日无信号"}</em>
+            </div>
+          </div>
         </section>
         <nav className="workspace-nav" aria-label="个股信息章节导航">
           <a href="#stock-score"><span>评分</span><small>Score</small></a>

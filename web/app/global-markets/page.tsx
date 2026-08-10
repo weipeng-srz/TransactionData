@@ -105,6 +105,10 @@ export default function GlobalMarketsPage() {
   const falling = marketMoves.filter((quote) => quote.changePct < 0).length;
   const openMarkets = quotes.filter((quote) => quote.marketStatus === "交易中").length + (usQuotes[0]?.phase === "盘中" ? 1 : 0);
   const leader = [...marketMoves].sort((left, right) => Math.abs(right.changePct) - Math.abs(left.changePct))[0];
+  const shanghaiQuote = quoteById.get("shanghai");
+  const usFearGauge = fearGaugeByMarket.get("美股");
+  const breadthTotal = rising + falling;
+  const breadthPct = breadthTotal ? Math.round((rising / breadthTotal) * 100) : 0;
   const mappedMarketCount = GLOBAL_INDEXES.filter((item) => item.map).length + US_INDEXES.filter((item) => item.map).length;
 
   const toggleAppearance = () => {
@@ -129,6 +133,28 @@ export default function GlobalMarketsPage() {
           <span>全球市场</span>
           <strong>{openMarkets ? "实时交易中" : "主要市场休市"}</strong>
           <small>{rising} 涨 · {falling} 跌 · {openMarkets} 个市场交易中</small>
+          <div className="sidebar-snapshot-grid global-sidebar-snapshot" aria-label="全球股指实时汇总">
+            <div className="sidebar-snapshot-primary">
+              <span>市场广度</span>
+              <strong>{breadthTotal ? `${breadthPct}%` : "—"}</strong>
+              <em className={breadthPct >= 55 ? "is-up" : breadthPct <= 45 ? "is-down" : "is-flat"}>{breadthTotal ? `${rising} 涨 / ${falling} 跌` : "等待行情"}</em>
+            </div>
+            <div>
+              <span>上证指数</span>
+              <strong>{shanghaiQuote ? formatPrice(shanghaiQuote.price) : "—"}</strong>
+              <em className={tone(shanghaiQuote?.changePct)}>{shanghaiQuote ? signedPercent(shanghaiQuote.changePct) : "行情连接中"}</em>
+            </div>
+            <div>
+              <span>美股波动</span>
+              <strong>{usFearGauge ? formatPrice(usFearGauge.value) : "—"}</strong>
+              <em className={fearTone(usFearGauge?.value)}>{usFearGauge?.level ?? "VIX 等待更新"}</em>
+            </div>
+            <div>
+              <span>波动焦点</span>
+              <strong>{leader ? signedPercent(leader.changePct) : "—"}</strong>
+              <em className={tone(leader?.changePct)}>{leader?.name ?? "等待数据"}</em>
+            </div>
+          </div>
           <button className="global-sidebar-refresh" type="button" disabled={feedState === "refreshing"} onClick={() => void refresh()}>{feedState === "refreshing" ? "刷新中…" : "刷新行情"}</button>
         </section>
         <nav className="workspace-nav global-workspace-nav" aria-label="全球股指快速导航">

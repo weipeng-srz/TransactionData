@@ -4,6 +4,9 @@ import test from "node:test";
 
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
+const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
+const portfolioStyles = readFileSync(new URL("../app/components/PortfolioHome.module.css", import.meta.url), "utf8");
+const globalStyles = readFileSync(new URL("../app/global-markets/global-markets.css", import.meta.url), "utf8");
 const portfolioSource = readFileSync(new URL("../app/components/PortfolioHome.tsx", import.meta.url), "utf8");
 const stockSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const globalSource = readFileSync(new URL("../app/global-markets/page.tsx", import.meta.url), "utf8");
@@ -20,7 +23,14 @@ test("uses one shared banner for portfolio, stock and global pages", () => {
 });
 
 test("keeps the banner geometry and search outline consistent", () => {
-  assert.match(bannerStyles, /\.banner \{[\s\S]*?width: min\(calc\(100% - 32px\), 1600px\);/);
+  assert.match(appleStyles, /--site-frame-max: 1600px;/);
+  assert.match(appleStyles, /--site-frame-inset: 40px;/);
+  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?--site-frame-inset: 24px;/);
+  assert.match(bannerStyles, /\.banner \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset, 40px\)\), var\(--site-frame-max, 1600px\)\);/);
+  assert.match(portfolioStyles, /\.content \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset, 40px\)\), var\(--site-frame-max, 1600px\)\);/);
+  assert.match(appleStyles, /@media \(min-width: 821px\)[\s\S]*?\.research-page > \.app-shell,[\s\S]*?\.global-page > \.app-shell \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset\)\), var\(--site-frame-max\)\);[\s\S]*?padding: 18px 0 48px !important;/);
+  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.research-page > \.app-shell,[\s\S]*?\.global-page > \.app-shell \{[\s\S]*?padding: 12px var\(--site-frame-gutter\) 24px !important;/);
+  assert.match(globalStyles, /Final frame guard: keep the global content aligned with the shared banner[\s\S]*?padding: 12px var\(--site-frame-gutter, 12px\) 24px !important;/);
   assert.match(bannerStyles, /position: sticky;[\s\S]*?top: 12px;/);
   assert.match(bannerStyles, /\.searchField \{[\s\S]*?border: 1px solid color-mix/);
   assert.match(bannerStyles, /\.searchField:focus-within \{[\s\S]*?border-color:[\s\S]*?72%/);

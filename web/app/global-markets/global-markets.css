@@ -1186,3 +1186,10 @@ body:has(.global-page-shell) {
   .global-navigation-sidebar .global-workspace-nav { display: flex; }
   .global-navigation-sidebar .global-workspace-nav a { min-width: 104px; flex-basis: 104px; }
 }
+
+/* Final frame guard: keep the global content aligned with the shared banner. */
+@media (max-width: 820px) {
+  .global-page-shell.app-shell {
+    padding: 12px var(--site-frame-gutter, 12px) 24px !important;
+  }
+}

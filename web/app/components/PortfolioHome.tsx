@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   aggregateCandles,
+  analyzeMarketIntent,
+  calculateIndicators,
   compactNumber,
   formatNumber,
   parseMarketCsv,
   type Candle,
 } from "../lib/market";
+import { emptyFinancialDataset } from "../lib/financials";
 import {
   calculateHoldingMetrics,
   parseHoldings,
@@ -16,7 +20,13 @@ import {
   type StockHoldings,
 } from "../lib/holdings";
 import type { GlobalIndexFeed } from "../lib/globalIndexes";
+import {
+  mergePersonalPortfolio,
+  personalPortfolioImportKey,
+} from "../lib/personalPortfolio";
 import type { RealtimeSnapshot } from "../lib/realtimeMarket";
+import { backtestGuideSignals, calculateRiskMetrics } from "../lib/research";
+import { buildStockScore, type StockScoreReport } from "../lib/stockScore";
 import {
   calculatePortfolioTotals,
   parseWatchlist,
@@ -47,6 +57,7 @@ type PortfolioQuote = {
   marketStatus: string;
   source: string;
   error: string;
+  score: StockScoreReport | null;
 };
 
 type PositionEditor = {
@@ -94,6 +105,7 @@ const emptyQuote: PortfolioQuote = {
   marketStatus: "等待行情",
   source: "",
   error: "",
+  score: null,
 };
 
 export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: string) => void }) {
@@ -125,6 +137,18 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       storedHoldings = parseHoldings(JSON.parse(localStorage.getItem(holdingsStorageKey) ?? "[]"));
     } catch {
       localStorage.removeItem(holdingsStorageKey);
+    }
+    try {
+      if (localStorage.getItem(personalPortfolioImportKey) !== "complete") {
+        const imported = mergePersonalPortfolio(storedWatchlist, storedHoldings);
+        storedWatchlist = imported.watchlist;
+        storedHoldings = imported.holdings;
+        localStorage.setItem(personalPortfolioImportKey, "complete");
+      }
+    } catch {
+      const imported = mergePersonalPortfolio(storedWatchlist, storedHoldings);
+      storedWatchlist = imported.watchlist;
+      storedHoldings = imported.holdings;
     }
     try {
       storedAppearance = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
@@ -180,7 +204,20 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       const code = dataset.codes[0] ?? stock.code;
       const candles = aggregateCandles(dataset.rows, code, "1d");
       if (!candles.length) throw new Error("历史行情没有可用 K 线");
-      return { candles, name: dataset.stockNames[code] ?? stock.name };
+      const indicators = calculateIndicators(candles);
+      const latest = candles.at(-1);
+      const score = buildStockScore({
+        candles,
+        indicators,
+        currentPrice: latest?.close ?? null,
+        intent: latest ? analyzeMarketIntent(dataset, code, latest.date) : null,
+        financials: emptyFinancialDataset(),
+        newsItems: [],
+        risk: calculateRiskMetrics(candles),
+        backtest: backtestGuideSignals(candles, indicators, [5, 10, 20]),
+        dataQuality: dataset.quality,
+      });
+      return { candles, name: dataset.stockNames[code] ?? stock.name, score };
     });
     const realtimeRequest = fetch("/api/realtime-market", {
       method: "POST",
@@ -231,6 +268,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       marketStatus: realtime?.marketStatus ?? "最近收盘",
       source: realtime ? "实时 + 180日K" : "最近收盘 + 180日K",
       error: marketResult.status === "rejected" || realtimeResult.status === "rejected" ? "部分数据源暂不可用" : "",
+      score: marketResult.status === "fulfilled" ? marketResult.value.score : null,
     };
     setQuotes((current) => ({ ...current, [stock.code]: quote }));
   }, []);
@@ -519,7 +557,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           {watchlist.length ? (
             <div className={styles.tableViewport}>
               <div className={styles.columnHeader} aria-hidden="true">
-                <span>股票</span><span>近 60 日 K 线</span><span>最新价 / 涨跌</span><span>持仓</span><span>市值 / 成本</span><span>持仓收益</span><span>今日行情</span><span>操作</span>
+                <span>股票</span><span>近 60 日 K 线</span><span>最新价 / 涨跌</span><span>个股评分</span><span>持仓</span><span>市值 / 成本</span><span>持仓收益</span><span>今日行情</span><span>操作</span>
               </div>
               <div className={styles.stockList}>
                 {sortedWatchlist.map((stock) => (
@@ -725,6 +763,7 @@ function PortfolioRow({
         <span className={tone}>{quote.change == null || quote.changePct == null ? "—" : `${quote.change >= 0 ? "+" : ""}${formatNumber(quote.change, 3)}  ${signedPercent(quote.changePct)}`}</span>
         {quote.error ? <small title={quote.error}>{quote.error}</small> : null}
       </div>
+      <WatchlistScoreBadge report={quote.score} />
       <div className={styles.holdingCell}>
         {holding ? <><strong>{formatShares(holding.shares)}</strong><span>成本 ¥{formatNumber(holding.cost, 3)}</span></> : <><strong>未设置</strong><button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }}>＋ 添加持仓</button></>}
       </div>
@@ -747,6 +786,61 @@ function PortfolioRow({
         <span aria-hidden="true">›</span>
       </div>
     </article>
+  );
+}
+
+function WatchlistScoreBadge({ report }: { report: StockScoreReport | null }) {
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<{ left: number; top: number } | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const popoverId = useId();
+  const tone = report?.signal.tone ?? "hold";
+
+  const showDetails = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (rect) {
+      const width = Math.min(330, window.innerWidth - 24);
+      const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - width - 12));
+      const top = rect.bottom + 9 + 350 > window.innerHeight ? Math.max(12, rect.top - 359) : rect.bottom + 9;
+      setPopoverPosition({ left, top });
+    }
+    setDetailsVisible(true);
+  };
+
+  return (
+    <div
+      ref={anchorRef}
+      className={styles.scoreCell}
+      onMouseEnter={showDetails}
+      onMouseLeave={() => setDetailsVisible(false)}
+      onFocusCapture={showDetails}
+      onBlurCapture={() => setDetailsVisible(false)}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {report ? (
+        <button
+          className={`${styles.scoreBadge} ${styles[`score${tone === "buy" ? "Buy" : tone === "sell" ? "Sell" : "Hold"}`]}`}
+          type="button"
+          aria-describedby={detailsVisible ? popoverId : undefined}
+          aria-expanded={detailsVisible}
+          aria-label={`综合评分 ${report.score} 分，${report.signal.action}，悬停或聚焦查看详情`}
+        >
+          <strong>{report.score}</strong><span>/100</span><em>{report.signal.action}</em>
+        </button>
+      ) : <div className={styles.scoreSkeleton}><i /><span>评分计算中</span></div>}
+      {detailsVisible && report && popoverPosition ? createPortal((
+        <div className={styles.scorePopover} id={popoverId} role="tooltip" style={popoverPosition}>
+          <header><div><span>WATCHLIST SCORE</span><strong>{report.signal.headline}</strong></div><b>{report.score}</b></header>
+          <p>基于自选页已加载的行情数据快速计算 · 覆盖度 {report.coverage}%</p>
+          <div className={styles.scoreDimensions}>
+            {report.dimensions.map((dimension) => (
+              <div key={dimension.key}><span>{dimension.shortLabel}</span><i><b style={{ width: `${dimension.score}%` }} /></i><strong>{dimension.score}</strong><small>{dimension.summary}</small></div>
+            ))}
+          </div>
+          <footer>{report.signal.description}</footer>
+        </div>
+      ), document.body) : null}
+    </div>
   );
 }
 
