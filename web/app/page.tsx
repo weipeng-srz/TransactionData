@@ -483,6 +483,11 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   }), [currentPrice, dailyCandles, dailyIndicators, dataset.quality, financialDataset, intent, riskMetrics, scoreBacktest, selectedNews]);
   const latestSidebarGuide = [...dailyIndicators.guidePoints].reverse().find((guide) => guide != null);
   const sidebarChangePct = liveQuote?.changePct ?? latest?.changePct ?? null;
+  const sidebarMarketStatus = liveQuote?.marketStatus ?? (latest ? "最近收盘" : "等待行情");
+  const sidebarHigh = liveQuote?.high ?? latest?.high ?? null;
+  const sidebarLow = liveQuote?.low ?? latest?.low ?? null;
+  const sidebarVolume = liveQuote?.volume ?? latest?.volume ?? null;
+  const sidebarVolumeText = sidebarVolume == null ? "—" : sidebarVolume >= 10_000_000 ? `${formatNumber(sidebarVolume / 100_000_000, 2)}亿` : compactNumber(sidebarVolume);
   const dailyOnly = dataset.dataLevel.includes("日K聚合");
 
   const rememberRecentStock = useCallback((code: string, name: string) => {
@@ -984,16 +989,21 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       <SiteBanner activePage="stock" currentStockCode={selectedCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
       <main className={`app-shell view-${viewMode}`}>
       <aside className="app-sidebar research-sidebar">
-        <section className="sidebar-menu-summary" aria-label="当前个股导航">
-          <span>个股信息</span>
-          <strong>{selectedName || selectedCode}</strong>
-          <small>{selectedCode} · {dataset.dataLevel}</small>
-          <div className="sidebar-snapshot-grid" aria-label="个股实时汇总">
-            <div className="sidebar-snapshot-primary">
-              <span>实时价格</span>
-              <strong>{currentPrice == null ? "—" : `¥${formatNumber(currentPrice, currentPrice >= 100 ? 2 : 3)}`}</strong>
-              <em className={directionClass}>{sidebarChangePct == null ? "等待行情" : `${sidebarChangePct >= 0 ? "+" : ""}${formatNumber(sidebarChangePct, 2)}%`}</em>
+        <section className="sidebar-menu-summary sidebar-preview-card" aria-label="当前个股导航">
+          <header className="sidebar-preview-header">
+            <div>
+              <span>个股研究</span>
+              <strong>{selectedName || selectedCode}</strong>
+              <small>{selectedCode} · 沪深 A 股</small>
             </div>
+            <em className={`sidebar-status-pill ${sidebarMarketStatus === "交易中" ? "is-live" : ""}`}><i />{sidebarMarketStatus}</em>
+          </header>
+          <div className="sidebar-preview-hero" aria-label="个股实时汇总">
+            <span>实时价格</span>
+            <strong>{currentPrice == null ? "—" : `¥${formatNumber(currentPrice, currentPrice >= 100 ? 2 : 3)}`}</strong>
+            <em className={directionClass}>{sidebarChangePct == null ? "等待行情" : `${sidebarChangePct >= 0 ? "+" : ""}${formatNumber(sidebarChangePct, 2)}%`}</em>
+          </div>
+          <div className="sidebar-preview-metrics">
             <div>
               <span>研究评分</span>
               <strong>{stockScore.score}<small>/100</small></strong>
@@ -1005,17 +1015,24 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <em className={latestSidebarGuide?.type === "buy" ? "is-buy" : latestSidebarGuide?.type === "sell" ? "is-sell" : ""}>{latestSidebarGuide ? latestSidebarGuide.type === "buy" ? "买入信号" : "卖出信号" : "近 5 日无信号"}</em>
             </div>
           </div>
+          <dl className="sidebar-preview-strip" aria-label="个股日内行情摘要">
+            <div><dt>最高</dt><dd>{sidebarHigh == null ? "—" : formatNumber(sidebarHigh, sidebarHigh >= 100 ? 2 : 3)}</dd></div>
+            <div><dt>最低</dt><dd>{sidebarLow == null ? "—" : formatNumber(sidebarLow, sidebarLow >= 100 ? 2 : 3)}</dd></div>
+            <div><dt>成交量</dt><dd>{sidebarVolumeText}</dd></div>
+          </dl>
+          <small className="sidebar-preview-source">数据 · {dataset.dataLevel}</small>
         </section>
         <nav className="workspace-nav" aria-label="个股信息章节导航">
-          <a href="#stock-score"><span>评分</span><small>Score</small></a>
-          <a href="#realtime-trading"><span>实时</span><small>Live</small></a>
-          <a href="#stock-market"><span>行情</span><small>Market</small></a>
-          <a href="#kline-analysis"><span>研判</span><small>Insight</small></a>
-          <a href="#signal-backtest"><span>回测</span><small>Backtest</small></a>
-          <a href="#advanced-research"><span>高级研究</span><small>Risk & Factor</small></a>
+          <p className="sidebar-nav-heading">快速定位</p>
+          <a href="#stock-score"><span>综合评分</span><small>Score</small></a>
+          <a href="#realtime-trading"><span>实时盘口</span><small>Live</small></a>
+          <a href="#stock-market"><span>价格行情</span><small>Market</small></a>
+          <a href="#kline-analysis"><span>K 线研判</span><small>Insight</small></a>
+          <a href="#signal-backtest"><span>信号回测</span><small>Backtest</small></a>
+          <a href="#advanced-research"><span>风险因子</span><small>Risk & Factor</small></a>
           <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
-          <a href="#stock-financials"><span>财报</span><small>Financials</small></a>
-          <a href="#stock-news"><span>新闻</span><small>News</small></a>
+          <a href="#stock-financials"><span>财务数据</span><small>Financials</small></a>
+          <a href="#stock-news"><span>新闻舆情</span><small>News</small></a>
         </nav>
       </aside>
 
@@ -1026,10 +1043,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <div className={`source-icon ${marketLoad.phase === "loading" ? "is-loading" : ""}`}>K线</div>
             <div>
               <div className="source-title-row">
-                <strong>{marketSourceLabel}</strong>
+                <strong title={marketSourceLabel}>{marketSourceLabel}</strong>
                 <LoadBadge phase={marketLoad.phase} />
               </div>
-              <p>{marketLoad.detail}</p>
+              <p title={marketLoad.detail}>{marketLoad.detail}</p>
             </div>
           </div>
           <div className="source-divider" aria-hidden="true" />
@@ -1037,10 +1054,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <div className={`source-icon financial-icon ${financialLoad.phase === "loading" ? "is-loading" : ""}`}>基本面</div>
             <div>
               <div className="source-title-row">
-                <strong>{financialSourceLabel}</strong>
+                <strong title={financialSourceLabel}>{financialSourceLabel}</strong>
                 <LoadBadge phase={financialLoad.phase} />
               </div>
-              <p>{financialLoad.detail}</p>
+              <p title={financialLoad.detail}>{financialLoad.detail}</p>
             </div>
           </div>
           <div className="source-divider" aria-hidden="true" />
@@ -1048,10 +1065,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <div className={`source-icon news-icon ${newsLoad.phase === "loading" ? "is-loading" : ""}`}>舆情</div>
             <div>
               <div className="source-title-row">
-                <strong>{newsSourceLabel}</strong>
+                <strong title={newsSourceLabel}>{newsSourceLabel}</strong>
                 <LoadBadge phase={newsLoad.phase} />
               </div>
-              <p>{newsLoad.detail}</p>
+              <p title={newsLoad.detail}>{newsLoad.detail}</p>
             </div>
           </div>
         </div>

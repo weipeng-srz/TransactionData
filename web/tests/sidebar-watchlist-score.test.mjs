@@ -13,12 +13,16 @@ test("shows live stock and global market summaries at the top of each sidebar", 
   assert.match(stockSource, /实时价格/);
   assert.match(stockSource, /研究评分/);
   assert.match(stockSource, /最新 B\/S/);
+  assert.match(stockSource, /个股日内行情摘要/);
+  assert.match(stockSource, /快速定位/);
   assert.match(globalSource, /aria-label="全球股指实时汇总"/);
   assert.match(globalSource, /市场广度/);
   assert.match(globalSource, /上证指数/);
   assert.match(globalSource, /美股波动/);
   assert.match(globalSource, /波动焦点/);
-  assert.match(appleStyles, /\.sidebar-snapshot-grid \{/);
+  assert.match(globalSource, /全球市场覆盖摘要/);
+  assert.match(appleStyles, /\.sidebar-preview-card/);
+  assert.match(appleStyles, /\.sidebar-preview-strip/);
 });
 
 test("calculates watchlist scores and reveals their detail on hover or focus", () => {

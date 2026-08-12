@@ -118,7 +118,6 @@ export default function SiteBanner({
     }
   };
 
-  const stockHref = /^\d{6}$/.test(currentStockCode) ? `/?stock=${currentStockCode}` : "/";
   const globalHref = /^\d{6}$/.test(currentStockCode) ? `/global-markets?stock=${currentStockCode}` : "/global-markets";
   const busy = phase !== "idle";
 
@@ -130,9 +129,8 @@ export default function SiteBanner({
       </Link>
 
       <nav className={styles.navigation} aria-label="全站页面导航">
-        <Link className={activePage === "portfolio" ? styles.activeNav : ""} href="/" aria-current={activePage === "portfolio" ? "page" : undefined}>自选首页</Link>
-        <Link className={activePage === "stock" ? styles.activeNav : ""} href={stockHref} aria-current={activePage === "stock" ? "page" : undefined}>个股研究</Link>
-        <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球股指</Link>
+        <Link className={activePage === "portfolio" ? styles.activeNav : ""} href="/" aria-current={activePage === "portfolio" ? "page" : undefined}>自选</Link>
+        <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球</Link>
       </nav>
 
       <form className={styles.search} aria-label="快速搜索股票" onSubmit={(event) => { event.preventDefault(); void openStock(); }}>

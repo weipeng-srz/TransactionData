@@ -307,18 +307,24 @@
 
 @media (max-width: 820px) {
   .banner {
+    min-height: 122px;
     margin-top: 8px;
     top: max(8px, env(safe-area-inset-top));
+    grid-template-rows: 44px 48px;
     border-radius: 15px;
   }
   .brand > span:last-child,
   .dataState { display: none; }
+  .brand { min-width: 40px; min-height: 40px; justify-content: center; }
   .brandMark { width: 28px; height: 28px; border-radius: 8px; }
-  .navigation { height: 34px; justify-self: stretch; justify-content: center; }
-  .navigation a { height: 28px; padding-inline: 10px; font-size: 10px; }
+  .navigation { height: 40px; justify-self: stretch; justify-content: center; }
+  .navigation a { min-width: 40px; height: 40px; padding-inline: 10px; font-size: 10px; }
+  .iconButton { width: 40px; height: 40px; min-height: 40px; }
   .searchField { min-height: 44px; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 7px; }
   .search kbd { display: none; }
-  .searchField > button[type="submit"] { height: 36px; padding-inline: 12px; }
+  .searchField > button[type="submit"],
+  .addButton { height: 40px; }
+  .searchField > button[type="submit"] { padding-inline: 12px; }
   .suggestion { grid-template-columns: 1fr; }
   .suggestionActions { justify-content: stretch; }
   .suggestionActions button { flex: 1; }
@@ -331,7 +337,7 @@
   .searchField { grid-template-columns: minmax(0, 1fr) auto auto; padding-left: 11px; }
   .search input { font-size: 12px; }
   .searchField > button[type="submit"] { padding-inline: 10px; font-size: 9px; }
-  .addButton { width: 36px; padding: 0; overflow: hidden; font-size: 0; }
+  .addButton { width: 40px; padding: 0; overflow: hidden; font-size: 0; }
   .addButton::before { content: "+"; font-size: 17px; line-height: 1; }
 }
 

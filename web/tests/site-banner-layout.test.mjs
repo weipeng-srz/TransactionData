@@ -15,9 +15,9 @@ test("uses one shared banner for portfolio, stock and global pages", () => {
   assert.match(portfolioSource, /<SiteBanner[\s\S]*?activePage="portfolio"/);
   assert.match(stockSource, /<SiteBanner[\s\S]*?activePage="stock"/);
   assert.match(globalSource, /<SiteBanner[\s\S]*?activePage="global"/);
-  assert.match(bannerSource, /自选首页/);
-  assert.match(bannerSource, /个股研究/);
-  assert.match(bannerSource, /全球股指/);
+  assert.match(bannerSource, />自选<\/Link>/);
+  assert.match(bannerSource, />全球<\/Link>/);
+  assert.doesNotMatch(bannerSource, />个股研究<\/Link>/);
   assert.match(bannerSource, /aria-label="添加自选股"/);
   assert.match(bannerSource, /切换个股/);
 });

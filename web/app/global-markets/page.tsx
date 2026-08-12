@@ -109,6 +109,7 @@ export default function GlobalMarketsPage() {
   const usFearGauge = fearGaugeByMarket.get("美股");
   const breadthTotal = rising + falling;
   const breadthPct = breadthTotal ? Math.round((rising / breadthTotal) * 100) : 0;
+  const coveredIndexes = quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length;
   const mappedMarketCount = GLOBAL_INDEXES.filter((item) => item.map).length + US_INDEXES.filter((item) => item.map).length;
 
   const toggleAppearance = () => {
@@ -129,16 +130,22 @@ export default function GlobalMarketsPage() {
       />
       <main className="app-shell global-page-shell">
       <aside className="app-sidebar global-sidebar global-navigation-sidebar">
-        <section className="sidebar-menu-summary global-sidebar-summary" aria-label="全球市场汇总">
-          <span>全球市场</span>
-          <strong>{openMarkets ? "实时交易中" : "主要市场休市"}</strong>
-          <small>{rising} 涨 · {falling} 跌 · {openMarkets} 个市场交易中</small>
-          <div className="sidebar-snapshot-grid global-sidebar-snapshot" aria-label="全球股指实时汇总">
-            <div className="sidebar-snapshot-primary">
-              <span>市场广度</span>
-              <strong>{breadthTotal ? `${breadthPct}%` : "—"}</strong>
-              <em className={breadthPct >= 55 ? "is-up" : breadthPct <= 45 ? "is-down" : "is-flat"}>{breadthTotal ? `${rising} 涨 / ${falling} 跌` : "等待行情"}</em>
+        <section className="sidebar-menu-summary sidebar-preview-card global-sidebar-summary" aria-label="全球市场汇总">
+          <header className="sidebar-preview-header">
+            <div>
+              <span>全球市场</span>
+              <strong>{openMarkets ? "实时交易中" : "主要市场休市"}</strong>
+              <small>{fetchedAt ? `更新于 ${formatFetchedAt(fetchedAt)}` : "正在连接全球行情"}</small>
             </div>
+            <em className={`sidebar-status-pill ${openMarkets ? "is-live" : ""}`}><i />{openMarkets ? `${openMarkets} 开盘` : "休市"}</em>
+          </header>
+          <div className="sidebar-preview-hero" aria-label="全球股指实时汇总">
+            <span>市场广度</span>
+            <strong>{breadthTotal ? `${breadthPct}%` : "—"}</strong>
+            <em className={breadthPct >= 55 ? "is-up" : breadthPct <= 45 ? "is-down" : "is-flat"}>{breadthTotal ? `${rising} 涨 / ${falling} 跌` : "等待行情"}</em>
+            <div className="sidebar-breadth-track" aria-hidden="true"><i style={{ width: `${breadthPct}%` }} /></div>
+          </div>
+          <div className="sidebar-preview-metrics global-sidebar-snapshot">
             <div>
               <span>上证指数</span>
               <strong>{shanghaiQuote ? formatPrice(shanghaiQuote.price) : "—"}</strong>
@@ -149,23 +156,25 @@ export default function GlobalMarketsPage() {
               <strong>{usFearGauge ? formatPrice(usFearGauge.value) : "—"}</strong>
               <em className={fearTone(usFearGauge?.value)}>{usFearGauge?.level ?? "VIX 等待更新"}</em>
             </div>
-            <div>
-              <span>波动焦点</span>
-              <strong>{leader ? signedPercent(leader.changePct) : "—"}</strong>
-              <em className={tone(leader?.changePct)}>{leader?.name ?? "等待数据"}</em>
-            </div>
           </div>
+          <dl className="sidebar-preview-strip" aria-label="全球市场覆盖摘要">
+            <div><dt>覆盖指数</dt><dd>{coveredIndexes}</dd></div>
+            <div><dt>交易中</dt><dd>{openMarkets}</dd></div>
+            <div><dt>波动焦点</dt><dd className={tone(leader?.changePct)} title={leader?.name}>{leader ? signedPercent(leader.changePct) : "—"}</dd></div>
+          </dl>
+          <small className="sidebar-preview-source">焦点 · {leader?.name ?? "等待实时数据"}</small>
           <button className="global-sidebar-refresh" type="button" disabled={feedState === "refreshing"} onClick={() => void refresh()}>{feedState === "refreshing" ? "刷新中…" : "刷新行情"}</button>
         </section>
         <nav className="workspace-nav global-workspace-nav" aria-label="全球股指快速导航">
+          <p className="sidebar-nav-heading">快速定位</p>
           <a href="#global-overview"><span>市场概览</span><small>Overview</small></a>
           <a href="#a-share-indexes"><span>A股核心</span><small>A Share</small></a>
           <a href="#shanghai-index"><span>上证指数</span><small>Shanghai</small></a>
           <a href="#global-map"><span>全球地图</span><small>Map</small></a>
-          <a href="#us-indexes"><span>美股</span><small>US</small></a>
-          <a href="#americas-indexes"><span>美洲</span><small>Americas</small></a>
-          <a href="#europe-indexes"><span>欧洲</span><small>Europe</small></a>
-          <a href="#asia-indexes"><span>亚太</span><small>Asia</small></a>
+          <a href="#us-indexes"><span>美股指数</span><small>US</small></a>
+          <a href="#americas-indexes"><span>美洲市场</span><small>Americas</small></a>
+          <a href="#europe-indexes"><span>欧洲市场</span><small>Europe</small></a>
+          <a href="#asia-indexes"><span>亚太市场</span><small>Asia</small></a>
         </nav>
       </aside>
 
@@ -421,7 +430,7 @@ function ShanghaiIndexPanel({ candles }: { candles: ShanghaiIndexCandle[] }) {
                 </g>
               ) : null}
               <line className="shanghai-chart-divider" x1={padding.left} x2={width - padding.right} y1={amountTop - 16} y2={amountTop - 16} />
-              <text className="shanghai-chart-section-label" x={padding.left} y={amountTop - 22}>沪深两市成交额 · 较前日超过 ±5%：实心放量 / 斜纹缩量 / 虚线20日均额</text>
+              <text className="shanghai-chart-section-label" x={padding.left} y={amountTop - 22}>成交额 · 实心放量 / 斜纹缩量 / 虚线20日均额</text>
               <text className="fear-axis-label" x={width - 5} y={amountTop + 3} textAnchor="end">{maximumAmount.toFixed(0)}亿</text>
               <text className="fear-axis-label" x={width - 5} y={amountTop + amountHeight} textAnchor="end">0</text>
               {visible.map((candle, index) => {

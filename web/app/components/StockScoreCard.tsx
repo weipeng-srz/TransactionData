@@ -6,6 +6,9 @@ const radarCenter = radarSize / 2;
 const radarRadius = 112;
 
 export default function StockScoreCard({ report, stockName }: { report: StockScoreReport; stockName: string }) {
+  const weakestDimension = [...report.dimensions].sort((left, right) => left.score - right.score)[0];
+  const riskDimension = report.dimensions.find((dimension) => dimension.key === "risk");
+
   return (
     <section className={`stock-score-card is-${report.signal.tone}`} id="stock-score" aria-labelledby="stock-score-title">
       <header className="stock-score-header">
@@ -35,7 +38,12 @@ export default function StockScoreCard({ report, stockName }: { report: StockSco
             <strong>{report.signal.headline}</strong>
             <p>{report.signal.description}</p>
           </div>
-          <p className="stock-score-disclaimer">这是规则模型的研究信号，不构成个性化投资建议；交易前请核对数据时效、估值口径与自身风险承受能力。</p>
+          <p className="stock-score-disclaimer">评分用于比较证据强弱，不预测收益；低覆盖维度会向 50 分收缩。交易前请核对数据时效、估值口径与自身风险承受能力。</p>
+          <dl className="stock-score-guardrails" aria-label="交易前检查">
+            <div><dt>数据覆盖</dt><dd>{report.coverage}%</dd></div>
+            <div><dt>主要短板</dt><dd>{weakestDimension?.label ?? "待识别"} {weakestDimension?.score ?? "—"}</dd></div>
+            <div><dt>风险韧性</dt><dd>{riskDimension?.score ?? "—"}/100</dd></div>
+          </dl>
         </section>
 
         <RadarChart dimensions={report.dimensions} />

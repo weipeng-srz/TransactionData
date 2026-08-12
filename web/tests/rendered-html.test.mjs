@@ -41,8 +41,9 @@ test("server-renders the TrendSight watchlist homepage", async () => {
   assert.match(html, /输入股票名称或代码，如 平安银行 \/ 000001/);
   assert.match(html, /切换个股/);
   assert.match(html, /<header[^>]*>[\s\S]*aria-label="快速搜索股票"/);
-  assert.match(html, /自选首页/);
-  assert.match(html, /全球股指/);
+  assert.match(html, />自选<\/a>/);
+  assert.match(html, />全球<\/a>/);
+  assert.doesNotMatch(html, />个股研究<\/a>/);
   assert.match(html, /切换到深色外观/);
   assert.match(html, /持仓市值/);
   assert.match(html, /累计收益/);

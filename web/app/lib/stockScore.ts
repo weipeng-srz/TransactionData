@@ -183,16 +183,11 @@ export function buildStockScore(input: StockScoreInput): StockScoreReport {
       key: "growth",
       label: "成长能力",
       shortLabel: "成长",
-      expected: 4,
+      expected: 3,
       items: [
         metricItem(ttmYoY?.revenue ?? null, scale(ttmYoY?.revenue ?? null, -20, 35), `TTM 营收同比 ${percent(ttmYoY?.revenue ?? null)}`),
         metricItem(ttmYoY?.parentNetProfit ?? null, scale(ttmYoY?.parentNetProfit ?? null, -35, 45), `TTM 归母净利同比 ${percent(ttmYoY?.parentNetProfit ?? null)}`),
         metricItem(ttmYoY?.deductNetProfit ?? null, scale(ttmYoY?.deductNetProfit ?? null, -35, 45), `TTM 扣非净利同比 ${percent(ttmYoY?.deductNetProfit ?? null)}`),
-        metricItem(
-          holder.institutionalRatio,
-          holder.institutionalRatio == null ? null : scale(holder.institutionalRatio, 0, 45),
-          `机构持仓占比 ${percent(holder.institutionalRatio)}`,
-        ),
       ],
     }),
     dimension({
@@ -204,7 +199,7 @@ export function buildStockScore(input: StockScoreInput): StockScoreReport {
         valuationItem("PE(TTM)", snapshot.peTtm, snapshot.peTtmPercentile, 8, 45),
         valuationItem("PB", snapshot.pb, snapshot.pbPercentile, 0.8, 8),
         valuationItem("PS(TTM)", snapshot.psTtm, snapshot.psTtmPercentile, 0.8, 12),
-        metricItem(snapshot.peg, inverseScale(snapshot.peg, 0.6, 3), `PEG ${number(snapshot.peg, 2)}`),
+        pegItem(snapshot.peg),
         metricItem(snapshot.dividendYieldTtm, scale(snapshot.dividendYieldTtm, 0, 5), `TTM 股息率 ${percent(snapshot.dividendYieldTtm)}`),
       ],
     }),
@@ -259,16 +254,19 @@ export function buildStockScore(input: StockScoreInput): StockScoreReport {
 function dimension(input: DimensionInput): StockScoreDimension {
   const available = input.items.filter((item): item is ScoreItem & { score: number } => item.score != null && Number.isFinite(item.score));
   const weight = available.reduce((sum, item) => sum + (item.weight ?? 1), 0);
-  const score = available.length
+  const rawScore = available.length
     ? Math.round(available.reduce((sum, item) => sum + clamp(item.score, 0, 100) * (item.weight ?? 1), 0) / weight)
     : 50;
+  const coverage = Math.round(clamp((available.length / input.expected) * 100, 0, 100));
+  // Sparse evidence must not look like high conviction. Pull low-coverage
+  // dimensions toward neutral while preserving fully covered scores.
+  const score = Math.round(50 + (rawScore - 50) * (coverage / 100));
   const reasons = available
     .map((item) => ({ tone: reasonTone(item.score), text: item.text, distance: Math.abs(item.score - 50) }))
     .sort((left, right) => right.distance - left.distance)
     .slice(0, 3)
     .map(({ tone, text }) => ({ tone, text }));
   if (!reasons.length) reasons.push({ tone: "neutral", text: "当前维度数据不足，暂按 50 分中性处理" });
-  const coverage = Math.round(clamp((available.length / input.expected) * 100, 0, 100));
   return {
     key: input.key,
     label: input.label,
@@ -291,6 +289,12 @@ function valuationItem(label: string, value: number | null, percentile: number |
   if (value == null || !Number.isFinite(value)) return { score: null, text: `${label} 暂无可用数据` };
   if (value <= 0) return { score: 18, text: `${label} 为负，当前盈利口径不支持常规估值` };
   return { score: inverseScale(value, low, high), text: `${label} ${multiple(value)}，暂无历史分位` };
+}
+
+function pegItem(value: number | null): ScoreItem {
+  if (value == null || !Number.isFinite(value)) return { score: null, text: "PEG 暂无可用数据" };
+  if (value <= 0) return { score: 12, text: `PEG ${number(value, 2)}，负值不支持常规成长估值` };
+  return { score: inverseScale(value, 0.6, 3), text: `PEG ${number(value, 2)}` };
 }
 
 function summarizeNews(items: NewsItem[]): { average: number | null; positiveRatio: number | null; negativeRatio: number | null } {

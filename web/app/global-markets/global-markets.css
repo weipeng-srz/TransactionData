@@ -344,7 +344,8 @@ body:has(.global-page-shell) {
 
 .global-map-viewport {
   position: relative;
-  width: 100%;
+  width: calc(100% - 8px);
+  max-width: 100%;
   aspect-ratio: 2048 / 1038.75;
   isolation: isolate;
 }
@@ -629,6 +630,7 @@ body:has(.global-page-shell) {
 .fear-grid-line.is-vertical { opacity: .52; }
 
 .fear-axis-label {
+  dominant-baseline: middle;
   fill: var(--apple-tertiary);
   font: 8px var(--apple-mono);
 }
@@ -935,6 +937,7 @@ body:has(.global-page-shell) {
   .global-shanghai-header .global-kline-actions { grid-column: 1 / -1; width: 100%; justify-content: space-between; flex-wrap: wrap; }
   .global-shanghai-header .global-fear-periods { flex: 1 1 150px; justify-self: stretch; }
   .global-shanghai-header .global-fear-periods button { flex: 1 1 0; }
+  .global-fear-periods button { min-height: 40px; }
   .global-shanghai-analysis article { min-height: 80px; padding: 12px; }
   .global-shanghai-analysis strong { font-size: 16px; }
   .global-shanghai-insight { flex-direction: column; gap: 3px; }
@@ -944,6 +947,7 @@ body:has(.global-page-shell) {
   .global-shanghai-tooltip em { grid-column: 1 / -1; }
   .global-shanghai-footer { padding-inline: 10px; }
   .global-shanghai-footer small { display: none; }
+  .shanghai-chart-section-label { font-size: 7px; letter-spacing: 0; }
   .global-map-card > header { min-height: 66px; padding-inline: 14px; }
   .global-map-card h2 { font-size: 14px; }
   .global-legend { gap: 7px; font-size: 8px; }
@@ -1192,4 +1196,39 @@ body:has(.global-page-shell) {
   .global-page-shell.app-shell {
     padding: 12px var(--site-frame-gutter, 12px) 24px !important;
   }
+}
+
+/* Final tablet guard for the richer global-market preview sidebar. */
+@media (min-width: 821px) and (max-width: 1180px) {
+  .global-page-shell.app-shell {
+    width: min(calc(100% - var(--site-frame-inset)), var(--site-frame-max));
+    margin-inline: auto;
+    padding: 18px 0 48px !important;
+    grid-template-columns: 184px minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .global-sidebar.global-navigation-sidebar {
+    top: 144px;
+    height: auto;
+    max-height: calc(100vh - 160px);
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  .global-navigation-sidebar .global-workspace-nav {
+    margin: 0;
+    gap: 4px;
+  }
+
+  .global-navigation-sidebar .global-workspace-nav a {
+    min-height: 42px;
+    padding: 4px 8px 4px 6px;
+    justify-content: normal;
+    border-radius: 7px;
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .global-navigation-sidebar .global-workspace-nav a small { display: block; }
 }

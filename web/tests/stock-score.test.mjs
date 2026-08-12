@@ -123,3 +123,37 @@ test("keeps missing inputs neutral and exposes low coverage", () => {
   assert.equal(empty.signal.tone, "hold");
   assert.equal(empty.dimensions.find((item) => item.key === "trend")?.score, 50);
 });
+
+test("shrinks low-coverage dimension scores toward neutral", () => {
+  const partial = input(true);
+  partial.financials.analysis.periods[0].ttmYoY = {
+    revenue: 35,
+    parentNetProfit: null,
+    deductNetProfit: null,
+  };
+
+  const report = buildStockScore(partial);
+  const growth = report.dimensions.find((item) => item.key === "growth");
+
+  assert.equal(growth?.coverage, 33);
+  assert.ok((growth?.score ?? 100) > 50);
+  assert.ok((growth?.score ?? 100) <= 67);
+});
+
+test("does not reward negative PEG values or institutional ownership as growth", () => {
+  const partial = input(true);
+  partial.financials.snapshot.peg = -1.2;
+  partial.financials.analysis.periods[0].ttmYoY = {
+    revenue: null,
+    parentNetProfit: null,
+    deductNetProfit: null,
+  };
+
+  const report = buildStockScore(partial);
+  const growth = report.dimensions.find((item) => item.key === "growth");
+  const valuation = report.dimensions.find((item) => item.key === "valuation");
+
+  assert.equal(growth?.coverage, 0);
+  assert.equal(growth?.score, 50);
+  assert.ok(valuation?.reasons.some((reason) => reason.text.includes("负值不支持常规成长估值")));
+});
