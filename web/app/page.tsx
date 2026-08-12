@@ -968,7 +968,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   if (initialRouteState !== "ready") {
     return (
       <div className="research-page">
-        <SiteBanner activePage="stock" currentStockCode={initialStockCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} statusText={initialRouteState === "loading" ? `正在加载 ${initialStockCode}` : "数据连接待重试"} />
+        <SiteBanner activePage="stock" currentStockCode={initialStockCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} onOpenPortfolio={onBackHome} statusText={initialRouteState === "loading" ? `正在加载 ${initialStockCode}` : "数据连接待重试"} />
         <StockInitialLoading
           code={initialStockCode}
           phase={initialRouteState}
@@ -986,7 +986,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
 
   return (
     <div className="research-page">
-      <SiteBanner activePage="stock" currentStockCode={selectedCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
+      <SiteBanner activePage="stock" currentStockCode={selectedCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} onOpenPortfolio={onBackHome} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
       <main className={`app-shell view-${viewMode}`}>
       <aside className="app-sidebar research-sidebar">
         <section className="sidebar-menu-summary sidebar-preview-card" aria-label="当前个股导航">

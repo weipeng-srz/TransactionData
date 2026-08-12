@@ -3353,25 +3353,31 @@ select:disabled {
   .research-sidebar .workspace-nav a { min-height: 56px; }
 }
 
-/* Crisp, information-dense sidebar previews shared by stock and global pages. */
+/* Unified liquid-glass sidebars shared by stock and global pages. */
 @media (min-width: 821px) {
   .research-sidebar.app-sidebar,
   .global-sidebar.global-navigation-sidebar {
-    border-color: color-mix(in srgb, var(--apple-text) 18%, var(--apple-border));
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--apple-surface) 97%, var(--apple-page));
-    box-shadow: 0 10px 28px rgba(30, 40, 60, .075), inset 0 0 0 .5px color-mix(in srgb, var(--apple-text) 6%, transparent);
+    border-color: color-mix(in srgb, var(--apple-glass-border) 74%, transparent);
+    border-radius: 22px;
+    background:
+      linear-gradient(145deg, var(--apple-glass-highlight), transparent 44%),
+      color-mix(in srgb, var(--apple-glass-strong) 90%, var(--apple-page));
+    box-shadow: var(--apple-glass-shadow);
+    backdrop-filter: saturate(165%) blur(26px);
+    -webkit-backdrop-filter: saturate(165%) blur(26px);
   }
 
   .research-sidebar .sidebar-preview-card,
   .global-navigation-sidebar .sidebar-preview-card {
-    margin: 0 0 10px;
-    padding: 11px;
-    gap: 9px;
-    border: 1px solid color-mix(in srgb, var(--apple-text) 18%, var(--apple-border));
-    border-radius: 9px;
-    background: var(--apple-surface);
-    box-shadow: none;
+    margin: 0 0 12px;
+    padding: 12px;
+    gap: 10px;
+    border-color: transparent;
+    border-radius: 17px;
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--apple-glass-highlight) 68%, transparent), transparent 46%),
+      color-mix(in srgb, var(--apple-surface) 58%, var(--apple-glass-soft));
+    box-shadow: 0 8px 24px rgba(30, 40, 60, .045);
   }
 
   .sidebar-preview-header {
@@ -3422,8 +3428,8 @@ select:disabled {
     align-items: center;
     gap: 4px;
     flex: 0 0 auto;
-    border: 1px solid var(--apple-border-strong);
-    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--apple-border-strong) 50%, transparent);
+    border-radius: 999px;
     color: var(--apple-secondary);
     background: var(--apple-fill);
     font-size: 7px;
@@ -3457,9 +3463,10 @@ select:disabled {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: end;
     gap: 3px 8px;
-    border: 1px solid color-mix(in srgb, var(--apple-text) 15%, var(--apple-border));
-    border-radius: 7px;
-    background: color-mix(in srgb, var(--apple-fill) 70%, var(--apple-surface));
+    border: 0;
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--apple-fill) 58%, var(--apple-glass-soft));
+    box-shadow: 0 4px 16px rgba(30, 40, 60, .035);
   }
 
   .sidebar-preview-hero > span {
@@ -3501,7 +3508,11 @@ select:disabled {
     min-width: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: 0;
+    overflow: hidden;
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--apple-surface) 56%, var(--apple-glass-soft));
+    box-shadow: 0 4px 16px rgba(30, 40, 60, .03);
   }
 
   .sidebar-preview-metrics > div {
@@ -3511,10 +3522,13 @@ select:disabled {
     display: grid;
     align-content: center;
     gap: 3px;
-    border: 1px solid color-mix(in srgb, var(--apple-text) 14%, var(--apple-border));
-    border-radius: 7px;
-    background: var(--apple-surface);
+    border: 0;
+    border-right: 1px solid color-mix(in srgb, var(--apple-border-strong) 42%, transparent);
+    border-radius: 0;
+    background: transparent;
   }
+
+  .sidebar-preview-metrics > div:last-child { border-right: 0; }
 
   .sidebar-preview-metrics span {
     color: var(--apple-tertiary);
@@ -3570,9 +3584,10 @@ select:disabled {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--apple-text) 14%, var(--apple-border));
-    border-radius: 7px;
-    background: var(--apple-surface);
+    border: 0;
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--apple-surface) 56%, var(--apple-glass-soft));
+    box-shadow: 0 4px 16px rgba(30, 40, 60, .03);
   }
 
   .sidebar-preview-strip > div {
@@ -3580,7 +3595,7 @@ select:disabled {
     padding: 7px 5px;
     display: grid;
     gap: 2px;
-    border-right: 1px solid var(--apple-border-strong);
+    border-right: 1px solid color-mix(in srgb, var(--apple-border-strong) 42%, transparent);
     text-align: center;
   }
 
@@ -3603,20 +3618,25 @@ select:disabled {
   .global-navigation-sidebar .global-sidebar-refresh {
     min-height: 32px;
     margin: 0;
-    border: 1px solid color-mix(in srgb, var(--apple-accent) 42%, var(--apple-border-strong));
-    border-radius: 7px;
-    background: color-mix(in srgb, var(--apple-accent) 6%, var(--apple-surface));
+    border-color: transparent;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--apple-accent) 9%, var(--apple-glass-soft));
+    box-shadow: 0 4px 14px rgba(30, 40, 60, .035);
   }
 
   .research-sidebar .workspace-nav,
   .global-navigation-sidebar .workspace-nav {
     margin: 0;
-    gap: 4px;
+    padding: 5px;
+    gap: 1px;
+    border-radius: 17px;
+    background: color-mix(in srgb, var(--apple-surface) 48%, var(--apple-glass-soft));
+    box-shadow: 0 4px 16px rgba(30, 40, 60, .03);
     counter-reset: sidebar-section;
   }
 
   .sidebar-nav-heading {
-    margin: 2px 7px 3px;
+    margin: 5px 9px 6px;
     color: var(--apple-tertiary);
     font-size: 8px;
     font-weight: 720;
@@ -3632,8 +3652,8 @@ select:disabled {
     grid-template-rows: auto auto;
     align-items: center;
     column-gap: 8px;
-    border: 1px solid transparent;
-    border-radius: 7px;
+    border: 0;
+    border-radius: 12px;
     font-size: 11px;
     text-align: left;
     counter-increment: sidebar-section;
@@ -3647,10 +3667,10 @@ select:disabled {
     grid-row: 1 / 3;
     display: grid;
     place-items: center;
-    border: 1px solid var(--apple-border-strong);
-    border-radius: 5px;
-    color: var(--apple-tertiary);
-    background: var(--apple-surface);
+    border: 0;
+    border-radius: 8px;
+    color: color-mix(in srgb, var(--apple-accent) 76%, var(--apple-secondary));
+    background: color-mix(in srgb, var(--apple-accent) 9%, var(--apple-surface));
     content: counter(sidebar-section, decimal-leading-zero);
     font-size: 7px;
     font-weight: 720;
@@ -3692,8 +3712,8 @@ select:disabled {
   .research-sidebar .workspace-nav a:focus-visible,
   .global-navigation-sidebar .workspace-nav a:hover,
   .global-navigation-sidebar .workspace-nav a:focus-visible {
-    border-color: color-mix(in srgb, var(--apple-accent) 34%, var(--apple-border-strong));
-    background: color-mix(in srgb, var(--apple-accent) 7%, var(--apple-surface));
+    background: color-mix(in srgb, var(--apple-surface) 86%, var(--apple-accent) 14%);
+    box-shadow: 0 5px 14px rgba(30, 40, 60, .065);
   }
 }
 

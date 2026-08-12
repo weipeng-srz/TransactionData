@@ -19,6 +19,7 @@ export default function SiteBanner({
   onToggleAppearance,
   onOpenStock,
   onAddStock,
+  onOpenPortfolio,
 }: {
   activePage: BannerPage;
   currentStockCode?: string;
@@ -27,6 +28,7 @@ export default function SiteBanner({
   onToggleAppearance: () => void;
   onOpenStock?: (code: string) => void;
   onAddStock?: (stock: WatchlistStock, existed: boolean) => void;
+  onOpenPortfolio?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [suggestion, setSuggestion] = useState<WatchlistStock | null>(null);
@@ -129,7 +131,15 @@ export default function SiteBanner({
       </Link>
 
       <nav className={styles.navigation} aria-label="全站页面导航">
-        <Link className={activePage === "portfolio" ? styles.activeNav : ""} href="/" aria-current={activePage === "portfolio" ? "page" : undefined}>自选</Link>
+        <Link
+          className={activePage === "portfolio" ? styles.activeNav : ""}
+          href="/"
+          aria-current={activePage === "portfolio" ? "page" : undefined}
+          onClick={activePage === "stock" && onOpenPortfolio ? (event) => {
+            event.preventDefault();
+            onOpenPortfolio();
+          } : undefined}
+        >自选</Link>
         <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球</Link>
       </nav>
 

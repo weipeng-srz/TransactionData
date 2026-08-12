@@ -20,6 +20,8 @@ test("uses one shared banner for portfolio, stock and global pages", () => {
   assert.doesNotMatch(bannerSource, />个股研究<\/Link>/);
   assert.match(bannerSource, /aria-label="添加自选股"/);
   assert.match(bannerSource, /切换个股/);
+  assert.match(bannerSource, /activePage === "stock" && onOpenPortfolio/);
+  assert.match(stockSource, /onOpenPortfolio=\{onBackHome\}/);
 });
 
 test("keeps the banner geometry and search outline consistent", () => {
@@ -48,4 +50,17 @@ test("limits sidebars to in-page stock and global index navigation", () => {
     assert.match(globalSource, new RegExp(anchor));
   }
   assert.doesNotMatch(globalSource, /<MarketScopeSwitch/);
+});
+
+test("uses a unified liquid-glass sidebar instead of stacked hard outlines", () => {
+  const marker = appleStyles.indexOf("/* Unified liquid-glass sidebars shared by stock and global pages. */");
+  const end = appleStyles.indexOf("@media (min-width: 821px) and (max-width: 1180px)", marker);
+  const sidebarStyles = appleStyles.slice(marker, end);
+
+  assert.ok(marker >= 0);
+  assert.ok(end > marker);
+  assert.match(sidebarStyles, /\.research-sidebar\.app-sidebar,[\s\S]*?border-radius: 22px;[\s\S]*?var\(--apple-glass-shadow\)/);
+  assert.match(sidebarStyles, /\.sidebar-preview-card \{[\s\S]*?border-color: transparent;[\s\S]*?border-radius: 17px;/);
+  assert.match(sidebarStyles, /\.sidebar-preview-metrics \{[\s\S]*?gap: 0;[\s\S]*?border-radius: 13px;/);
+  assert.match(sidebarStyles, /\.workspace-nav \{[\s\S]*?border-radius: 17px;[\s\S]*?var\(--apple-glass-soft\)/);
 });
