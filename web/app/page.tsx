@@ -352,10 +352,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           if (cloudAnnotations.length) setAnnotations(cloudAnnotations);
           if (state.viewMode === "basic" || state.viewMode === "pro") setViewMode(state.viewMode);
           if (typeof state.benchmarkCode === "string" && /^\d{6}$/.test(state.benchmarkCode)) setBenchmarkCode(state.benchmarkCode);
-          const cloudHoldings = parseHoldings(state.holdings);
-          if (Object.keys(cloudHoldings).length) {
-            setHoldings((current) => ({ ...current, ...cloudHoldings }));
-          }
           if (state.workspace && typeof state.workspace === "object") {
             const workspace = state.workspace as SavedWorkspace;
             if (workspace.version === 1) { setSavedWorkspace(workspace); setHasSavedView(true); }
@@ -378,20 +374,20 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         const response = await fetch("/api/research-state", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: { version: 3, workspace: savedWorkspace, annotations, viewMode, benchmarkCode, holdings: Object.values(holdings) } }),
+          body: JSON.stringify({ state: { version: 4, workspace: savedWorkspace, annotations, viewMode, benchmarkCode } }),
         });
         if (!response.ok) throw new Error("同步失败");
       } catch { setCloudStatus("error"); }
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [annotations, benchmarkCode, cloudStatus, holdings, savedWorkspace, storageHydrated, viewMode]);
+  }, [annotations, benchmarkCode, cloudStatus, savedWorkspace, storageHydrated, viewMode]);
 
   useEffect(() => {
     if (!storageHydrated) return;
     try {
       localStorage.setItem(holdingsStorageKey, JSON.stringify(Object.values(holdings)));
     } catch {
-      // Cloud state remains authoritative when browser storage is unavailable.
+      // The in-memory holding remains usable when browser storage is unavailable.
     }
   }, [holdings, storageHydrated]);
 
@@ -1410,7 +1406,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             currentPrice={currentPrice}
             holding={currentHolding}
             isDemo={isDemo}
-            cloudStatus={cloudStatus}
             onSave={saveHolding}
             onClear={clearHolding}
           />

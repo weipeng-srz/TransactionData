@@ -1569,7 +1569,8 @@ select:disabled {
   white-space: nowrap;
 }
 
-.holding-sync.is-synced {
+.holding-sync.is-synced,
+.holding-sync.is-local {
   color: var(--apple-accent);
   background: color-mix(in srgb, var(--apple-accent) 10%, transparent);
 }

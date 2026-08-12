@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../../db/index.ts";
 import { researchStates } from "../../../db/schema.ts";
 import { resolveUserKey } from "../../lib/serverIdentity.ts";
-import { parseHoldings } from "../../lib/holdings.ts";
 
 const maxPayloadBytes = 96 * 1024;
 
@@ -12,7 +11,12 @@ export async function GET(request: Request) {
   try {
     const db = await getDb();
     const [row] = await db.select().from(researchStates).where(eq(researchStates.userKey, userKey)).limit(1);
-    return Response.json({ state: row ? safeParse(row.payload) : null, updatedAt: row?.updatedAt ?? "" }, { headers: { "Cache-Control": "no-store" } });
+    const storedState = row ? safeParse(row.payload) : null;
+    const state = sanitizeStoredState(storedState);
+    if (row && hasStoredHoldings(storedState)) {
+      await db.update(researchStates).set({ payload: JSON.stringify(state) }).where(eq(researchStates.userKey, userKey));
+    }
+    return Response.json({ state, updatedAt: row?.updatedAt ?? "" }, { headers: { "Cache-Control": "no-store" } });
   } catch (reason) {
     return Response.json({ error: dbError(reason) }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
@@ -39,13 +43,23 @@ export async function PUT(request: Request) {
 function sanitizeState(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("研究状态格式无效");
   const input = value as Record<string, unknown>;
-  const output: Record<string, unknown> = { version: 3 };
+  const output: Record<string, unknown> = { version: 4 };
   if (input.workspace && typeof input.workspace === "object") output.workspace = input.workspace;
   if (Array.isArray(input.annotations)) output.annotations = input.annotations.slice(0, 100);
   if (input.viewMode === "basic" || input.viewMode === "pro") output.viewMode = input.viewMode;
   if (typeof input.benchmarkCode === "string" && /^\d{6}$/.test(input.benchmarkCode)) output.benchmarkCode = input.benchmarkCode;
-  output.holdings = Object.values(parseHoldings(input.holdings));
   return output;
+}
+
+function sanitizeStoredState(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const state = { ...(value as Record<string, unknown>) };
+  delete state.holdings;
+  return { ...state, version: 4 };
+}
+
+function hasStoredHoldings(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && "holdings" in value);
 }
 
 function safeParse(value: string): unknown { try { return JSON.parse(value); } catch { return null; } }

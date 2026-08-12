@@ -15,15 +15,13 @@ import {
 import { emptyFinancialDataset } from "../lib/financials";
 import {
   calculateHoldingMetrics,
+  exportHoldingsCsv,
   parseHoldings,
+  parseHoldingsCsv,
   type StockHolding,
   type StockHoldings,
 } from "../lib/holdings";
 import type { GlobalIndexFeed } from "../lib/globalIndexes";
-import {
-  mergePersonalPortfolio,
-  personalPortfolioImportKey,
-} from "../lib/personalPortfolio";
 import type { RealtimeSnapshot } from "../lib/realtimeMarket";
 import { backtestGuideSignals, calculateRiskMetrics } from "../lib/research";
 import { buildStockScore, type StockScoreReport } from "../lib/stockScore";
@@ -123,6 +121,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const [globalFeed, setGlobalFeed] = useState<GlobalFeedState>({ status: "loading", data: null, error: "" });
   const realtimeRequestRef = useRef<AbortController | null>(null);
   const globalRequestRef = useRef<AbortController | null>(null);
+  const holdingsFileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let storedWatchlist: WatchlistStock[] = [];
@@ -137,18 +136,6 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       storedHoldings = parseHoldings(JSON.parse(localStorage.getItem(holdingsStorageKey) ?? "[]"));
     } catch {
       localStorage.removeItem(holdingsStorageKey);
-    }
-    try {
-      if (localStorage.getItem(personalPortfolioImportKey) !== "complete") {
-        const imported = mergePersonalPortfolio(storedWatchlist, storedHoldings);
-        storedWatchlist = imported.watchlist;
-        storedHoldings = imported.holdings;
-        localStorage.setItem(personalPortfolioImportKey, "complete");
-      }
-    } catch {
-      const imported = mergePersonalPortfolio(storedWatchlist, storedHoldings);
-      storedWatchlist = imported.watchlist;
-      storedHoldings = imported.holdings;
     }
     try {
       storedAppearance = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
@@ -464,6 +451,34 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     setEditor(null);
   };
 
+  const exportPositions = () => {
+    const csv = exportHoldingsCsv(holdings, watchlist);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    link.download = `TrendSight-持仓-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+    setNotice(Object.keys(holdings).length ? "持仓已导出为可编辑 CSV。" : "已导出空白持仓模板，可编辑后重新导入。");
+  };
+
+  const importPositions = async (file: File) => {
+    try {
+      const imported = parseHoldingsCsv(await file.text());
+      setHoldings((current) => ({ ...current, ...imported.holdings }));
+      setWatchlist((current) => imported.stocks.reduceRight(
+        (next, stock) => upsertWatchlistStock(next, { ...stock, addedAt: new Date().toISOString() }),
+        current,
+      ));
+      setNotice(`已从 CSV 导入 ${imported.stocks.length} 条持仓，并保存到当前浏览器。`);
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "持仓 CSV 导入失败");
+    } finally {
+      if (holdingsFileRef.current) holdingsFileRef.current.value = "";
+    }
+  };
+
   const toggleAppearance = () => {
     const next: Appearance = appearance === "light" ? "dark" : "light";
     setAppearance(next);
@@ -548,6 +563,9 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
                   <option value="profit">持仓收益</option>
                 </select>
               </label>
+              <input ref={holdingsFileRef} className={styles.srOnly} type="file" accept=".csv,text/csv" aria-label="导入持仓 CSV" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importPositions(file); }} />
+              <button type="button" onClick={() => holdingsFileRef.current?.click()} title="导入持仓 CSV"><ImportIcon />导入持仓</button>
+              <button type="button" onClick={exportPositions} title="导出可编辑的持仓 CSV"><ExportIcon />导出持仓</button>
               <button type="button" onClick={() => setRefreshVersion((value) => value + 1)} disabled={!watchlist.length || loadingCount > 0}>
                 <RefreshIcon />{loadingCount ? "更新中" : "刷新行情"}
               </button>
@@ -587,7 +605,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         </section>
 
         <footer className={styles.footer}>
-          <span>行情、K 线与收益由公开数据及用户输入估算，可能存在延迟。</span>
+          <span>持仓仅保存在当前浏览器；行情、K 线与收益由公开数据及用户输入估算，可能存在延迟。</span>
           <span>仅供研究参考，不构成投资建议。</span>
         </footer>
       </div>
@@ -919,6 +937,14 @@ function fearToneClass(value: number | null | undefined): string {
 
 function RefreshIcon() {
   return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.7 6.5A6.2 6.2 0 1 0 16.2 12M15.7 6.5V2.8m0 3.7H12" /></svg>;
+}
+
+function ImportIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.2-3.2M10 12 6.8 8.8M4 14.2v2h12v-2" /></svg>;
+}
+
+function ExportIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V4m0 0 3.2 3.2M10 4 6.8 7.2M4 14.2v2h12v-2" /></svg>;
 }
 
 function EditIcon() {

@@ -9,7 +9,6 @@ type HoldingProfitCardProps = {
   currentPrice: number | null;
   holding: StockHolding | null;
   isDemo: boolean;
-  cloudStatus: "loading" | "synced" | "local" | "error";
   onSave: (shares: number, cost: number) => void;
   onClear: () => void;
 };
@@ -27,7 +26,6 @@ export default function HoldingProfitCard({
   currentPrice,
   holding,
   isDemo,
-  cloudStatus,
   onSave,
   onClear,
 }: HoldingProfitCardProps) {
@@ -43,14 +41,6 @@ export default function HoldingProfitCard({
     [cost, currentPrice, shares],
   );
   const toneClass = metrics ? metrics.profit > 0 ? "is-up" : metrics.profit < 0 ? "is-down" : "" : "";
-  const syncLabel = cloudStatus === "synced"
-    ? "云端同步"
-    : cloudStatus === "loading"
-      ? "同步中"
-      : cloudStatus === "error"
-        ? "本机已存"
-        : "本机保存";
-
   const save = () => {
     if (!validInput) {
       setNotice("请输入整数股数和有效成本");
@@ -78,7 +68,7 @@ export default function HoldingProfitCard({
           <p className="eyebrow">MY POSITION</p>
           <h3 id="holding-profit-title">持仓收益</h3>
         </div>
-        <span className={`holding-sync is-${cloudStatus}`}>{holding ? syncLabel : "未记录"}</span>
+        <span className="holding-sync is-local">{holding ? "本机已存" : "未记录"}</span>
       </div>
 
       <div className="holding-symbol">
@@ -113,7 +103,7 @@ export default function HoldingProfitCard({
       <div className="holding-actions">
         <button type="button" onClick={save}>保存持仓</button>
         {holding ? <button className="secondary" type="button" onClick={clear}>清除</button> : null}
-        <span role="status">{notice || (holding ? "已保存，下次自动加载" : isDemo ? "演示行情不可保存" : "按股票代码独立记录")}</span>
+        <span role="status">{notice || (holding ? "仅保存在当前浏览器" : isDemo ? "演示行情不可保存" : "按股票代码保存在当前浏览器")}</span>
       </div>
     </section>
   );
