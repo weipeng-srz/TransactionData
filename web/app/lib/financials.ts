@@ -410,6 +410,48 @@ export async function fetchFinancials(code: string): Promise<FinancialDataset> {
   const [financialResult, valuationResult, dividendResult, incomeResult, balanceResult, cashflowResult, holderResult] = await Promise.allSettled(requests);
   if (financialResult.status === "rejected") throw financialResult.reason;
 
+  let incomeData = incomeResult.status === "fulfilled" ? incomeResult.value : null;
+  let balanceData = balanceResult.status === "fulfilled" ? balanceResult.value : null;
+  let cashflowData = cashflowResult.status === "fulfilled" ? cashflowResult.value : null;
+  const financialRows = (financialResult.value as { result?: { data?: unknown } } | null)?.result?.data;
+  const isBank = Array.isArray(financialRows) && financialRows.some((row) => (
+    Boolean(row && typeof row === "object" && String((row as EastMoneyFinancialRow).ORG_TYPE ?? "").includes("银行"))
+  ));
+  if (isBank && (incomeData == null || balanceData == null || cashflowData == null)) {
+    const bankStatements = await Promise.allSettled([
+      incomeData == null
+        ? fetchEastMoneyReport({
+          reportName: "RPT_F10_FINANCE_BINCOME",
+          filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
+          pageSize: 50,
+          sortColumns: "REPORT_DATE",
+          label: "银行利润表",
+        })
+        : Promise.resolve(incomeData),
+      balanceData == null
+        ? fetchEastMoneyReport({
+          reportName: "RPT_F10_FINANCE_BBALANCE",
+          filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
+          pageSize: 50,
+          sortColumns: "REPORT_DATE",
+          label: "银行资产负债表",
+        })
+        : Promise.resolve(balanceData),
+      cashflowData == null
+        ? fetchEastMoneyReport({
+          reportName: "RPT_F10_FINANCE_BCASHFLOW",
+          filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
+          pageSize: 50,
+          sortColumns: "REPORT_DATE",
+          label: "银行现金流量表",
+        })
+        : Promise.resolve(cashflowData),
+    ]);
+    if (bankStatements[0].status === "fulfilled") incomeData = bankStatements[0].value;
+    if (bankStatements[1].status === "fulfilled") balanceData = bankStatements[1].value;
+    if (bankStatements[2].status === "fulfilled") cashflowData = bankStatements[2].value;
+  }
+
   let snapshot = valuationResult.status === "fulfilled"
     ? parseValuationResponse(valuationResult.value)
     : emptyFundamentalSnapshot();
@@ -419,11 +461,11 @@ export async function fetchFinancials(code: string): Promise<FinancialDataset> {
       ...parseDividendResponse(dividendResult.value, snapshot.asOfDate, snapshot.closePrice),
     };
   }
-  const analysis = incomeResult.status === "fulfilled" && balanceResult.status === "fulfilled" && cashflowResult.status === "fulfilled"
+  const analysis = incomeData != null && balanceData != null && cashflowData != null
     ? buildFinancialAnalysis({
-      income: incomeResult.value,
-      balance: balanceResult.value,
-      cashflow: cashflowResult.value,
+      income: incomeData,
+      balance: balanceData,
+      cashflow: cashflowData,
       indicators: financialResult.value,
     })
     : emptyFinancialAnalysis();

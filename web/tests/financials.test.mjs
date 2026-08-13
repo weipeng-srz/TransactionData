@@ -18,6 +18,7 @@ const responsePayload = {
       {
         SECUCODE: "000001.SZ",
         SECURITY_NAME_ABBR: "平安银行",
+        ORG_TYPE: "银行",
         REPORT_DATE: "2025-06-30 00:00:00",
         REPORT_DATE_NAME: "2025半年报",
         TOTALOPERATEREVE: 69300000000,
@@ -124,6 +125,46 @@ const holderPayload = {
   },
 };
 
+const bankStatementDates = ["2025-03-31", "2025-06-30", "2025-09-30", "2025-12-31", "2026-03-31"];
+const bankIncomePayload = {
+  success: true,
+  result: {
+    data: bankStatementDates.map((date, index) => ({
+      REPORT_DATE: `${date} 00:00:00`,
+      REPORT_DATE_NAME: `${date.slice(0, 4)}Q${Math.ceil(Number(date.slice(5, 7)) / 3)}`,
+      ORG_TYPE: "银行",
+      TOTAL_OPERATE_INCOME: [100, 220, 360, 520, 150][index],
+      OPERATE_PROFIT: [12, 30, 55, 88, 26][index],
+      PARENT_NETPROFIT: [10, 25, 45, 70, 20][index],
+      DEDUCT_PARENT_NETPROFIT: [8, 20, 37, 60, 18][index],
+    })),
+  },
+};
+const bankBalancePayload = {
+  success: true,
+  result: {
+    data: bankStatementDates.map((date, index) => ({
+      REPORT_DATE: `${date} 00:00:00`,
+      TOTAL_ASSETS: [300, 320, 340, 370, 430][index],
+      TOTAL_LIABILITIES: [250, 268, 286, 310, 360][index],
+      TOTAL_PARENT_EQUITY: [50, 52, 54, 60, 70][index],
+      BOND_PAYABLE: [20, 21, 22, 25, 30][index],
+    })),
+  },
+};
+const bankCashflowPayload = {
+  success: true,
+  result: {
+    data: bankStatementDates.map((date, index) => ({
+      REPORT_DATE: `${date} 00:00:00`,
+      NETCASH_OPERATE: [5, 18, 36, 80, 25][index],
+      NETCASH_INVEST: [-4, -9, -16, -25, -7][index],
+      NETCASH_FINANCE: [8, 12, 20, 30, 10][index],
+      CONSTRUCT_LONG_ASSET: [2, 5, 9, 14, 4][index],
+    })),
+  },
+};
+
 test("normalizes A-share financial report stock codes", () => {
   assert.deepEqual(normalizeFinancialRequest({ code: "sz000001" }), { code: "000001" });
   assert.equal(toSecuCode("000001"), "000001.SZ");
@@ -197,6 +238,18 @@ test("production financial route returns recent reports", async () => {
       assert.equal(url.searchParams.get("sortColumns"), "END_DATE");
       return new Response(JSON.stringify(holderPayload), { status: 200 });
     }
+    if (reportName === "RPT_F10_FINANCE_GINCOME") {
+      return new Response(JSON.stringify(bankIncomePayload), { status: 200 });
+    }
+    if (reportName === "RPT_F10_FINANCE_GBALANCE" || reportName === "RPT_F10_FINANCE_GCASHFLOW") {
+      return new Response(JSON.stringify({ success: false, message: "返回数据为空" }), { status: 200 });
+    }
+    if (reportName === "RPT_F10_FINANCE_BBALANCE") {
+      return new Response(JSON.stringify(bankBalancePayload), { status: 200 });
+    }
+    if (reportName === "RPT_F10_FINANCE_BCASHFLOW") {
+      return new Response(JSON.stringify(bankCashflowPayload), { status: 200 });
+    }
     return new Response(JSON.stringify({ success: false, message: "unexpected report" }), { status: 400 });
   };
   try {
@@ -212,6 +265,10 @@ test("production financial route returns recent reports", async () => {
     assert.equal(dataset.snapshot.peTtm, 4.858);
     assert.equal(dataset.snapshot.dividendPaymentsTtm, 2);
     assert.equal(dataset.holderStructure.institutionalRatio, 45);
+    assert.equal(dataset.analysis.periods.length, 5);
+    assert.equal(dataset.analysis.latestReportDate, "2026-03-31");
+    assert.equal(dataset.analysis.periods[0].balance.totalAssets, 430);
+    assert.equal(dataset.analysis.periods[0].cumulative.operatingCashFlow, 25);
   } finally {
     globalThis.fetch = originalFetch;
   }
