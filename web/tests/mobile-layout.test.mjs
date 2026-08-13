@@ -12,7 +12,11 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(bannerStyles, /position: sticky;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \{/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 46px;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?min-height: 42px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.navigation \{[\s\S]*?height: 40px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?height: 40px;[\s\S]*?min-height: 40px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.search input \{ height: 36px; min-height: 36px !important;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField > button\[type="submit"\],[\s\S]*?\.addButton \{ display: none; \}/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?backdrop-filter: none;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.suggestionActions button \{ flex: 1;/);
 });
