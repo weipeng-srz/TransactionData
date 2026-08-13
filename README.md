@@ -9,8 +9,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-22.13%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
 </div>
-
-![TrendSight 应用图标](./web/public/trendsight-icon-512.png)
+<img width="1652" height="992" alt="image" src="https://github.com/user-attachments/assets/6bd4a33f-2cd6-4786-9d3f-335ab92550fa" />
 
 TrendSight 把行情、基本面、新闻舆情、技术指标和信号回测放进同一个 Web 研究界面。
 
