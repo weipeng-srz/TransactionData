@@ -5,16 +5,20 @@ import test from "node:test";
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
+const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 
 test("keeps the shared stock banner and search touch-friendly on mobile", () => {
   assert.match(pageSource, /<SiteBanner activePage="stock"/);
   assert.match(pageSource, /currentStockCode=\{selectedCode\}/);
   assert.match(bannerStyles, /position: sticky;/);
+  assert.match(bannerSource, /className=\{styles\.mobileSpacer\} aria-hidden="true"/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \{/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?position: fixed;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.mobileSpacer \{[\s\S]*?height: calc\(68px \+ env\(safe-area-inset-top\)\);[\s\S]*?display: block;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 46px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.navigation \{[\s\S]*?height: 40px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?height: 40px;[\s\S]*?min-height: 40px;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.search input \{ height: 36px; min-height: 36px !important;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.search input \{ height: 36px; min-height: 36px !important;[\s\S]*?font-size: 16px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField > button\[type="submit"\],[\s\S]*?\.addButton \{ display: none; \}/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?backdrop-filter: none;/);

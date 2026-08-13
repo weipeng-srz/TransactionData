@@ -128,6 +128,7 @@ export default function SiteBanner({
   const busy = phase !== "idle";
 
   return (
+    <>
     <header className={styles.banner} data-site-banner>
       <Link className={styles.brand} href="/" aria-label="TrendSight 自选股首页">
         <span className={styles.brandMark} aria-hidden="true" />
@@ -187,6 +188,8 @@ export default function SiteBanner({
         </button>
       </div>
     </header>
+    <div className={styles.mobileSpacer} aria-hidden="true" />
+    </>
   );
 }
 
