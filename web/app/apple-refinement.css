@@ -250,6 +250,27 @@
   .stock-initial-brand { display: none; }
   .stock-initial-card { padding: 28px 18px; border-radius: 22px; }
   .stock-initial-card h1 { font-size: 29px; }
+  .stock-initial-sources {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .stock-initial-sources > div {
+    min-width: 0;
+    min-height: 72px;
+    padding: 9px 7px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
+    gap: 7px;
+    border-right: 1px solid var(--apple-border);
+    border-bottom: 0;
+    text-align: center;
+  }
+  .stock-initial-sources > div:last-child { border-right: 0; }
+  .stock-initial-sources > div > span { display: block; }
+  .stock-initial-sources small,
+  .stock-initial-sources em { display: none; }
+  .stock-initial-sources strong { display: block; white-space: nowrap; }
 }
 
 :root[data-appearance="dark"] {
@@ -3736,4 +3757,63 @@ select:disabled {
 
 @media (max-width: 820px) {
   .sidebar-nav-heading { display: none; }
+
+  /* Stable mobile compositor: fixed and sticky chrome uses an opaque surface so
+     Safari does not repaint two large live-blur layers during every scroll. */
+  .app-sidebar,
+  .global-sidebar.app-sidebar {
+    background: color-mix(in srgb, var(--apple-surface) 97%, var(--apple-page));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transform: translateZ(0);
+    overflow-anchor: none;
+    contain: layout paint;
+  }
+
+  .app-sidebar .workspace-nav a,
+  .global-workspace-nav a,
+  .app-sidebar .workspace-nav a > span,
+  .global-workspace-nav a > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .research-page .query-sources {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .research-page .query-source,
+  .research-page .financial-source,
+  .research-page .news-source {
+    max-width: none;
+    min-height: 54px;
+    padding: 6px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    justify-items: stretch;
+    gap: 6px;
+    text-align: left;
+  }
+
+  .research-page .source-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .research-page .source-title-row {
+    display: grid;
+    justify-items: start;
+    gap: 3px;
+  }
+
+  .research-page .query-source p { display: none; }
+}
+
+@media (max-width: 520px) {
+  .research-page .query-source strong { display: none !important; }
+  .research-page .source-title-row { justify-items: center; }
 }

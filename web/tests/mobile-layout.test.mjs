@@ -11,8 +11,16 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(pageSource, /currentStockCode=\{selectedCode\}/);
   assert.match(bannerStyles, /position: sticky;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \{/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?min-height: 44px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 46px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?min-height: 42px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?backdrop-filter: none;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.suggestionActions button \{ flex: 1;/);
+});
+
+test("keeps stock loading sources and the bottom menu on one mobile row", () => {
+  assert.match(appleStyles, /@media \(max-width: 620px\)[\s\S]*?\.stock-initial-sources \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.app-sidebar \.workspace-nav a > span,[\s\S]*?white-space: nowrap;/);
+  assert.match(appleStyles, /Stable mobile compositor:[\s\S]*?backdrop-filter: none;/);
 });
 
 test("adds touch-friendly horizontal tracks only within mobile media rules", () => {

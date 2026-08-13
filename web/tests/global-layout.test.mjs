@@ -43,3 +43,9 @@ test("shows VIX coordinates only while the pointer is inside the chart", () => {
   assert.doesNotMatch(pageSource, /fear-crosshair-point/);
   assert.doesNotMatch(globalStyles, /\.fear-crosshair-point/);
 });
+
+test("keeps compact map values visible on mobile", () => {
+  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-marker-label \{[\s\S]*?display: block;/);
+  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-marker-label b \{ display: block;/);
+  assert.doesNotMatch(globalStyles, /@media \(max-width: 700px\)[\s\S]*?\.global-marker-label \{ display: none;/);
+});
