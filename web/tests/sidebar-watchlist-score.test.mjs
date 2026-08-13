@@ -37,3 +37,26 @@ test("calculates watchlist scores and reveals their detail on hover or focus", (
   assert.match(portfolioStyles, /html\[data-appearance="dark"\]\) \.scorePopover/);
   assert.match(portfolioStyles, /\.scoreDimensions \{/);
 });
+
+test("shows actionable B/S suggestions in every watchlist row", () => {
+  assert.match(portfolioSource, /<span>B\/S 建议<\/span>/);
+  assert.match(portfolioSource, /<option value="signal">B\/S 建议<\/option>/);
+  assert.match(portfolioSource, /signalMark = tone === "buy" \? "B" : tone === "sell" \? "S" : "—"/);
+  assert.match(portfolioSource, />查看依据<\/button>/);
+  assert.match(portfolioSource, /hasHolding \? "调持仓" : "记持仓"/);
+  assert.match(portfolioStyles, /\.signalActions \{/);
+  assert.match(portfolioStyles, /\.scoreBuy \.signalMark/);
+  assert.match(portfolioStyles, /\.scoreSell \.signalMark/);
+});
+
+test("prioritizes decision data and labels estimated daily capital flow", () => {
+  assert.match(portfolioSource, /<span>资金净流<\/span>/);
+  assert.match(portfolioSource, /<option value="capital">资金净流<\/option>/);
+  assert.match(portfolioSource, /activeNetAmount/);
+  assert.match(portfolioSource, /主动买卖估算/);
+  assert.match(portfolioSource, /量价模型估算/);
+  assert.match(portfolioSource, /置信 \{intent\.confidence\}%/);
+  assert.match(portfolioStyles, /\.capitalCell \{/);
+  assert.match(portfolioStyles, /border-radius: 12px;/);
+  assert.match(portfolioStyles, /border: 1px solid var\(--portfolio-border-strong\);/);
+});

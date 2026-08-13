@@ -527,11 +527,11 @@
 .watchlistCard {
   margin-top: 28px;
   overflow: hidden;
-  border: 1px solid var(--portfolio-border);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--portfolio-surface) 91%, transparent);
-  box-shadow: 0 18px 58px rgba(30, 44, 66, 0.075);
-  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--portfolio-border-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--portfolio-surface) 94%, transparent);
+  box-shadow: 0 10px 32px rgba(30, 44, 66, 0.055);
+  backdrop-filter: blur(22px) saturate(150%);
 }
 
 .listHeader {
@@ -568,7 +568,7 @@
 .listActions > button {
   height: 38px;
   border: 1px solid var(--portfolio-border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--portfolio-surface-solid);
   color: var(--portfolio-secondary);
   font-size: 10px;
@@ -610,29 +610,32 @@
 
 .columnHeader,
 .stockRow {
-  min-width: 1350px;
+  min-width: 1400px;
   display: grid;
-  grid-template-columns: minmax(180px, 1.25fr) minmax(165px, 1.2fr) minmax(135px, .9fr) minmax(130px, .82fr) minmax(125px, .86fr) minmax(145px, 1fr) minmax(128px, .86fr) minmax(168px, 1.05fr) 108px;
+  grid-template-columns: minmax(175px, 1.1fr) minmax(190px, 1.18fr) minmax(135px, .86fr) minmax(155px, .95fr) minmax(130px, .82fr) minmax(140px, .88fr) minmax(160px, 1fr) minmax(160px, 1fr) 92px;
   align-items: center;
 }
 
 .columnHeader {
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 20px;
   border-bottom: 1px solid var(--portfolio-border);
-  background: color-mix(in srgb, var(--portfolio-muted-surface) 82%, transparent);
+  background: color-mix(in srgb, var(--portfolio-muted-surface) 66%, transparent);
 }
 
 .columnHeader span {
   padding: 0 10px;
+  border-right: 1px solid color-mix(in srgb, var(--portfolio-border) 72%, transparent);
   color: var(--portfolio-tertiary);
   font-size: 8px;
   font-weight: 650;
   letter-spacing: 0.04em;
 }
 
+.columnHeader span:last-child { border-right: 0; }
+
 .stockRow {
-  min-height: 112px;
+  min-height: 106px;
   padding: 0 20px;
   position: relative;
   border-bottom: 1px solid var(--portfolio-border);
@@ -642,9 +645,14 @@
 }
 
 .stockRow:last-child { border-bottom: 0; }
-.stockRow:hover { background: color-mix(in srgb, var(--portfolio-blue) 3.2%, transparent); }
+.stockRow:hover { background: color-mix(in srgb, var(--portfolio-blue) 2.4%, transparent); }
 .stockRow:focus-visible { box-shadow: inset 0 0 0 2px var(--portfolio-blue); }
 .stockRow > div { min-width: 0; padding: 0 10px; }
+
+@media (min-width: 821px) {
+  .stockRow > div { border-right: 1px solid color-mix(in srgb, var(--portfolio-border) 55%, transparent); }
+  .stockRow > div:last-child { border-right: 0; }
+}
 
 .stockIdentity {
   display: grid;
@@ -654,23 +662,21 @@
 }
 
 .stockAvatar {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--portfolio-blue) 15%, var(--portfolio-border));
-  border-radius: 12px;
+  border-radius: 9px;
   background: color-mix(in srgb, var(--portfolio-blue) 8%, var(--portfolio-surface-solid));
   color: var(--portfolio-blue);
   font-size: 14px;
   font-weight: 720;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .stockIdentity > div,
 .holdingCell,
-.valueCell,
 .profitCell,
 .priceCell {
   min-width: 0;
@@ -697,7 +703,7 @@
 .stockIdentity em {
   width: fit-content;
   padding: 2px 5px;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--portfolio-muted-surface);
 }
 
@@ -746,7 +752,7 @@
 }
 
 .priceCell strong,
-.valueCell strong,
+.capitalCell strong,
 .profitCell strong,
 .holdingCell strong {
   overflow: hidden;
@@ -758,7 +764,6 @@
 
 .priceCell > span,
 .holdingCell > span,
-.valueCell > span,
 .profitCell > span {
   overflow: hidden;
   color: var(--portfolio-secondary);
@@ -772,33 +777,63 @@
 .scoreCell {
   min-width: 0;
   position: relative;
-  display: flex;
-  align-items: center;
+  display: grid;
+  align-content: center;
+  gap: 6px;
 }
 
 .scoreBadge {
-  min-width: 92px;
+  width: 100%;
   min-height: 48px;
-  padding: 7px 10px;
+  padding: 7px 9px;
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: baseline;
-  column-gap: 2px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   border: 1px solid color-mix(in srgb, currentColor 18%, var(--portfolio-border));
-  border-radius: 13px;
+  border-radius: 9px;
   background: color-mix(in srgb, currentColor 6%, var(--portfolio-surface));
   color: var(--portfolio-secondary);
   text-align: left;
   cursor: help;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.32);
 }
 
-.scoreBadge strong { font-size: 19px; font-weight: 700; letter-spacing: -.045em; }
-.scoreBadge > span { opacity: .7; font-size: 8px; }
-.scoreBadge em { grid-column: 1 / -1; font-size: 8px; font-style: normal; font-weight: 650; }
+.signalMark {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: white;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.scoreBadge > span { min-width: 0; display: grid; gap: 3px; text-align: left; }
+.scoreBadge strong { overflow: hidden; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.scoreBadge small { opacity: .7; font-size: 7px; }
 .scoreBuy { color: var(--portfolio-red); }
 .scoreSell { color: var(--portfolio-green); }
 .scoreHold { color: var(--portfolio-blue); }
+.scoreBuy .signalMark { background: var(--portfolio-red); }
+.scoreSell .signalMark { background: var(--portfolio-green); }
+.scoreHold .signalMark { background: var(--portfolio-blue); }
+
+.signalActions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.signalActions button {
+  min-width: 0;
+  height: 25px;
+  padding: 0 5px;
+  border: 1px solid var(--portfolio-border);
+  border-radius: 6px;
+  background: var(--portfolio-surface-solid);
+  color: var(--portfolio-secondary);
+  font-size: 7px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.signalActions button:hover,
+.signalActions button:focus-visible { border-color: color-mix(in srgb, var(--portfolio-blue) 35%, var(--portfolio-border)); color: var(--portfolio-blue); }
 
 .scoreSkeleton {
   width: 92px;
@@ -807,7 +842,7 @@
   display: grid;
   gap: 6px;
   border: 1px solid var(--portfolio-border);
-  border-radius: 13px;
+  border-radius: 9px;
   background: var(--portfolio-muted-surface);
   color: var(--portfolio-tertiary);
   font-size: 8px;
@@ -884,6 +919,41 @@
   font-size: 9px;
   font-weight: 620;
   cursor: pointer;
+}
+
+.holdingCell small {
+  overflow: hidden;
+  color: var(--portfolio-tertiary);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capitalCell {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.capitalCell > span {
+  color: var(--portfolio-tertiary);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.capitalCell strong {
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.capitalCell small {
+  overflow: hidden;
+  color: var(--portfolio-tertiary);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .marketCell {
@@ -1193,7 +1263,7 @@
   .globalMarketHeader > div:last-child { gap: 0; }
   .globalMarketGrid { margin-right: -12px; padding-right: 12px; grid-template-columns: repeat(5, 170px); }
   .globalMetric { min-height: 100px; }
-  .watchlistCard { margin-top: 18px; border-radius: 18px; overflow: visible; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+  .watchlistCard { margin-top: 18px; border-radius: 10px; overflow: visible; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
   .listHeader { min-height: 100px; padding: 18px 2px; border-bottom: 0; }
   .listHeader > div:first-child > span { display: none; }
   .listActions label { display: none; }
@@ -1209,27 +1279,30 @@
     grid-template-areas:
       "identity price actions"
       "score score score"
+      "capital capital capital"
       "chart chart chart"
-      "holding value profit"
+      "holding holding profit"
       "market market market";
-    gap: 14px 10px;
-    border: 1px solid var(--portfolio-border);
-    border-radius: 17px;
-    background: color-mix(in srgb, var(--portfolio-surface) 92%, transparent);
-    box-shadow: 0 10px 32px rgba(30, 44, 66, 0.06);
-    backdrop-filter: blur(18px);
+    gap: 13px 10px;
+    border: 1px solid var(--portfolio-border-strong);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--portfolio-surface) 95%, transparent);
+    box-shadow: 0 7px 22px rgba(30, 44, 66, 0.045);
+    backdrop-filter: blur(16px);
   }
   .stockRow:last-child { border-bottom: 1px solid var(--portfolio-border); }
   .stockRow > div { padding: 0; }
   .stockIdentity { grid-area: identity; }
   .priceCell { grid-area: price; justify-items: end; text-align: right; }
   .scoreCell { grid-area: score; }
-  .scoreBadge { width: 100%; min-height: 42px; grid-template-columns: auto auto 1fr; align-items: center; }
-  .scoreBadge em { grid-column: 3; justify-self: end; }
+  .scoreBadge { min-height: 48px; }
+  .signalActions button { min-height: 40px; font-size: 9px; }
+  .capitalCell { grid-area: capital; padding: 11px 0 !important; grid-template-columns: auto 1fr auto; align-items: baseline; border-top: 1px solid var(--portfolio-border); border-bottom: 1px solid var(--portfolio-border); }
+  .capitalCell strong { justify-self: center; font-size: 14px; }
+  .capitalCell small { justify-self: end; }
   .rowActions { grid-area: actions; }
   .klineCell { grid-area: chart; height: 76px; grid-template-rows: 56px 14px; padding: 4px 0 !important; border-top: 1px solid var(--portfolio-border); border-bottom: 1px solid var(--portfolio-border); }
   .holdingCell { grid-area: holding; }
-  .valueCell { grid-area: value; }
   .profitCell { grid-area: profit; justify-items: end; text-align: right; }
   .marketCell { grid-area: market; grid-template-columns: 1fr 1fr auto; align-items: end; }
   .marketCell small { grid-column: 3; grid-row: 1; align-self: end; }
@@ -1255,11 +1328,13 @@
   .listHeader h2 { font-size: 19px; }
   .listActions > button { width: 38px; padding: 0; justify-content: center; font-size: 0; }
   .listActions svg { width: 16px; height: 16px; }
-  .stockRow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "identity actions" "price price" "score score" "chart chart" "holding profit" "value value" "market market"; }
+  .stockRow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "identity actions" "price price" "score score" "capital capital" "holding profit" "chart chart" "market market"; }
   .priceCell { justify-items: start; text-align: left; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 10px; }
   .priceCell small { grid-column: 1 / -1; }
   .scorePopover { width: min(330px, calc(100vw - 24px)); }
-  .valueCell { padding-top: 11px !important; border-top: 1px solid var(--portfolio-border); }
+  .capitalCell { grid-template-columns: 1fr auto; }
+  .capitalCell strong { justify-self: end; }
+  .capitalCell small { grid-column: 1 / -1; justify-self: start; }
   .marketCell { grid-template-columns: 1fr 1fr; }
   .marketCell small { grid-column: 1 / -1; grid-row: auto; }
   .positionFields { grid-template-columns: 1fr; }

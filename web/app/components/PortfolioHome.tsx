@@ -11,6 +11,7 @@ import {
   formatNumber,
   parseMarketCsv,
   type Candle,
+  type IntentAnalysis,
 } from "../lib/market";
 import { emptyFinancialDataset } from "../lib/financials";
 import {
@@ -56,6 +57,7 @@ type PortfolioQuote = {
   source: string;
   error: string;
   score: StockScoreReport | null;
+  intent: IntentAnalysis | null;
 };
 
 type PositionEditor = {
@@ -104,6 +106,7 @@ const emptyQuote: PortfolioQuote = {
   source: "",
   error: "",
   score: null,
+  intent: null,
 };
 
 export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: string) => void }) {
@@ -116,7 +119,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const [editor, setEditor] = useState<PositionEditor | null>(null);
   const [removedStock, setRemovedStock] = useState<RemovedStock | null>(null);
   const [notice, setNotice] = useState("");
-  const [sortBy, setSortBy] = useState<"custom" | "change" | "profit">("custom");
+  const [sortBy, setSortBy] = useState<"custom" | "signal" | "capital" | "change" | "profit">("custom");
   const [lastRealtimeRefresh, setLastRealtimeRefresh] = useState("");
   const [globalFeed, setGlobalFeed] = useState<GlobalFeedState>({ status: "loading", data: null, error: "" });
   const realtimeRequestRef = useRef<AbortController | null>(null);
@@ -193,18 +196,19 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       if (!candles.length) throw new Error("历史行情没有可用 K 线");
       const indicators = calculateIndicators(candles);
       const latest = candles.at(-1);
+      const intent = latest ? analyzeMarketIntent(dataset, code, latest.date) : null;
       const score = buildStockScore({
         candles,
         indicators,
         currentPrice: latest?.close ?? null,
-        intent: latest ? analyzeMarketIntent(dataset, code, latest.date) : null,
+        intent,
         financials: emptyFinancialDataset(),
         newsItems: [],
         risk: calculateRiskMetrics(candles),
         backtest: backtestGuideSignals(candles, indicators, [5, 10, 20]),
         dataQuality: dataset.quality,
       });
-      return { candles, name: dataset.stockNames[code] ?? stock.name, score };
+      return { candles, name: dataset.stockNames[code] ?? stock.name, score, intent };
     });
     const realtimeRequest = fetch("/api/realtime-market", {
       method: "POST",
@@ -256,6 +260,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       source: realtime ? "实时 + 180日K" : "最近收盘 + 180日K",
       error: marketResult.status === "rejected" || realtimeResult.status === "rejected" ? "部分数据源暂不可用" : "",
       score: marketResult.status === "fulfilled" ? marketResult.value.score : null,
+      intent: marketResult.status === "fulfilled" ? marketResult.value.intent : null,
     };
     setQuotes((current) => ({ ...current, [stock.code]: quote }));
   }, []);
@@ -489,6 +494,16 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const sortedWatchlist = useMemo(() => {
     if (sortBy === "custom") return watchlist;
     return [...watchlist].sort((left, right) => {
+      if (sortBy === "signal") {
+        const signalPriority = (report: StockScoreReport | null | undefined) => {
+          if (!report) return -Infinity;
+          if (report.signal.tone === "buy") return 300 + report.score;
+          if (report.signal.tone === "sell") return 200 + (100 - report.score);
+          return 100 + Math.abs(report.score - 50);
+        };
+        return signalPriority(quotes[right.code]?.score) - signalPriority(quotes[left.code]?.score);
+      }
+      if (sortBy === "capital") return (quotes[right.code]?.intent?.activeNetAmount ?? -Infinity) - (quotes[left.code]?.intent?.activeNetAmount ?? -Infinity);
       if (sortBy === "change") return (quotes[right.code]?.changePct ?? -Infinity) - (quotes[left.code]?.changePct ?? -Infinity);
       const leftHolding = holdings[left.code];
       const rightHolding = holdings[right.code];
@@ -559,6 +574,8 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
               <label>排序
                 <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)}>
                   <option value="custom">最近添加</option>
+                  <option value="signal">B/S 建议</option>
+                  <option value="capital">资金净流</option>
                   <option value="change">涨跌幅</option>
                   <option value="profit">持仓收益</option>
                 </select>
@@ -575,7 +592,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           {watchlist.length ? (
             <div className={styles.tableViewport}>
               <div className={styles.columnHeader} aria-hidden="true">
-                <span>股票</span><span>近 60 日 K 线</span><span>最新价 / 涨跌</span><span>个股评分</span><span>持仓</span><span>市值 / 成本</span><span>持仓收益</span><span>今日行情</span><span>操作</span>
+                <span>股票</span><span>B/S 建议</span><span>最新价 / 涨跌</span><span>资金净流</span><span>持仓收益</span><span>持仓 / 市值</span><span>近 60 日趋势</span><span>今日行情</span><span>操作</span>
               </div>
               <div className={styles.stockList}>
                 {sortedWatchlist.map((stock) => (
@@ -772,26 +789,23 @@ function PortfolioRow({
         <span className={styles.stockAvatar}>{stock.name.slice(0, 1)}</span>
         <div><strong>{stock.name}</strong><small>{stock.code} · A股</small><em className={quote.marketStatus === "交易中" ? styles.live : ""}>{quote.marketStatus}</em></div>
       </div>
-      <div className={styles.klineCell}>
-        {quote.status === "loading" && !quote.candles.length ? <div className={styles.chartSkeleton} /> : quote.candles.length ? <MiniKline candles={quote.candles.slice(-60)} /> : <span className={styles.noChart}>K 线待更新</span>}
-        <small>{quote.date ? `${quote.date.slice(5)} · ${quote.source}` : "近 60 日"}</small>
-      </div>
+      <WatchlistScoreBadge report={quote.score} stockName={stock.name} hasHolding={Boolean(holding)} onOpen={onOpen} onEdit={onEdit} />
       <div className={styles.priceCell}>
         {quote.status === "error" ? <button className={styles.retryLink} type="button" onClick={(event) => { event.stopPropagation(); onRetry(); }}>重试行情</button> : <strong>{quote.price == null ? "—" : formatNumber(quote.price, quote.price >= 100 ? 2 : 3)}</strong>}
         <span className={tone}>{quote.change == null || quote.changePct == null ? "—" : `${quote.change >= 0 ? "+" : ""}${formatNumber(quote.change, 3)}  ${signedPercent(quote.changePct)}`}</span>
         {quote.error ? <small title={quote.error}>{quote.error}</small> : null}
       </div>
-      <WatchlistScoreBadge report={quote.score} />
-      <div className={styles.holdingCell}>
-        {holding ? <><strong>{formatShares(holding.shares)}</strong><span>成本 ¥{formatNumber(holding.cost, 3)}</span></> : <><strong>未设置</strong><button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }}>＋ 添加持仓</button></>}
-      </div>
-      <div className={styles.valueCell}>
-        <strong>{metrics ? formatCurrency(metrics.marketValue) : "—"}</strong>
-        <span>{metrics ? `成本 ${formatCurrency(metrics.costValue)}` : "设置后自动计算"}</span>
-      </div>
+      <CapitalFlowCell intent={quote.intent} quoteDate={quote.date} loading={quote.status === "loading"} />
       <div className={styles.profitCell}>
         <strong className={toneClass(metrics?.profit)}>{metrics ? signedCurrency(metrics.profit) : "—"}</strong>
         <span className={toneClass(metrics?.profitPct)}>{metrics ? signedPercent(metrics.profitPct) : "暂无持仓"}</span>
+      </div>
+      <div className={styles.holdingCell}>
+        {holding ? <><strong>{formatShares(holding.shares)}</strong><span>市值 {metrics ? formatCurrency(metrics.marketValue) : "—"}</span><small>成本 ¥{formatNumber(holding.cost, 3)}</small></> : <><strong>未设置</strong><span>记录后显示盈亏</span><button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }}>＋ 添加持仓</button></>}
+      </div>
+      <div className={styles.klineCell}>
+        {quote.status === "loading" && !quote.candles.length ? <div className={styles.chartSkeleton} /> : quote.candles.length ? <MiniKline candles={quote.candles.slice(-60)} /> : <span className={styles.noChart}>K 线待更新</span>}
+        <small>{quote.date ? `${quote.date.slice(5)} · ${quote.source}` : "近 60 日"}</small>
       </div>
       <div className={styles.marketCell}>
         <div><span>高 / 低</span><strong>{quote.high == null || quote.low == null ? "—" : `${formatNumber(quote.high, 2)} / ${formatNumber(quote.low, 2)}`}</strong></div>
@@ -807,12 +821,41 @@ function PortfolioRow({
   );
 }
 
-function WatchlistScoreBadge({ report }: { report: StockScoreReport | null }) {
+function CapitalFlowCell({ intent, quoteDate, loading }: { intent: IntentAnalysis | null; quoteDate: string; loading: boolean }) {
+  if (!intent) {
+    return <div className={styles.capitalCell}><span>今日资金</span><strong>—</strong><small>{loading ? "估算中" : "暂无可用数据"}</small></div>;
+  }
+  const direction = intent.activeNetAmount > 0 ? "流入" : intent.activeNetAmount < 0 ? "流出" : "持平";
+  const basisLabel = intent.basis === "level1" ? "主动买卖估算" : "量价模型估算";
+  const periodLabel = !quoteDate || intent.date === quoteDate ? "今日" : intent.date.slice(5);
+  return (
+    <div className={styles.capitalCell} title={`${basisLabel} · 置信度 ${intent.confidence}% · ${intent.label}`}>
+      <span>{periodLabel}{intent.basis === "level1" ? "主动净额" : "量价净额"}</span>
+      <strong className={toneClass(intent.activeNetAmount)}>{direction} {formatCapitalAmount(intent.activeNetAmount)}</strong>
+      <small>{basisLabel} · 置信 {intent.confidence}%</small>
+    </div>
+  );
+}
+
+function WatchlistScoreBadge({
+  report,
+  stockName,
+  hasHolding,
+  onOpen,
+  onEdit,
+}: {
+  report: StockScoreReport | null;
+  stockName: string;
+  hasHolding: boolean;
+  onOpen: () => void;
+  onEdit: () => void;
+}) {
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<{ left: number; top: number } | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
   const tone = report?.signal.tone ?? "hold";
+  const signalMark = tone === "buy" ? "B" : tone === "sell" ? "S" : "—";
 
   const showDetails = () => {
     const rect = anchorRef.current?.getBoundingClientRect();
@@ -841,11 +884,16 @@ function WatchlistScoreBadge({ report }: { report: StockScoreReport | null }) {
           type="button"
           aria-describedby={detailsVisible ? popoverId : undefined}
           aria-expanded={detailsVisible}
-          aria-label={`综合评分 ${report.score} 分，${report.signal.action}，悬停或聚焦查看详情`}
+          aria-label={`${stockName} B/S 建议：${report.signal.action}，综合评分 ${report.score} 分，悬停或聚焦查看依据`}
         >
-          <strong>{report.score}</strong><span>/100</span><em>{report.signal.action}</em>
+          <b className={styles.signalMark} aria-hidden="true">{signalMark}</b>
+          <span><strong>{report.signal.action}</strong><small>{report.score} 分 · 模型建议</small></span>
         </button>
-      ) : <div className={styles.scoreSkeleton}><i /><span>评分计算中</span></div>}
+      ) : <div className={styles.scoreSkeleton}><i /><span>建议计算中</span></div>}
+      <div className={styles.signalActions}>
+        <button type="button" onClick={onOpen} aria-label={`查看 ${stockName} 的 B/S 分析依据`}>查看依据</button>
+        <button type="button" onClick={onEdit} aria-label={`${hasHolding ? "调整" : "记录"} ${stockName} 的持仓`}>{hasHolding ? "调持仓" : "记持仓"}</button>
+      </div>
       {detailsVisible && report && popoverPosition ? createPortal((
         <div className={styles.scorePopover} id={popoverId} role="tooltip" style={popoverPosition}>
           <header><div><span>WATCHLIST SCORE</span><strong>{report.signal.headline}</strong></div><b>{report.score}</b></header>
@@ -899,6 +947,11 @@ function formatCurrency(value: number): string {
 function signedCurrency(value: number): string {
   if (!Number.isFinite(value)) return "—";
   return `${value >= 0 ? "+" : "−"}¥${Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatCapitalAmount(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return `¥${compactNumber(Math.abs(value))}`;
 }
 
 function signedPercent(value: number): string {
