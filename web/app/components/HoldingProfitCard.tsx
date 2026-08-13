@@ -2,33 +2,30 @@
 
 import { useMemo, useState } from "react";
 import { calculateHoldingMetrics, type StockHolding } from "../lib/holdings";
+import type { StockCurrency } from "../lib/security";
 
 type HoldingProfitCardProps = {
   code: string;
   name: string;
   currentPrice: number | null;
   holding: StockHolding | null;
+  currency?: StockCurrency;
   isDemo: boolean;
   onSave: (shares: number, cost: number) => void;
   onClear: () => void;
 };
-
-const currencyFormatter = new Intl.NumberFormat("zh-CN", {
-  style: "currency",
-  currency: "CNY",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 export default function HoldingProfitCard({
   code,
   name,
   currentPrice,
   holding,
+  currency = "CNY",
   isDemo,
   onSave,
   onClear,
 }: HoldingProfitCardProps) {
+  const currencyFormatter = useMemo(() => new Intl.NumberFormat("zh-CN", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }), [currency]);
   const [sharesInput, setSharesInput] = useState(() => holding ? String(holding.shares) : "");
   const [costInput, setCostInput] = useState(() => holding ? String(holding.cost) : "");
   const [notice, setNotice] = useState("");
@@ -84,14 +81,14 @@ export default function HoldingProfitCard({
         </label>
         <label>
           <span>平均成本</span>
-          <div><input aria-label="平均成本" min="0.001" step="0.001" inputMode="decimal" type="number" value={costInput} onChange={(event) => setCostInput(event.target.value)} placeholder="例如 12.500" /><i>元</i></div>
+          <div><input aria-label="平均成本" min="0.001" step="0.001" inputMode="decimal" type="number" value={costInput} onChange={(event) => setCostInput(event.target.value)} placeholder="例如 12.500" /><i>{currency === "USD" ? "美元" : "元"}</i></div>
         </label>
       </div>
 
       <div className="holding-results" aria-live="polite">
         <div className="holding-profit">
           <span>目前盈亏</span>
-          <strong className={toneClass}>{metrics ? formatSignedCurrency(metrics.profit) : "—"}</strong>
+          <strong className={toneClass}>{metrics ? formatSignedCurrency(metrics.profit, currencyFormatter) : "—"}</strong>
           <b className={toneClass}>{metrics ? `${metrics.profitPct >= 0 ? "+" : ""}${metrics.profitPct.toFixed(2)}%` : "—"}</b>
         </div>
         <div className="holding-values">
@@ -113,7 +110,7 @@ function formatPrice(value: number): string {
   return new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(value);
 }
 
-function formatSignedCurrency(value: number): string {
+function formatSignedCurrency(value: number, currencyFormatter: Intl.NumberFormat): string {
   if (value === 0) return currencyFormatter.format(0);
   return `${value > 0 ? "+" : "-"}${currencyFormatter.format(Math.abs(value))}`;
 }

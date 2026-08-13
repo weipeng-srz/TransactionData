@@ -34,6 +34,7 @@ import {
 } from "../lib/watchlist";
 import SiteBanner from "./SiteBanner";
 import styles from "./PortfolioHome.module.css";
+import { currencyOf, marketLabel, marketOf, stockRouteKey, stockStorageKey, type StockCurrency } from "../lib/security";
 
 type Appearance = "light" | "dark";
 type QuoteStatus = "idle" | "loading" | "ready" | "error";
@@ -174,14 +175,16 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   }, [holdings, hydrated]);
 
   const loadQuote = useCallback(async (stock: WatchlistStock, signal: AbortSignal) => {
+    const key = stockStorageKey(stock);
+    const market = marketOf(stock);
     setQuotes((current) => ({
       ...current,
-      [stock.code]: { ...(current[stock.code] ?? emptyQuote), status: "loading", error: "" },
+      [key]: { ...(current[key] ?? emptyQuote), status: "loading", error: "" },
     }));
-    const marketRequest = fetch("/api/local-stock-data", {
+    const marketRequest = fetch(market === "US" ? "/api/us-stock-data" : "/api/local-stock-data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: stock.code, days: 180, kind: "stock" }),
+      body: JSON.stringify({ code: stock.code, days: 180, ...(market === "CN" ? { kind: "stock" } : {}) }),
       signal,
     }).then(async (response) => {
       const body = await response.text();
@@ -205,12 +208,12 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         financials: emptyFinancialDataset(),
         newsItems: [],
         risk: calculateRiskMetrics(candles),
-        backtest: backtestGuideSignals(candles, indicators, [5, 10, 20]),
+        backtest: backtestGuideSignals(candles, indicators, [5, 10, 20], { limitUpDownPct: market === "US" ? null : 9.8 }),
         dataQuality: dataset.quality,
       });
       return { candles, name: dataset.stockNames[code] ?? stock.name, score, intent };
     });
-    const realtimeRequest = fetch("/api/realtime-market", {
+    const realtimeRequest = fetch(market === "US" ? "/api/us-stock-realtime" : "/api/realtime-market", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: stock.code }),
@@ -229,7 +232,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       const realtimeError = realtimeResult.reason instanceof Error ? realtimeResult.reason.message : "实时行情失败";
       setQuotes((current) => ({
         ...current,
-        [stock.code]: { ...(current[stock.code] ?? emptyQuote), status: "error", error: `${marketError}；${realtimeError}` },
+        [key]: { ...(current[key] ?? emptyQuote), status: "error", error: `${marketError}；${realtimeError}` },
       }));
       return;
     }
@@ -262,7 +265,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       score: marketResult.status === "fulfilled" ? marketResult.value.score : null,
       intent: marketResult.status === "fulfilled" ? marketResult.value.intent : null,
     };
-    setQuotes((current) => ({ ...current, [stock.code]: quote }));
+    setQuotes((current) => ({ ...current, [key]: quote }));
   }, []);
 
   const refreshRealtimeQuotes = useCallback(async () => {
@@ -271,7 +274,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     const controller = new AbortController();
     realtimeRequestRef.current = controller;
     const results = await Promise.allSettled(watchlist.map(async (stock) => {
-      const response = await fetch("/api/realtime-market", {
+      const response = await fetch(marketOf(stock) === "US" ? "/api/us-stock-realtime" : "/api/realtime-market", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: stock.code }),
@@ -287,13 +290,14 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       const next = { ...current };
       results.forEach((result, index) => {
         const stock = watchlist[index];
-        const previous = current[stock.code] ?? emptyQuote;
+        const key = stockStorageKey(stock);
+        const previous = current[key] ?? emptyQuote;
         if (result.status === "rejected") {
-          if (previous.status === "ready") next[stock.code] = { ...previous, error: "本次实时刷新暂不可用" };
+          if (previous.status === "ready") next[key] = { ...previous, error: "本次实时刷新暂不可用" };
           return;
         }
         const realtime = result.value;
-        next[stock.code] = {
+        next[key] = {
           ...previous,
           status: "ready",
           price: realtime.price,
@@ -384,17 +388,18 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     return () => window.clearTimeout(timeout);
   }, [notice, removedStock]);
 
-  const addResolvedStock = (stock: WatchlistStock, existed = watchlist.some((item) => item.code === stock.code)) => {
+  const addResolvedStock = (stock: WatchlistStock, existed = watchlist.some((item) => stockStorageKey(item) === stockStorageKey(stock))) => {
     setWatchlist((current) => upsertWatchlistStock(current, stock));
     setNotice(existed ? `${stock.name} 已在自选股中，已移到列表顶部。` : `${stock.name} 已加入自选股。`);
   };
 
   const removeStock = (stock: WatchlistStock) => {
-    const index = watchlist.findIndex((item) => item.code === stock.code);
-    setWatchlist((current) => current.filter((item) => item.code !== stock.code));
+    const key = stockStorageKey(stock);
+    const index = watchlist.findIndex((item) => stockStorageKey(item) === key);
+    setWatchlist((current) => current.filter((item) => stockStorageKey(item) !== key));
     setQuotes((current) => {
       const next = { ...current };
-      delete next[stock.code];
+      delete next[key];
       return next;
     });
     setRemovedStock({ stock, index: Math.max(0, index) });
@@ -413,7 +418,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   };
 
   const openEditor = (stock: WatchlistStock) => {
-    const holding = holdings[stock.code];
+    const holding = holdings[stockStorageKey(stock)];
     setEditor({
       stock,
       shares: holding ? String(holding.shares) : "",
@@ -436,11 +441,12 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     }
     const holding: StockHolding = {
       code: editor.stock.code,
+      ...(marketOf(editor.stock) === "US" ? { market: "US" as const, currency: "USD" as const } : {}),
       shares,
       cost,
       updatedAt: new Date().toISOString(),
     };
-    setHoldings((current) => ({ ...current, [holding.code]: holding }));
+    setHoldings((current) => ({ ...current, [stockStorageKey(holding)]: holding }));
     setNotice(`${editor.stock.name} 的持仓已更新。`);
     setEditor(null);
   };
@@ -449,7 +455,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     if (!editor) return;
     setHoldings((current) => {
       const next = { ...current };
-      delete next[editor.stock.code];
+      delete next[stockStorageKey(editor.stock)];
       return next;
     });
     setNotice(`${editor.stock.name} 的持仓信息已清空。`);
@@ -494,6 +500,8 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const sortedWatchlist = useMemo(() => {
     if (sortBy === "custom") return watchlist;
     return [...watchlist].sort((left, right) => {
+      const leftKey = stockStorageKey(left);
+      const rightKey = stockStorageKey(right);
       if (sortBy === "signal") {
         const signalPriority = (report: StockScoreReport | null | undefined) => {
           if (!report) return -Infinity;
@@ -501,14 +509,14 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           if (report.signal.tone === "sell") return 200 + (100 - report.score);
           return 100 + Math.abs(report.score - 50);
         };
-        return signalPriority(quotes[right.code]?.score) - signalPriority(quotes[left.code]?.score);
+        return signalPriority(quotes[rightKey]?.score) - signalPriority(quotes[leftKey]?.score);
       }
-      if (sortBy === "capital") return (quotes[right.code]?.intent?.activeNetAmount ?? -Infinity) - (quotes[left.code]?.intent?.activeNetAmount ?? -Infinity);
-      if (sortBy === "change") return (quotes[right.code]?.changePct ?? -Infinity) - (quotes[left.code]?.changePct ?? -Infinity);
-      const leftHolding = holdings[left.code];
-      const rightHolding = holdings[right.code];
-      const leftProfit = leftHolding ? calculateHoldingMetrics(leftHolding.shares, leftHolding.cost, quotes[left.code]?.price)?.profit ?? -Infinity : -Infinity;
-      const rightProfit = rightHolding ? calculateHoldingMetrics(rightHolding.shares, rightHolding.cost, quotes[right.code]?.price)?.profit ?? -Infinity : -Infinity;
+      if (sortBy === "capital") return (quotes[rightKey]?.intent?.activeNetAmount ?? -Infinity) - (quotes[leftKey]?.intent?.activeNetAmount ?? -Infinity);
+      if (sortBy === "change") return (quotes[rightKey]?.changePct ?? -Infinity) - (quotes[leftKey]?.changePct ?? -Infinity);
+      const leftHolding = holdings[leftKey];
+      const rightHolding = holdings[rightKey];
+      const leftProfit = leftHolding ? calculateHoldingMetrics(leftHolding.shares, leftHolding.cost, quotes[leftKey]?.price)?.profit ?? -Infinity : -Infinity;
+      const rightProfit = rightHolding ? calculateHoldingMetrics(rightHolding.shares, rightHolding.cost, quotes[rightKey]?.price)?.profit ?? -Infinity : -Infinity;
       return rightProfit - leftProfit;
     });
   }, [holdings, quotes, sortBy, watchlist]);
@@ -541,17 +549,17 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         <section className={styles.summaryGrid} aria-label="投资组合概览">
           <article>
             <span>持仓市值</span>
-            <strong>{totals.positioned ? formatCurrency(totals.marketValue) : "—"}</strong>
-            <small>{totals.positioned ? `${totals.positioned} 只持仓 · 成本 ${formatCurrency(totals.costValue)}` : "设置持股数与成本价后显示"}</small>
+            <strong>{totals.positioned ? formatMixedCurrencyTotals(totals.byCurrency, "marketValue") : "—"}</strong>
+            <small>{totals.positioned ? `${totals.positioned} 只持仓 · 成本 ${formatMixedCurrencyTotals(totals.byCurrency, "costValue")}` : "设置持股数与成本价后显示"}</small>
           </article>
           <article>
             <span>累计收益</span>
-            <strong className={toneClass(totals.profit)}>{totals.positioned ? signedCurrency(totals.profit) : "—"}</strong>
-            <small className={toneClass(totals.profitPct)}>{totals.positioned ? signedPercent(totals.profitPct) : "暂无持仓数据"}</small>
+            <strong>{totals.positioned ? formatMixedCurrencyTotals(totals.byCurrency, "profit", true) : "—"}</strong>
+            <small>{totals.positioned ? "不同币种分别统计，不进行汇率折算" : "暂无持仓数据"}</small>
           </article>
           <article>
             <span>今日持仓盈亏</span>
-            <strong className={toneClass(totals.dayProfit)}>{totals.positioned ? signedCurrency(totals.dayProfit) : "—"}</strong>
+            <strong>{totals.positioned ? formatMixedCurrencyTotals(totals.byCurrency, "dayProfit", true) : "—"}</strong>
             <small>{latestUpdate ? `按 ${latestUpdate.slice(0, 16)} 行情估算` : "等待最新行情"}</small>
           </article>
           <article>
@@ -597,11 +605,11 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
               <div className={styles.stockList}>
                 {sortedWatchlist.map((stock) => (
                   <PortfolioRow
-                    key={stock.code}
+                    key={stockStorageKey(stock)}
                     stock={stock}
-                    quote={quotes[stock.code] ?? emptyQuote}
-                    holding={holdings[stock.code] ?? null}
-                    onOpen={() => onOpenStock(stock.code)}
+                    quote={quotes[stockStorageKey(stock)] ?? emptyQuote}
+                    holding={holdings[stockStorageKey(stock)] ?? null}
+                    onOpen={() => onOpenStock(stockRouteKey(stock))}
                     onEdit={() => openEditor(stock)}
                     onRemove={() => removeStock(stock)}
                     onRetry={() => void loadQuote(stock, new AbortController().signal)}
@@ -633,22 +641,22 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
             <header>
               <div className={styles.modalIdentity}>
                 <span className={styles.stockAvatar}>{editor.stock.name.slice(0, 1)}</span>
-                <div><p>编辑持仓</p><h2 id="position-title">{editor.stock.name}</h2><small>{editor.stock.code} · 沪深 A 股</small></div>
+                <div><p>编辑持仓</p><h2 id="position-title">{editor.stock.name}</h2><small>{editor.stock.code} · {marketLabel(marketOf(editor.stock))}</small></div>
               </div>
               <button className={styles.modalClose} type="button" onClick={() => setEditor(null)} aria-label="关闭编辑持仓">×</button>
             </header>
             <div className={styles.positionFields}>
               <label><span>持股数量</span><div><input inputMode="numeric" value={editor.shares} onChange={(event) => setEditor({ ...editor, shares: event.target.value, error: "" })} placeholder="例如 1000" autoFocus /><em>股</em></div></label>
-              <label><span>平均成本价</span><div><b>¥</b><input inputMode="decimal" value={editor.cost} onChange={(event) => setEditor({ ...editor, cost: event.target.value, error: "" })} placeholder="例如 12.50" /><em>元</em></div></label>
+              <label><span>平均成本价</span><div><b>{currencyOf(editor.stock) === "USD" ? "$" : "¥"}</b><input inputMode="decimal" value={editor.cost} onChange={(event) => setEditor({ ...editor, cost: event.target.value, error: "" })} placeholder="例如 12.50" /><em>{currencyOf(editor.stock) === "USD" ? "美元" : "元"}</em></div></label>
             </div>
             <div className={styles.positionPreview}>
               <span>预计持仓成本</span>
-              <strong>{Number(editor.shares) > 0 && Number(editor.cost) > 0 ? formatCurrency(Number(editor.shares) * Number(editor.cost)) : "—"}</strong>
+              <strong>{Number(editor.shares) > 0 && Number(editor.cost) > 0 ? formatCurrency(Number(editor.shares) * Number(editor.cost), currencyOf(editor.stock)) : "—"}</strong>
               <small>保存后将结合最新行情计算市值与收益</small>
             </div>
             {editor.error ? <p className={styles.modalError} role="alert">{editor.error}</p> : null}
             <footer>
-              {holdings[editor.stock.code] ? <button className={styles.clearButton} type="button" onClick={clearPosition}>清空持仓</button> : <span />}
+              {holdings[stockStorageKey(editor.stock)] ? <button className={styles.clearButton} type="button" onClick={clearPosition}>清空持仓</button> : <span />}
               <div><button className={styles.cancelButton} type="button" onClick={() => setEditor(null)}>取消</button><button className={styles.saveButton} type="button" onClick={savePosition}>保存持仓</button></div>
             </footer>
           </section>
@@ -773,6 +781,7 @@ function PortfolioRow({
   onRemove: () => void;
   onRetry: () => void;
 }) {
+  const currency = currencyOf(stock);
   const metrics = holding ? calculateHoldingMetrics(holding.shares, holding.cost, quote.price) : null;
   const dayProfit = holding && quote.change != null ? holding.shares * quote.change : null;
   const tone = toneClass(quote.changePct);
@@ -787,7 +796,7 @@ function PortfolioRow({
     >
       <div className={styles.stockIdentity}>
         <span className={styles.stockAvatar}>{stock.name.slice(0, 1)}</span>
-        <div><strong>{stock.name}</strong><small>{stock.code} · A股</small><em className={quote.marketStatus === "交易中" ? styles.live : ""}>{quote.marketStatus}</em></div>
+        <div><strong>{stock.name}</strong><small>{stock.code} · {marketOf(stock) === "US" ? "美股" : "A股"}</small><em className={quote.marketStatus === "交易中" ? styles.live : ""}>{quote.marketStatus}</em></div>
       </div>
       <WatchlistScoreBadge report={quote.score} stockName={stock.name} hasHolding={Boolean(holding)} onOpen={onOpen} onEdit={onEdit} />
       <div className={styles.priceCell}>
@@ -797,11 +806,11 @@ function PortfolioRow({
       </div>
       <CapitalFlowCell intent={quote.intent} quoteDate={quote.date} loading={quote.status === "loading"} />
       <div className={styles.profitCell}>
-        <strong className={toneClass(metrics?.profit)}>{metrics ? signedCurrency(metrics.profit) : "—"}</strong>
+        <strong className={toneClass(metrics?.profit)}>{metrics ? signedCurrency(metrics.profit, currency) : "—"}</strong>
         <span className={toneClass(metrics?.profitPct)}>{metrics ? signedPercent(metrics.profitPct) : "暂无持仓"}</span>
       </div>
       <div className={styles.holdingCell}>
-        {holding ? <><strong>{formatShares(holding.shares)}</strong><span>市值 {metrics ? formatCurrency(metrics.marketValue) : "—"}</span><small>成本 ¥{formatNumber(holding.cost, 3)}</small></> : <><strong>未设置</strong><span>记录后显示盈亏</span><button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }}>＋ 添加持仓</button></>}
+        {holding ? <><strong>{formatShares(holding.shares)}</strong><span>市值 {metrics ? formatCurrency(metrics.marketValue, currency) : "—"}</span><small>成本 {currency === "USD" ? "$" : "¥"}{formatNumber(holding.cost, 3)}</small></> : <><strong>未设置</strong><span>记录后显示盈亏</span><button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }}>＋ 添加持仓</button></>}
       </div>
       <div className={styles.klineCell}>
         {quote.status === "loading" && !quote.candles.length ? <div className={styles.chartSkeleton} /> : quote.candles.length ? <MiniKline candles={quote.candles.slice(-60)} /> : <span className={styles.noChart}>K 线待更新</span>}
@@ -810,7 +819,7 @@ function PortfolioRow({
       <div className={styles.marketCell}>
         <div><span>高 / 低</span><strong>{quote.high == null || quote.low == null ? "—" : `${formatNumber(quote.high, 2)} / ${formatNumber(quote.low, 2)}`}</strong></div>
         <div><span>量 / 换手</span><strong>{quote.volume == null ? "—" : `${compactNumber(quote.volume)} / ${quote.turnoverPct == null ? "—" : `${formatNumber(quote.turnoverPct, 2)}%`}`}</strong></div>
-        {dayProfit != null ? <small className={toneClass(dayProfit)}>今日持仓 {signedCurrency(dayProfit)}</small> : null}
+        {dayProfit != null ? <small className={toneClass(dayProfit)}>今日持仓 {signedCurrency(dayProfit, currency)}</small> : null}
       </div>
       <div className={styles.rowActions}>
         <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} aria-label={`编辑 ${stock.name} 的持仓`} title="编辑持仓"><EditIcon /></button>
@@ -939,14 +948,21 @@ function MiniKline({ candles }: { candles: Candle[] }) {
   );
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number, currency: StockCurrency = "CNY"): string {
   if (!Number.isFinite(value)) return "—";
-  return `¥${value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency === "USD" ? "$" : "¥"}${value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function signedCurrency(value: number): string {
+function signedCurrency(value: number, currency: StockCurrency = "CNY"): string {
   if (!Number.isFinite(value)) return "—";
-  return `${value >= 0 ? "+" : "−"}¥${Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${value >= 0 ? "+" : "−"}${currency === "USD" ? "$" : "¥"}${Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatMixedCurrencyTotals(totals: ReturnType<typeof calculatePortfolioTotals>["byCurrency"], key: "costValue" | "marketValue" | "profit" | "dayProfit", signed = false): string {
+  return (["CNY", "USD"] as StockCurrency[])
+    .filter((currency) => totals[currency].costValue > 0 || totals[currency][key] !== 0)
+    .map((currency) => signed ? signedCurrency(totals[currency][key], currency) : formatCurrency(totals[currency][key], currency))
+    .join(" · ") || "—";
 }
 
 function formatCapitalAmount(value: number): string {

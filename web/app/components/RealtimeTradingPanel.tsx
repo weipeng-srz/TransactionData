@@ -5,6 +5,7 @@ import KlineViewportControls from "./KlineViewportControls";
 import { klineRangeLength, normalizeKlineRange, normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange, type KlineRange } from "../lib/klineViewport";
 import type { RealtimeMinuteCandle, RealtimeSnapshot } from "../lib/realtimeMarket";
 import { analyzeRealtimeSignals, type RealtimeGuidePoint } from "../lib/realtimeSignals";
+import type { StockMarket } from "../lib/security";
 
 type LoadState = { phase: "idle" | "loading" | "success" | "error"; detail: string };
 type HoverPoint = { index: number; x: number; y: number; price: number };
@@ -12,10 +13,12 @@ type HoverPoint = { index: number; x: number; y: number; price: number };
 export default function RealtimeTradingPanel({
   snapshot,
   load,
+  market = "CN",
   onRefresh,
 }: {
   snapshot: RealtimeSnapshot | null;
   load: LoadState;
+  market?: StockMarket;
   onRefresh: () => void;
 }) {
   const imbalance = useMemo(() => {
@@ -36,7 +39,7 @@ export default function RealtimeTradingPanel({
       <header className="realtime-header">
         <div>
           <p className="eyebrow">LIVE TRADING DAY</p>
-          <h3>当前交易日 · 分钟 K 线与五档盘口</h3>
+          <h3>{market === "US" ? "美股最新报价" : "当前交易日 · 分钟 K 线与五档盘口"}</h3>
         </div>
         <div className="realtime-header-meta">
           {snapshot ? (
@@ -65,7 +68,7 @@ export default function RealtimeTradingPanel({
               <RealtimeMetric label="成交量" value={compact(snapshot.volume)} />
               <RealtimeMetric label="成交额" value={compact(snapshot.amount)} />
             </div>
-            <div className="realtime-signal-bar">
+            {snapshot.minuteCandles.length ? <div className="realtime-signal-bar">
               <div className="realtime-signal-legend"><span className="is-buy">B</span>买入观察 <span className="is-sell">S</span>卖出观察</div>
               {signalAnalysis.latestSignal ? (
                 <strong className={signalAnalysis.latestSignal.guide.type === "buy" ? "is-up" : "is-down"}>
@@ -73,7 +76,7 @@ export default function RealtimeTradingPanel({
                 </strong>
               ) : <span>当前交易日暂无复合 B/S 点</span>}
               <small>规则模型辅助信号，不构成投资建议</small>
-            </div>
+            </div> : null}
             <MinuteCandlestickChart
               key={`${snapshot.code}-${snapshot.date}`}
               candles={snapshot.minuteCandles}
@@ -83,11 +86,11 @@ export default function RealtimeTradingPanel({
             <div className="realtime-chart-footer">
               <span>1 分钟 K 线 · {snapshot.minuteCandles.length} 根 · B/S {signalAnalysis.signalCount} 个</span>
               <span>滚轮缩放 · 横向拖拽 · 双击复位 · ← → 定位</span>
-              <span title={snapshot.source}>新浪 L1 · 更新：{formatFetchedAt(snapshot.fetchedAt)}</span>
+              <span title={snapshot.source}>{market === "US" ? "美股延时报价" : "新浪 L1"} · 更新：{formatFetchedAt(snapshot.fetchedAt)}</span>
             </div>
           </section>
 
-          <aside className="orderbook-card">
+          {snapshot.bids.length || snapshot.asks.length ? <aside className="orderbook-card">
             <div className="orderbook-heading">
               <div><strong>五档买卖盘</strong><span>实时委托快照</span></div>
               <span className={(imbalance ?? 0) >= 0 ? "is-up" : "is-down"}>委比 {imbalance == null ? "—" : `${imbalance >= 0 ? "+" : ""}${imbalance.toFixed(1)}%`}</span>
@@ -104,7 +107,7 @@ export default function RealtimeTradingPanel({
               <div><span>买五合计</span><strong>{compact(snapshot.bids.reduce((sum, item) => sum + item.volume, 0))}</strong></div>
               <div><span>卖五合计</span><strong>{compact(snapshot.asks.reduce((sum, item) => sum + item.volume, 0))}</strong></div>
             </div>
-          </aside>
+          </aside> : <aside className="orderbook-card"><div className="realtime-empty"><strong>该市场不提供五档委托</strong><p>美股报价源仅返回价格、涨跌和成交统计，未将缺失盘口模拟为真实数据。</p></div></aside>}
         </div>
       ) : (
         <div className={`realtime-empty is-${load.phase}`}>

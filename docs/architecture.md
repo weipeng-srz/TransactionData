@@ -10,10 +10,18 @@ flowchart LR
     W --> API["同域 /api/* 路由"]
     API --> S["新浪公开行情与新闻"]
     API --> E["东方财富搜索与财务数据"]
+    API --> SEC["美国 SEC Company Facts"]
     API --> D1["Cloudflare D1"]
 ```
 
 浏览器不直接访问第三方数据源。所有外部请求集中在服务端客户端模块，避免把上游协议、请求头和响应解析散落到界面组件中。
+
+## A 股与美股隔离
+
+- A 股继续走 `/api/local-stock-*` 及 `stockLookup.ts`、`remoteMarket.ts`、`realtimeMarket.ts`、`remoteNews.ts`、`financials.ts`，其请求校验和响应格式不变。
+- 美股单独走 `/api/us-stock-*` 及 `usStockLookup.ts`、`usStockMarket.ts`、`usStockRealtime.ts`、`usStockNews.ts`、`usStockFinancials.ts`。
+- 界面仅通过 `security.ts` 解析 `CN/US` 市场身份并选择端点；美股路由键使用 `US:AAPL`，本地持仓键使用同一前缀，避免与旧的六位 A 股键混用。
+- CNY 与 USD 组合金额分开汇总，不做隐式汇率换算。
 
 ## Web 请求路径
 

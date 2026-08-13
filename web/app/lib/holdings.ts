@@ -1,7 +1,18 @@
 import { parseCsvRecords } from "./csv.ts";
+import {
+  currencyOf,
+  isUSStockSymbol,
+  marketOf,
+  normalizeUSSymbol,
+  stockStorageKey,
+  type StockCurrency,
+  type StockMarket,
+} from "./security.ts";
 
 export type StockHolding = {
   code: string;
+  market?: StockMarket;
+  currency?: StockCurrency;
   shares: number;
   cost: number;
   updatedAt: string;
@@ -19,6 +30,8 @@ export type HoldingMetrics = {
 export type HoldingImportStock = {
   code: string;
   name: string;
+  market?: StockMarket;
+  currency?: StockCurrency;
 };
 
 export type HoldingsCsvImport = {
@@ -40,7 +53,7 @@ export function parseHoldings(value: unknown): StockHoldings {
 
   for (const candidate of candidates.slice(0, maxHoldings)) {
     const holding = normalizeHolding(candidate);
-    if (holding) holdings[holding.code] = holding;
+    if (holding) holdings[stockStorageKey(holding)] = holding;
   }
   return holdings;
 }
@@ -48,12 +61,15 @@ export function parseHoldings(value: unknown): StockHoldings {
 export function normalizeHolding(value: unknown): StockHolding | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Partial<StockHolding>;
-  const code = String(candidate.code ?? "").trim();
+  const market = marketOf(candidate);
+  const currency = currencyOf(candidate);
+  const rawCode = String(candidate.code ?? "").trim();
+  const code = market === "US" ? normalizeUSSymbol(rawCode) : rawCode;
   const shares = Number(candidate.shares);
   const cost = Number(candidate.cost);
   const updatedAt = String(candidate.updatedAt ?? "");
   if (
-    !/^\d{6}$/.test(code)
+    !(market === "US" ? isUSStockSymbol(code) : /^\d{6}$/.test(code))
     || !Number.isInteger(shares)
     || shares <= 0
     || shares > maxShares
@@ -62,24 +78,28 @@ export function normalizeHolding(value: unknown): StockHolding | null {
     || cost > maxCost
     || Number.isNaN(Date.parse(updatedAt))
   ) return null;
-  return { code, shares, cost, updatedAt };
+  return market === "US"
+    ? { code, market, currency, shares, cost, updatedAt }
+    : { code, shares, cost, updatedAt };
 }
 
 export function exportHoldingsCsv(
   holdings: StockHoldings,
-  stocks: Array<{ code: string; name: string }>,
+  stocks: Array<{ code: string; name: string; market?: StockMarket }>,
 ): string {
-  const names = new Map(stocks.map((stock) => [stock.code, stock.name]));
+  const names = new Map(stocks.map((stock) => [stockStorageKey(stock), stock.name]));
+  const includeMarket = Object.values(holdings).some((holding) => marketOf(holding) === "US");
   const rows = Object.values(holdings)
-    .sort((left, right) => left.code.localeCompare(right.code))
+    .sort((left, right) => stockStorageKey(left).localeCompare(stockStorageKey(right)))
     .map((holding) => [
       holding.code,
-      names.get(holding.code) ?? "",
+      names.get(stockStorageKey(holding)) ?? "",
       String(holding.shares),
       String(holding.cost),
+      ...(includeMarket ? [marketOf(holding), currencyOf(holding)] : []),
     ]);
   return `\uFEFF${[
-    ["股票代码", "股票名称", "持股数量", "平均成本价"],
+    ["股票代码", "股票名称", "持股数量", "平均成本价", ...(includeMarket ? ["市场", "币种"] : [])],
     ...rows,
   ].map((row) => row.map(escapeCsvField).join(",")).join("\r\n")}\r\n`;
 }
@@ -94,8 +114,10 @@ export function parseHoldingsCsv(content: string, updatedAt = new Date().toISOSt
     name: findHeader(headers, ["股票名称", "名称", "name"]),
     shares: findHeader(headers, ["持股数量", "持有股数", "股数", "shares"]),
     cost: findHeader(headers, ["平均成本价", "平均成本", "成本价", "成本", "cost"]),
+    market: findHeader(headers, ["市场", "market"]),
+    currency: findHeader(headers, ["币种", "货币", "currency"]),
   };
-  if (Object.values(indexes).some((index) => index < 0)) {
+  if ([indexes.code, indexes.name, indexes.shares, indexes.cost].some((index) => index < 0)) {
     throw new Error("CSV 表头需包含：股票代码、股票名称、持股数量、平均成本价");
   }
   const holdings: StockHoldings = {};
@@ -104,18 +126,23 @@ export function parseHoldingsCsv(content: string, updatedAt = new Date().toISOSt
   records.slice(1).forEach((record, index) => {
     const line = index + 2;
     const rawCode = String(record[indexes.code] ?? "").trim();
-    const code = /^\d{1,6}$/.test(rawCode) ? rawCode.padStart(6, "0") : rawCode;
+    const marketValue = indexes.market >= 0 ? String(record[indexes.market] ?? "").trim().toUpperCase() : "";
+    const inferredUS = marketValue === "US" || marketValue === "美股" || (!/^\d{1,6}$/.test(rawCode) && isUSStockSymbol(rawCode));
+    const market: StockMarket = inferredUS ? "US" : "CN";
+    const currency: StockCurrency = market === "US" ? "USD" : "CNY";
+    const code = market === "US" ? normalizeUSSymbol(rawCode) : /^\d{1,6}$/.test(rawCode) ? rawCode.padStart(6, "0") : rawCode;
     const name = String(record[indexes.name] ?? "").trim();
     const shares = Number(String(record[indexes.shares] ?? "").replace(/,/g, "").trim());
     const cost = Number(String(record[indexes.cost] ?? "").replace(/[¥￥,]/g, "").trim());
-    if (!/^\d{6}$/.test(code)) throw new Error(`第 ${line} 行股票代码必须是 6 位数字`);
+    if (!(market === "US" ? isUSStockSymbol(code) : /^\d{6}$/.test(code))) throw new Error(`第 ${line} 行股票代码与市场不匹配`);
     if (!name || name.length > 40) throw new Error(`第 ${line} 行股票名称不能为空且不能超过 40 个字符`);
-    if (seen.has(code)) throw new Error(`第 ${line} 行股票代码 ${code} 重复`);
-    const holding = normalizeHolding({ code, shares, cost, updatedAt });
+    const key = stockStorageKey({ code, market });
+    if (seen.has(key)) throw new Error(`第 ${line} 行股票代码 ${code} 重复`);
+    const holding = normalizeHolding({ code, market, currency, shares, cost, updatedAt });
     if (!holding) throw new Error(`第 ${line} 行的持股数量或平均成本价无效`);
-    seen.add(code);
-    holdings[code] = holding;
-    stocks.push({ code, name });
+    seen.add(key);
+    holdings[key] = holding;
+    stocks.push(market === "US" ? { code, name, market, currency } : { code, name });
   });
   if (!stocks.length) throw new Error("CSV 中没有可导入的持仓记录");
   return { holdings, stocks };

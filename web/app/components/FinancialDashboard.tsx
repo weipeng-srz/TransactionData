@@ -9,6 +9,7 @@ import type {
   FinancialViewMode,
 } from "../lib/financialAnalysis";
 import FinancialChart, { type FinancialChartSeries } from "./FinancialChart";
+import type { StockCurrency } from "../lib/security";
 
 type LoadState = { phase: "idle" | "loading" | "success" | "error"; detail: string };
 type RangeKey = "8q" | "12q" | "5y" | "10y";
@@ -63,7 +64,7 @@ const tableRows: TableRow[] = [
   { key: "interestCoverage", label: "利息保障倍数", group: "偿债能力", source: "balance", format: "ratio", formula: "息税前利润 ÷ 利息费用" },
 ];
 
-export default function FinancialDashboard({ dataset, load }: { dataset: FinancialDataset; load: LoadState }) {
+export default function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: FinancialDataset; load: LoadState; currency?: StockCurrency }) {
   const [range, setRange] = useState<RangeKey>("8q");
   const [mode, setMode] = useState<FinancialViewMode>("single");
   const [profitKey, setProfitKey] = useState<ProfitKey>("deductNetProfit");
@@ -86,6 +87,7 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
   const labels = visiblePeriods.map(shortPeriodLabel);
   const selectedProfitLabel = profitKey === "parentNetProfit" ? "归母净利润" : "扣非净利润";
   const advancedQuality = latest ? calculateAdvancedQuality(latest, priorPeriod, dataset) : null;
+  const amountUnit = currency === "USD" ? "USD" : "元";
 
   const metricValues = (key: keyof FinancialMetrics) => visiblePeriods.map((period) => displayValue(period, effectiveMode, displayMode, key));
   const absoluteValues = (key: keyof FinancialMetrics) => visiblePeriods.map((period) => period[effectiveMode][key]);
@@ -160,11 +162,11 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
       ) : latest ? (
         <>
           <div className="finance-kpi-grid">
-            <FinanceKpi label="营业收入" value={latest[effectiveMode].revenue} format="amount" yoy={comparisonFor(latest, effectiveMode, "yoy").revenue} qoq={comparisonFor(latest, effectiveMode, "qoq").revenue} trend={visiblePeriods.map((period) => period[effectiveMode].revenue)} />
-            <FinanceKpi label="归母净利润" value={latest[effectiveMode].parentNetProfit} format="amount" yoy={comparisonFor(latest, effectiveMode, "yoy").parentNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").parentNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].parentNetProfit)} />
-            <FinanceKpi label="扣非净利润" value={latest[effectiveMode].deductNetProfit} format="amount" yoy={comparisonFor(latest, effectiveMode, "yoy").deductNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").deductNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].deductNetProfit)} note={`与归母差额 ${formatAmount(latest[effectiveMode].nonRecurringProfit)}`} />
+            <FinanceKpi label="营业收入" value={latest[effectiveMode].revenue} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").revenue} qoq={comparisonFor(latest, effectiveMode, "qoq").revenue} trend={visiblePeriods.map((period) => period[effectiveMode].revenue)} />
+            <FinanceKpi label="归母净利润" value={latest[effectiveMode].parentNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").parentNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").parentNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].parentNetProfit)} />
+            <FinanceKpi label="扣非净利润" value={latest[effectiveMode].deductNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").deductNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").deductNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].deductNetProfit)} note={`与归母差额 ${formatAmount(latest[effectiveMode].nonRecurringProfit, currency)}`} />
             <FinanceKpi label="毛利率" value={latest[effectiveMode].grossMargin} format="percent" yoy={comparisonFor(latest, effectiveMode, "yoy").grossMargin} qoq={comparisonFor(latest, effectiveMode, "qoq").grossMargin} trend={visiblePeriods.map((period) => period[effectiveMode].grossMargin)} deltaUnit="个百分点" />
-            <FinanceKpi label="经营现金流" value={latest[effectiveMode].operatingCashFlow} format="amount" yoy={comparisonFor(latest, effectiveMode, "yoy").operatingCashFlow} qoq={comparisonFor(latest, effectiveMode, "qoq").operatingCashFlow} trend={visiblePeriods.map((period) => period[effectiveMode].operatingCashFlow)} />
+            <FinanceKpi label="经营现金流" value={latest[effectiveMode].operatingCashFlow} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").operatingCashFlow} qoq={comparisonFor(latest, effectiveMode, "qoq").operatingCashFlow} trend={visiblePeriods.map((period) => period[effectiveMode].operatingCashFlow)} />
             <FinanceKpi label="现金含量" value={latest[effectiveMode].cashCoverage} format="ratio" yoy={comparisonFor(latest, effectiveMode, "yoy").cashCoverage} qoq={comparisonFor(latest, effectiveMode, "qoq").cashCoverage} trend={visiblePeriods.map((period) => period[effectiveMode].cashCoverage)} note={cashCoverageNote(latest[effectiveMode].cashCoverage)} deltaUnit="" />
             <FinanceKpi label="ROE TTM" value={latest.ttm.roe} format="percent" yoy={latest.ttmYoY.roe} qoq={latest.ttmQoQ.roe} trend={visiblePeriods.map((period) => period.ttm.roe)} deltaUnit="个百分点" />
             <FinanceKpi label="资产负债率" value={latest.balance.debtAssetRatio} format="percent" yoy={latest.balanceYoY.debtAssetRatio} qoq={latest.balanceQoQ.debtAssetRatio} trend={visiblePeriods.map((period) => period.balance.debtAssetRatio)} deltaUnit="个百分点" />
@@ -176,7 +178,7 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
               <strong>{valuationVerdict(latest, dataset)}</strong>
               <small>{dataset.snapshot.valuationHistoryCount >= 20 ? `分位基于 ${dataset.snapshot.valuationHistoryFrom} 至今 ${dataset.snapshot.valuationHistoryCount} 个交易日` : "仅作历史财务与当前估值对照，不构成目标价判断"}</small>
             </div>
-            <ValuationMetric label="收盘价" value={formatPrice(dataset.snapshot.closePrice)} />
+            <ValuationMetric label="收盘价" value={formatPrice(dataset.snapshot.closePrice, currency)} />
             <ValuationMetric label="PE TTM" value={formatMultiple(dataset.snapshot.peTtm)} />
             <ValuationMetric label="PE历史分位" value={formatPercentile(dataset.snapshot.peTtmPercentile)} tone={dataset.snapshot.peTtmPercentile == null ? null : 50 - dataset.snapshot.peTtmPercentile} />
             <ValuationMetric label="PB MRQ" value={formatMultiple(dataset.snapshot.pb)} />
@@ -191,16 +193,16 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
 
           <div className="finance-chart-grid">
             <FinanceChartCard id="finance-income" title="收入趋势" subtitle={`${rangeLabel(range)} · ${modeLabel(effectiveMode)} · 柱为规模，线为同比`}>
-              <FinancialChart labels={labels} series={incomeSeries} leftUnit={displayMode === "absolute" ? "元" : "%"} rightUnit="%" ariaLabel="营业收入及同比趋势" />
+              <FinancialChart labels={labels} series={incomeSeries} leftUnit={displayMode === "absolute" ? amountUnit : "%"} rightUnit="%" ariaLabel="营业收入及同比趋势" />
             </FinanceChartCard>
             <FinanceChartCard id="finance-profit" title="利润趋势" subtitle={`${selectedProfitLabel} · 与收入分轴展示`}>
-              <FinancialChart labels={labels} series={profitSeries} leftUnit={displayMode === "absolute" ? "元" : "%"} rightUnit="%" ariaLabel={`${selectedProfitLabel}及同比趋势`} />
+              <FinancialChart labels={labels} series={profitSeries} leftUnit={displayMode === "absolute" ? amountUnit : "%"} rightUnit="%" ariaLabel={`${selectedProfitLabel}及同比趋势`} />
             </FinanceChartCard>
             <FinanceChartCard id="finance-margin" title="盈利能力趋势" subtitle="毛利率、净利率、扣非净利率与 ROE TTM · 单位 %">
               <FinancialChart labels={labels} series={profitabilitySeries} leftUnit="%" ariaLabel="盈利能力指标趋势" />
             </FinanceChartCard>
             <FinanceChartCard id="finance-cash" title="现金流与利润匹配度" subtitle={`${modeLabel(effectiveMode)} · 经营现金流、自由现金流与利润同轴比较`}>
-              <FinancialChart labels={labels} series={cashSeries} leftUnit={displayMode === "absolute" ? "元" : "%"} ariaLabel="净利润、经营现金流与自由现金流对比" />
+              <FinancialChart labels={labels} series={cashSeries} leftUnit={displayMode === "absolute" ? amountUnit : "%"} ariaLabel="净利润、经营现金流与自由现金流对比" />
             </FinanceChartCard>
             <FinanceChartCard id="finance-assets" title="资产负债与经营质量" subtitle="期末值指数化，所选区间首期 = 100；精确值见下表">
               <FinancialChart labels={labels} series={indexedQualitySeries} leftUnit="指数" ariaLabel="应收账款、存货、合同负债和有息负债指数趋势" />
@@ -223,18 +225,18 @@ export default function FinancialDashboard({ dataset, load }: { dataset: Financi
           <section className="finance-detail-card" id="finance-detail">
             <header>
               <div><p className="eyebrow">FINANCIAL MATRIX</p><h4>详细财务指标对比</h4></div>
-              <div><span>点击指标可展开趋势 · 悬停查看公式</span><button type="button" onClick={() => exportFinancialCsv(dataset.name || dataset.code, visiblePeriods, effectiveMode)}>导出 Excel / CSV</button></div>
+              <div><span>点击指标可展开趋势 · 悬停查看公式</span><button type="button" onClick={() => exportFinancialCsv(dataset.name || dataset.code, visiblePeriods, effectiveMode, currency)}>导出 Excel / CSV</button></div>
             </header>
             {expandedMetric ? (
               <div className="expanded-metric-chart">
                 <div><strong>{tableRows.find((row) => row.key === expandedMetric)?.label}</strong><button type="button" onClick={() => setExpandedMetric(null)}>收起</button></div>
-                <FinancialChart labels={labels} series={[expandedSeries(expandedMetric, visiblePeriods, effectiveMode)]} leftUnit={metricUnit(expandedMetric)} height={190} ariaLabel={`${String(expandedMetric)}趋势`} />
+                <FinancialChart labels={labels} series={[expandedSeries(expandedMetric, visiblePeriods, effectiveMode)]} leftUnit={metricUnit(expandedMetric, currency)} height={190} ariaLabel={`${String(expandedMetric)}趋势`} />
               </div>
             ) : null}
             <div className="finance-table-wrap">
               <table className="finance-table">
                 <thead><tr><th>指标</th>{visiblePeriods.map((period) => <th key={period.reportDate}>{shortPeriodLabel(period)}</th>)}</tr></thead>
-                <tbody>{renderTableRows(tableRows, visiblePeriods, effectiveMode, displayMode, expandedMetric, setExpandedMetric)}</tbody>
+                <tbody>{renderTableRows(tableRows, visiblePeriods, effectiveMode, displayMode, expandedMetric, setExpandedMetric, currency)}</tbody>
               </table>
             </div>
             <p className="finance-table-note">流量指标的单季度值由同一会计年度累计值差分；Q4 = 年报 - 三季报。TTM 为最近四个单季度之和；资产负债指标始终使用期末值。</p>
@@ -279,10 +281,10 @@ function FilterGroup({ label, value, options, onChange, disabled = false }: { la
   return <div className={`finance-filter-group ${disabled ? "is-disabled" : ""}`}><span>{label}</span><div>{options.map(([key, text]) => <button key={key} type="button" className={value === key ? "active" : ""} aria-pressed={value === key} disabled={disabled} onClick={() => onChange(key)}>{text}</button>)}</div></div>;
 }
 
-function FinanceKpi({ label, value, format, yoy, qoq, trend, note, deltaUnit = "%" }: { label: string; value: number | null; format: "amount" | "percent" | "ratio"; yoy: number | null; qoq: number | null; trend: Array<number | null>; note?: string; deltaUnit?: string }) {
+function FinanceKpi({ label, value, format, yoy, qoq, trend, note, deltaUnit = "%", currency = "CNY" }: { label: string; value: number | null; format: "amount" | "percent" | "ratio"; yoy: number | null; qoq: number | null; trend: Array<number | null>; note?: string; deltaUnit?: string; currency?: StockCurrency }) {
   return (
     <article className="finance-kpi">
-      <span>{label}</span><strong>{formatValue(value, format)}</strong>
+      <span>{label}</span><strong>{formatValue(value, format, currency)}</strong>
       <div><small className={toneClass(yoy)}>同比 {formatDelta(yoy, deltaUnit)}</small><small className={toneClass(qoq)}>环比 {formatDelta(qoq, deltaUnit)}</small></div>
       <MiniTrend values={trend} />
       {note ? <p>{note}</p> : null}
@@ -337,7 +339,7 @@ function expandedSeries(key: MetricKey, periods: FinancialAnalysisPeriod[], mode
   return { key: String(key), label: row?.label ?? String(key), values, color: "#63c7ff", kind: "line" };
 }
 
-function renderTableRows(rows: TableRow[], periods: FinancialAnalysisPeriod[], mode: FinancialViewMode, display: DisplayMode, expanded: MetricKey | null, setExpanded: (key: MetricKey | null) => void) {
+function renderTableRows(rows: TableRow[], periods: FinancialAnalysisPeriod[], mode: FinancialViewMode, display: DisplayMode, expanded: MetricKey | null, setExpanded: (key: MetricKey | null) => void, currency: StockCurrency) {
   let group = "";
   return rows.flatMap((row) => {
     const output: React.ReactNode[] = [];
@@ -345,12 +347,12 @@ function renderTableRows(rows: TableRow[], periods: FinancialAnalysisPeriod[], m
       group = row.group;
       output.push(<tr className="finance-table-group" key={`group-${group}`}><th colSpan={periods.length + 1}>{group}</th></tr>);
     }
-    output.push(<tr className={expanded === row.key ? "is-expanded" : ""} key={row.key}><th title={row.formula}><button type="button" onClick={() => setExpanded(expanded === row.key ? null : row.key)}>{row.label}<i>↗</i></button></th>{periods.map((period) => <td key={period.reportDate}>{formatTableValue(row, period, mode, display)}</td>)}</tr>);
+    output.push(<tr className={expanded === row.key ? "is-expanded" : ""} key={row.key}><th title={row.formula}><button type="button" onClick={() => setExpanded(expanded === row.key ? null : row.key)}>{row.label}<i>↗</i></button></th>{periods.map((period) => <td key={period.reportDate}>{formatTableValue(row, period, mode, display, currency)}</td>)}</tr>);
     return output;
   });
 }
 
-function formatTableValue(row: TableRow, period: FinancialAnalysisPeriod, mode: FinancialViewMode, display: DisplayMode): string {
+function formatTableValue(row: TableRow, period: FinancialAnalysisPeriod, mode: FinancialViewMode, display: DisplayMode, currency: StockCurrency): string {
   if (row.source === "balance") {
     const key = row.key as keyof FinancialBalanceMetrics;
     if (display === "yoy") return formatBalanceComparison(period.balanceYoY[key], row.format);
@@ -360,13 +362,13 @@ function formatTableValue(row: TableRow, period: FinancialAnalysisPeriod, mode: 
       const denominator = period.balance.totalAssets;
       return value == null || denominator == null || denominator === 0 ? "—" : formatPercent((value / denominator) * 100, false);
     }
-    return formatByKind(period.balance[key], row.format);
+    return formatByKind(period.balance[key], row.format, currency);
   }
   const key = row.key as keyof FinancialMetrics;
   if (display === "yoy") return formatComparison(period, mode, key, "yoy");
   if (display === "qoq") return formatComparison(period, mode, key, "qoq");
   if (display === "ratio" && row.format === "amount") return formatPercent(displayValue(period, mode, "ratio", key), false);
-  return formatByKind(period[mode][key], row.format);
+  return formatByKind(period[mode][key], row.format, currency);
 }
 
 function formatComparison(period: FinancialAnalysisPeriod, mode: FinancialViewMode, key: keyof FinancialMetrics, comparison: "yoy" | "qoq") {
@@ -442,8 +444,8 @@ function valuationVerdict(latest: FinancialAnalysisPeriod, dataset: FinancialDat
   return `PE TTM ${formatMultiple(pe)}，TTM 归母净利润同比 ${formatPercent(growthValue)}，当前估值需要后续盈利修复验证。`;
 }
 
-function exportFinancialCsv(name: string, periods: FinancialAnalysisPeriod[], mode: FinancialViewMode) {
-  const rows = [["指标", ...periods.map(shortPeriodLabel)], ...tableRows.map((row) => [row.label, ...periods.map((period) => formatTableValue(row, period, mode, "absolute"))])];
+function exportFinancialCsv(name: string, periods: FinancialAnalysisPeriod[], mode: FinancialViewMode, currency: StockCurrency) {
+  const rows = [["指标", ...periods.map(shortPeriodLabel)], ...tableRows.map((row) => [row.label, ...periods.map((period) => formatTableValue(row, period, mode, "absolute", currency))])];
   const blob = new Blob(["\uFEFF", rows.map((row) => row.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -459,15 +461,15 @@ function cashCoverageNote(value: number | null): string { return value == null ?
 function relativeGrowthText(revenue: number | null, profit: number | null): string { if (revenue == null || profit == null) return "同比口径暂不完整"; return profit > revenue ? "利润增速高于收入增速" : profit < revenue ? "利润增速低于收入增速" : "利润与收入增速接近"; }
 function falling(values: Array<number | null>): boolean { return values.every((value): value is number => value != null) && values[0] > values[1] && values[1] > values[2]; }
 function ratio(left: number | null, right: number | null): number | null { return left == null || right == null || right === 0 ? null : left / right; }
-function metricUnit(key: MetricKey): string { const row = tableRows.find((item) => item.key === key); return row?.format === "amount" ? "元" : row?.format === "percent" ? "%" : "指数"; }
+function metricUnit(key: MetricKey, currency: StockCurrency): string { const row = tableRows.find((item) => item.key === key); return row?.format === "amount" ? currency === "USD" ? "USD" : "元" : row?.format === "percent" ? "%" : "指数"; }
 function toneClass(value: number | null): string { return value == null || !Number.isFinite(value) ? "" : value >= 0 ? "is-up" : "is-down"; }
-function formatByKind(value: number | null, kind: TableRow["format"]): string { if (kind === "amount") return formatAmount(value); if (kind === "percent") return formatPercent(value, false); if (kind === "days") return value == null ? "—" : `${formatNumber(value, 1)} 天`; return formatRatio(value); }
-function formatValue(value: number | null, kind: "amount" | "percent" | "ratio"): string { return kind === "amount" ? formatAmount(value) : kind === "percent" ? formatPercent(value, false) : formatRatio(value); }
-function formatAmount(value: number | null): string { if (value == null || !Number.isFinite(value)) return "—"; const abs = Math.abs(value); if (abs >= 100_000_000) return `${formatNumber(value / 100_000_000, abs >= 10_000_000_000 ? 1 : 2)} 亿`; if (abs >= 10_000) return `${formatNumber(value / 10_000, 2)} 万`; return `${formatNumber(value, 0)} 元`; }
+function formatByKind(value: number | null, kind: TableRow["format"], currency: StockCurrency): string { if (kind === "amount") return formatAmount(value, currency); if (kind === "percent") return formatPercent(value, false); if (kind === "days") return value == null ? "—" : `${formatNumber(value, 1)} 天`; return formatRatio(value); }
+function formatValue(value: number | null, kind: "amount" | "percent" | "ratio", currency: StockCurrency): string { return kind === "amount" ? formatAmount(value, currency) : kind === "percent" ? formatPercent(value, false) : formatRatio(value); }
+function formatAmount(value: number | null, currency: StockCurrency = "CNY"): string { if (value == null || !Number.isFinite(value)) return "—"; const abs = Math.abs(value); if (currency === "USD") { if (abs >= 1_000_000_000) return `$${formatNumber(value / 1_000_000_000, 2)}B`; if (abs >= 1_000_000) return `$${formatNumber(value / 1_000_000, 2)}M`; return `$${formatNumber(value, 0)}`; } if (abs >= 100_000_000) return `${formatNumber(value / 100_000_000, abs >= 10_000_000_000 ? 1 : 2)} 亿`; if (abs >= 10_000) return `${formatNumber(value / 10_000, 2)} 万`; return `${formatNumber(value, 0)} 元`; }
 function formatPercent(value: number | null, signed = true): string { return value == null || !Number.isFinite(value) ? "—" : `${signed && value >= 0 ? "+" : ""}${formatNumber(value, 2)}%`; }
 function formatDelta(value: number | null, unit: string): string { if (value == null || !Number.isFinite(value)) return "—"; return `${value >= 0 ? "+" : ""}${formatNumber(value, 2)}${unit ? ` ${unit}` : ""}`; }
 function formatRatio(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 2)}×`; }
 function formatMultiple(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 2)}×`; }
 function formatPercentile(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 0)}%`; }
-function formatPrice(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `¥${formatNumber(value, 2)}`; }
+function formatPrice(value: number | null, currency: StockCurrency = "CNY"): string { return value == null || !Number.isFinite(value) ? "—" : `${currency === "USD" ? "$" : "¥"}${formatNumber(value, 2)}`; }
 function formatNumber(value: number, digits: number): string { return new Intl.NumberFormat("zh-CN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value); }

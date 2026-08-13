@@ -13,6 +13,7 @@ type Props = {
   appearance: "light" | "dark";
   candles: Candle[];
   benchmarkCandles?: Candle[];
+  benchmarkName?: string;
   indicators: IndicatorSet;
   overlays: Record<OverlayKey, boolean>;
   lowerIndicator: LowerIndicator;
@@ -98,6 +99,7 @@ export default function MarketChart({
   appearance,
   candles,
   benchmarkCandles = [],
+  benchmarkName = "沪深300",
   indicators,
   overlays,
   lowerIndicator,
@@ -641,7 +643,7 @@ export default function MarketChart({
           {eventsByDate.get(candles[hover.index].date)?.[0] ? <small className="chart-event-detail">{eventsByDate.get(candles[hover.index].date)?.[0].label}</small> : null}
         </div>
       ) : null}
-      <div className="chart-hint">指针锚定缩放 · 拖拽平移 · 双击复位{benchmarkCandles.length ? " · 青色虚线为沪深300归一化走势" : ""}</div>
+      <div className="chart-hint">指针锚定缩放 · 拖拽平移 · 双击复位{benchmarkCandles.length ? ` · 青色虚线为${benchmarkName}归一化走势` : ""}</div>
       <KlineViewportControls range={range} total={candles.length} minVisible={10} resetVisible={resetVisible} onRangeChange={onRangeChange} />
       <button className="chart-nudge chart-nudge-left" type="button" onClick={() => shiftRange(-Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向前移动图表">
         ‹

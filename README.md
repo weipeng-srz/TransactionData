@@ -2,7 +2,7 @@
 
 # TrendSight
 
-面向沪深 A 股的开源市场研究工作台
+面向沪深 A 股与美股的开源市场研究工作台
 
 [![CI](https://github.com/weipeng-srz/TransactionData/actions/workflows/ci.yml/badge.svg)](https://github.com/weipeng-srz/TransactionData/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
@@ -19,7 +19,7 @@ TrendSight 把行情、基本面、新闻舆情、技术指标和信号回测放
 
 ## 功能
 
-- 输入股票名称或代码，并行获取行情、估值、分红、财务报表和新闻；任一数据源完成后立即更新对应区域。
+- 输入 A 股或美股名称/代码，并行获取行情、财务报表和新闻；任一数据源完成后立即更新对应区域。
 - 支持多周期 K 线、MA/EMA/BOLL/VWAP、MACD/KDJ/RSI、神奇九转与组合 B/S 研究信号。
 - 展示财务趋势、现金流质量、资产质量、估值匹配和规则异常提示。
 - 提供新闻情绪初筛、事件标注、信号回测和风险指标。
@@ -66,7 +66,7 @@ pnpm dev
 
 ## 数据说明
 
-浏览器只请求仓库内的 `/api/*` 路由；服务端路由再访问新浪财经和东方财富公开接口。历史行情采用 HTTPS 日 K 聚合数据，页面内资金流、B/S 指引、情绪和回测结果均属于研究代理，不能替代授权行情或专业判断。
+浏览器只请求仓库内的 `/api/*` 路由；A 股继续使用原 `/api/local-stock-*` 接口，美股使用独立的 `/api/us-stock-*` 接口，服务端再访问新浪财经、东方财富和美国 SEC 的公开数据。历史行情采用 HTTPS 日 K 聚合数据，页面内资金流、B/S 指引、情绪和回测结果均属于研究代理，不能替代授权行情或专业判断。
 
 接口返回字段和计算口径见 [`docs/data-formats.md`](./docs/data-formats.md)，数据来源、限制和合规边界见 [`docs/data-sources.md`](./docs/data-sources.md)。
 

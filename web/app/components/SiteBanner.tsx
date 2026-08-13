@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
+import { isUSStockSymbol, marketLabel, marketOf, normalizeUSSymbol, stockRouteKey, stockStorageKey, type StockIdentity, type StockMarket } from "../lib/security";
 import styles from "./SiteBanner.module.css";
 
 type BannerPage = "portfolio" | "stock" | "global";
@@ -14,6 +15,7 @@ const watchlistStorageKey = "ticklens.watchlist.v1";
 export default function SiteBanner({
   activePage,
   currentStockCode = "",
+  currentStockMarket = "CN",
   statusText = "统一入口 · 快速研究",
   appearance,
   onToggleAppearance,
@@ -23,6 +25,7 @@ export default function SiteBanner({
 }: {
   activePage: BannerPage;
   currentStockCode?: string;
+  currentStockMarket?: StockMarket;
   statusText?: string;
   appearance: Appearance;
   onToggleAppearance: () => void;
@@ -73,8 +76,8 @@ export default function SiteBanner({
 
   const resolveStock = async (value = query) => {
     const input = value.trim();
-    if (!input) throw new Error("请输入股票名称或 6 位代码");
-    if (suggestion && (suggestion.code === input || suggestion.name === input)) return suggestion;
+    if (!input) throw new Error("请输入股票名称或代码");
+    if (suggestion && (suggestion.code === normalizeUSSymbol(input) || suggestion.code === input || suggestion.name === input)) return suggestion;
     const stock = await lookupStock(input);
     return { ...stock, addedAt: new Date().toISOString() };
   };
@@ -86,10 +89,11 @@ export default function SiteBanner({
       const stock = await resolveStock(value);
       setQuery(`${stock.name} / ${stock.code}`);
       setSuggestion(null);
-      if (onOpenStock) onOpenStock(stock.code);
-      else window.location.assign(`/?stock=${stock.code}`);
+      const routeKey = stockRouteKey(stock);
+      if (onOpenStock) onOpenStock(routeKey);
+      else window.location.assign(`/?stock=${encodeURIComponent(routeKey)}`);
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "没有找到匹配的沪深 A 股");
+      setMessage(reason instanceof Error ? reason.message : "没有找到匹配的 A 股或美股");
     } finally {
       setPhase("idle");
     }
@@ -106,7 +110,7 @@ export default function SiteBanner({
       } catch {
         localStorage.removeItem(watchlistStorageKey);
       }
-      const existed = current.some((item) => item.code === stock.code);
+      const existed = current.some((item) => stockStorageKey(item) === stockStorageKey(stock));
       localStorage.setItem(watchlistStorageKey, JSON.stringify(upsertWatchlistStock(current, stock)));
       window.dispatchEvent(new CustomEvent("ticklens:watchlist-change", { detail: stock }));
       onAddStock?.(stock, existed);
@@ -114,13 +118,13 @@ export default function SiteBanner({
       setSuggestion(null);
       setMessage(existed ? `${stock.name} 已在自选中，并已置顶。` : `${stock.name} 已加入自选。`);
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "没有找到匹配的沪深 A 股");
+      setMessage(reason instanceof Error ? reason.message : "没有找到匹配的 A 股或美股");
     } finally {
       setPhase("idle");
     }
   };
 
-  const globalHref = /^\d{6}$/.test(currentStockCode) ? `/global-markets?stock=${currentStockCode}` : "/global-markets";
+  const globalHref = currentStockCode ? `/global-markets?stock=${encodeURIComponent(stockRouteKey({ code: currentStockCode, market: currentStockMarket }))}` : "/global-markets";
   const busy = phase !== "idle";
 
   return (
@@ -152,7 +156,7 @@ export default function SiteBanner({
             id={`site-stock-search-${activePage}`}
             value={query}
             onChange={(event) => { setQuery(event.target.value); setSuggestion(null); setMessage(""); }}
-            placeholder="输入股票名称或代码，如 平安银行 / 000001"
+            placeholder="输入股票名称或代码，如 平安银行 / 000001 / AAPL"
             autoComplete="off"
             maxLength={40}
             disabled={busy}
@@ -162,13 +166,13 @@ export default function SiteBanner({
           <button type="submit" disabled={busy}>{phase === "opening" ? "切换中…" : "切换个股"}</button>
           {suggestion ? (
             <div className={styles.suggestion} role="listbox" aria-label="股票搜索结果">
-              <button className={styles.suggestionIdentity} type="button" onClick={() => void openStock(suggestion.code)}>
+              <button className={styles.suggestionIdentity} type="button" onClick={() => void openStock(stockRouteKey(suggestion))}>
                 <span className={styles.stockAvatar}>{suggestion.name.slice(0, 1)}</span>
-                <span><strong>{suggestion.name}</strong><small>{suggestion.code} · 沪深 A 股</small></span>
+                <span><strong>{suggestion.name}</strong><small>{suggestion.code} · {marketLabel(marketOf(suggestion))}</small></span>
               </button>
               <div className={styles.suggestionActions}>
-                <button type="button" onClick={() => void openStock(suggestion.code)}>切换个股</button>
-                <button type="button" onClick={() => void addStock(suggestion.code)}>＋ 添加自选</button>
+                <button type="button" onClick={() => void openStock(stockRouteKey(suggestion))}>切换个股</button>
+                <button type="button" onClick={() => void addStock(stockRouteKey(suggestion))}>＋ 添加自选</button>
               </div>
             </div>
           ) : null}
@@ -186,17 +190,24 @@ export default function SiteBanner({
   );
 }
 
-async function lookupStock(query: string, signal?: AbortSignal): Promise<{ code: string; name: string }> {
-  const response = await fetch("/api/local-stock-lookup", {
+async function lookupStock(query: string, signal?: AbortSignal): Promise<StockIdentity> {
+  const normalized = query.trim();
+  const queryLooksUS = /^US:/i.test(normalized) || /^[A-Za-z][A-Za-z0-9.-]{0,9}$/.test(normalized);
+  const request = async (endpoint: string): Promise<StockIdentity> => {
+    const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query: normalized.replace(/^US:/i, "") }),
     signal,
-  });
-  const body = await response.json() as { code?: unknown; name?: unknown; error?: unknown };
-  if (!response.ok) throw new Error(String(body.error || "股票查询失败"));
-  const code = String(body.code ?? "");
-  const name = String(body.name ?? "");
-  if (!/^\d{6}$/.test(code) || !name) throw new Error("股票查询返回了无效结果");
-  return { code, name };
+    });
+    const body = await response.json() as { code?: unknown; name?: unknown; market?: unknown; error?: unknown };
+    if (!response.ok) throw new Error(String(body.error || "股票查询失败"));
+    const market = body.market === "US" || endpoint.includes("us-stock") ? "US" : "CN";
+    const code = market === "US" ? normalizeUSSymbol(body.code) : String(body.code ?? "");
+    const name = String(body.name ?? "");
+    if (!(market === "US" ? isUSStockSymbol(code) : /^\d{6}$/.test(code)) || !name) throw new Error("股票查询返回了无效结果");
+    return { code, name, market, currency: market === "US" ? "USD" : "CNY" };
+  };
+  if (queryLooksUS) return request("/api/us-stock-lookup");
+  try { return await request("/api/local-stock-lookup"); } catch (cnReason) { try { return await request("/api/us-stock-lookup"); } catch { throw cnReason; } }
 }

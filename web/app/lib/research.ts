@@ -1,6 +1,7 @@
 import type { FinancialDataset } from "./financials.ts";
 import type { Candle, IndicatorSet, Timeframe } from "./market.ts";
 import type { NewsItem, ParsedNewsDataset } from "./news.ts";
+import type { StockMarket } from "./security.ts";
 
 export type ChartEventKind = "news" | "report" | "dividend";
 
@@ -71,6 +72,7 @@ export type ChartAnnotation = {
 export type SavedWorkspace = {
   version: 1;
   code: string;
+  market?: StockMarket;
   isDemo: boolean;
   timeframe: Timeframe;
   lowerIndicator: string;
@@ -83,9 +85,12 @@ export function backtestGuideSignals(
   candles: Candle[],
   indicators: IndicatorSet,
   periods: number[] = [5, 10, 20],
-  options: { benchmark?: Candle[]; roundTripCostPct?: number } = {},
+  options: { benchmark?: Candle[]; roundTripCostPct?: number; limitUpDownPct?: number | null } = {},
 ): SignalBacktest {
   const roundTripCostPct = Number.isFinite(options.roundTripCostPct) ? Math.max(0, options.roundTripCostPct ?? 0) : 0.25;
+  const limitUpDownPct = options.limitUpDownPct === null
+    ? null
+    : Number.isFinite(options.limitUpDownPct) ? Math.max(0, options.limitUpDownPct ?? 9.8) : 9.8;
   const benchmarkByDate = new Map((options.benchmark ?? []).map((candle) => [candle.date, candle]));
   const signals: Array<{ index: number; direction: "buy" | "sell" }> = [];
   let previous: { index: number; direction: "buy" | "sell" } | null = null;
@@ -111,7 +116,7 @@ export function backtestGuideSignals(
           return [];
         }
         const gapPct = signalCandle.close > 0 ? ((entry.open / signalCandle.close) - 1) * 100 : 0;
-        if ((signal.direction === "buy" && gapPct >= 9.8) || (signal.direction === "sell" && gapPct <= -9.8)) {
+        if (limitUpDownPct != null && ((signal.direction === "buy" && gapPct >= limitUpDownPct) || (signal.direction === "sell" && gapPct <= -limitUpDownPct))) {
           skippedSignalIndexes.add(signal.index);
           return [];
         }

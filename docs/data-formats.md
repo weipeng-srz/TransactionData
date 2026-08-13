@@ -2,6 +2,10 @@
 
 Web 页面通过同域 API 获取数据。行情和新闻路由返回 UTF-8 CSV，财务与实时行情路由返回 JSON。
 
+美股接口与 A 股接口相互独立：`/api/us-stock-lookup`、`/api/us-stock-data`、`/api/us-stock-realtime`、`/api/us-stock-news`、`/api/us-stock-financials`。美股行情 CSV 复用现有图表解析字段，并在 `#META` 中明确 `市场=US`、`币种=USD`、`时区=America/New_York`；美股实时源不提供五档或分钟线时返回空数组，不生成模拟盘口。
+
+自选与持仓记录可选带 `market`、`currency` 字段。旧记录缺省为 `CN/CNY`；美股记录使用 `US/USD`，内部键为 `US:<SYMBOL>`。持仓 CSV 只有 A 股时保持旧四列表头；包含美股时追加“市场、币种”两列。
+
 ## 历史行情 CSV
 
 `POST /api/local-stock-data` 返回带 BOM 的 UTF-8 CSV。

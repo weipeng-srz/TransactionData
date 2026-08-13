@@ -51,6 +51,19 @@ import { reportTelemetry } from "./lib/telemetry";
 import type { RealtimeSnapshot } from "./lib/realtimeMarket";
 import { parseHoldings, type StockHoldings } from "./lib/holdings";
 import { buildStockScore } from "./lib/stockScore";
+import {
+  cnStockCodePattern,
+  currencySymbol,
+  isUSStockSymbol,
+  marketLabel,
+  normalizeUSSymbol,
+  parseStockRoute,
+  stockRouteKey,
+  stockStorageKey,
+  type StockCurrency,
+  type StockIdentity,
+  type StockMarket,
+} from "./lib/security";
 
 const timeframes: Array<{ key: Timeframe; label: string }> = [
   { key: "1d", label: "日K" },
@@ -74,6 +87,8 @@ type LoadState = {
 type RecentStock = {
   code: string;
   name: string;
+  market?: StockMarket;
+  currency?: StockCurrency;
   queriedAt: number;
 };
 
@@ -94,31 +109,45 @@ function defaultRange(length: number, timeframe: Timeframe) {
   return { from: Math.max(0, length - visibleCount), to: Math.max(0, length - 1) };
 }
 
-async function resolveStockQuery(value: string, signal?: AbortSignal): Promise<{ code: string; name: string }> {
+async function resolveStockQuery(value: string, signal?: AbortSignal): Promise<StockIdentity> {
   if (stockCodePattern.test(value)) {
     return {
       code: value.replace(/^(?:sh|sz)/i, "").replace(/\.(?:sh|sz)$/i, ""),
       name: "",
+      market: "CN",
+      currency: "CNY",
     };
   }
-  const response = await fetch("/api/local-stock-lookup", {
+  const routeIdentity = parseStockRoute(value);
+  const queryLooksUS = Boolean(routeIdentity?.market === "US" || /^[A-Za-z][A-Za-z0-9.-]{0,9}$/.test(value.trim()));
+  const lookup = async (endpoint: string) => {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: value }),
+      body: JSON.stringify({ query: routeIdentity?.code ?? value }),
       signal,
     });
     const body = await response.text();
-    let payload: { code?: unknown; name?: unknown; error?: unknown } = {};
+    let payload: { code?: unknown; name?: unknown; market?: unknown; currency?: unknown; error?: unknown } = {};
     try {
       payload = JSON.parse(body) as typeof payload;
     } catch {
       if (body.trim()) payload.error = body.trim();
     }
-    if (!response.ok) throw new Error(String(payload.error || "没有找到匹配的沪深股票"));
+    if (!response.ok) throw new Error(String(payload.error || "没有找到匹配的股票"));
     const code = String(payload.code ?? "").trim();
     const name = String(payload.name ?? "").trim();
-    if (!/^\d{6}$/.test(code) || !name) throw new Error("股票名称查询返回了无效结果");
-  return { code, name };
+    const market: StockMarket = payload.market === "US" || endpoint.includes("us-stock") ? "US" : "CN";
+    if (!(market === "US" ? isUSStockSymbol(code) : cnStockCodePattern.test(code)) || !name) throw new Error("股票名称查询返回了无效结果");
+    const currency: StockCurrency = market === "US" ? "USD" : "CNY";
+    return { code: market === "US" ? normalizeUSSymbol(code) : code, name, market, currency };
+  };
+  if (queryLooksUS) return lookup("/api/us-stock-lookup");
+  try {
+    return await lookup("/api/local-stock-lookup");
+  } catch (cnReason) {
+    try { return await lookup("/api/us-stock-lookup"); } catch { throw cnReason; }
+  }
 }
 
 function isAbortError(reason: unknown): boolean {
@@ -130,11 +159,12 @@ function parseRecentStocks(value: unknown): RecentStock[] {
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const stock = item as Partial<RecentStock>;
-    const code = String(stock.code ?? "").trim();
+    const market: StockMarket = stock.market === "US" ? "US" : "CN";
+    const code = market === "US" ? normalizeUSSymbol(stock.code) : String(stock.code ?? "").trim();
     const name = String(stock.name ?? "").trim();
     const queriedAt = Number(stock.queriedAt);
-    if (!/^\d{6}$/.test(code) || !name || !Number.isFinite(queriedAt)) return [];
-    return [{ code, name, queriedAt }];
+    if (!(market === "US" ? isUSStockSymbol(code) : cnStockCodePattern.test(code)) || !name || !Number.isFinite(queriedAt)) return [];
+    return [market === "US" ? { code, name, market, currency: "USD" as const, queriedAt } : { code, name, queriedAt }];
   }).slice(0, maxRecentStocks);
 }
 
@@ -144,7 +174,7 @@ export default function Home() {
   useEffect(() => {
     const syncRoute = () => {
       const stock = new URLSearchParams(window.location.search).get("stock") ?? "";
-      setAnalysisCode(/^\d{6}$/.test(stock) ? stock : null);
+      setAnalysisCode(parseStockRoute(stock) ? stock : null);
     };
     syncRoute();
     window.addEventListener("popstate", syncRoute);
@@ -174,6 +204,7 @@ export default function Home() {
 }
 
 function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { initialStockCode: string; onBackHome: () => void; onOpenStock: (code: string) => void }) {
+  const initialIdentity = parseStockRoute(initialStockCode) ?? { code: initialStockCode, market: "CN" as const, currency: "CNY" as const };
   const [initialRouteState, setInitialRouteState] = useState<"loading" | "ready" | "error">("loading");
   const [initialRouteError, setInitialRouteError] = useState("");
   const [dataset, setDataset] = useState<ParsedDataset>(initialDataset);
@@ -198,7 +229,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const [realtimeLoad, setRealtimeLoad] = useState<LoadState>({ phase: "idle", detail: "输入股票后自动获取当前交易日分钟 K 线与五档盘口" });
   const [realtimeSnapshot, setRealtimeSnapshot] = useState<RealtimeSnapshot | null>(null);
   const [isDemo, setIsDemo] = useState(false);
-  const [selectedCode, setSelectedCode] = useState(initialStockCode);
+  const [selectedCode, setSelectedCode] = useState(initialIdentity.code);
+  const [selectedMarket, setSelectedMarket] = useState<StockMarket>(initialIdentity.market);
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
   const [lowerIndicator, setLowerIndicator] = useState<LowerIndicator>("VOL");
   const [overlays, setOverlays] = useState({
@@ -228,7 +260,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const [freshness, setFreshness] = useState({ market: "", financial: "", news: "" });
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [viewMode, setViewMode] = useState<"basic" | "pro">("pro");
-  const [benchmarkCode, setBenchmarkCode] = useState("000300");
+  const [benchmarkCode, setBenchmarkCode] = useState(initialIdentity.market === "US" ? "SPY" : "000300");
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([]);
   const [savedWorkspace, setSavedWorkspace] = useState<SavedWorkspace | null>(null);
   const [holdings, setHoldings] = useState<StockHoldings>({});
@@ -278,10 +310,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     const controller = new AbortController();
     const loadBenchmark = async () => {
       try {
-        const response = await fetch("/api/local-stock-data", {
+        const response = await fetch(selectedMarket === "US" ? "/api/us-stock-data" : "/api/local-stock-data", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: benchmarkCode, days: 1250, kind: "index" }),
+          body: JSON.stringify({ code: benchmarkCode, days: 1250, ...(selectedMarket === "CN" ? { kind: "index" } : {}) }),
           signal: controller.signal,
         });
         const body = await response.text();
@@ -293,34 +325,34 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     };
     void loadBenchmark();
     return () => controller.abort();
-  }, [benchmarkCode, isDemo]);
+  }, [benchmarkCode, isDemo, selectedMarket]);
 
   const refreshRealtime = useCallback(async (code: string, silent = false) => {
-    if (!/^\d{6}$/.test(code)) return;
+    if (!(selectedMarket === "US" ? isUSStockSymbol(code) : cnStockCodePattern.test(code))) return;
     if (realtimeControllerRef.current) {
       if (silent) return;
       realtimeControllerRef.current.abort();
     }
     const controller = new AbortController();
     realtimeControllerRef.current = controller;
-    if (!silent) setRealtimeLoad({ phase: "loading", detail: "正在获取当前交易日分钟 K 线与五档买卖盘…" });
+    if (!silent) setRealtimeLoad({ phase: "loading", detail: selectedMarket === "US" ? "正在获取美股最新报价…" : "正在获取当前交易日分钟 K 线与五档买卖盘…" });
     try {
-      const response = await fetch("/api/realtime-market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }), cache: "no-store", signal: controller.signal });
+      const response = await fetch(selectedMarket === "US" ? "/api/us-stock-realtime" : "/api/realtime-market", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }), cache: "no-store", signal: controller.signal });
       const body = await response.json() as RealtimeSnapshot | { error?: unknown };
       if (!response.ok) throw new Error(String((body as { error?: unknown }).error || "实时行情获取失败"));
       const snapshot = body as RealtimeSnapshot;
       if (snapshot.code !== code) return;
       setRealtimeSnapshot(snapshot);
-      setRealtimeLoad({ phase: "success", detail: `${snapshot.date} ${snapshot.time} · ${snapshot.minuteCandles.length} 根分钟 K 线` });
+      setRealtimeLoad({ phase: "success", detail: selectedMarket === "US" ? `${snapshot.date} ${snapshot.time} · 美东时间 · 延时报价` : `${snapshot.date} ${snapshot.time} · ${snapshot.minuteCandles.length} 根分钟 K 线` });
     } catch (reason) {
       if (!isAbortError(reason) && !silent) setRealtimeLoad({ phase: "error", detail: reason instanceof Error ? reason.message : "实时行情获取失败" });
     } finally {
       if (realtimeControllerRef.current === controller) realtimeControllerRef.current = null;
     }
-  }, []);
+  }, [selectedMarket]);
 
   useEffect(() => {
-    if (!/^\d{6}$/.test(selectedCode)) return;
+    if (!(selectedMarket === "US" ? isUSStockSymbol(selectedCode) : cnStockCodePattern.test(selectedCode))) return;
     const pollDelay = realtimeSnapshot?.marketStatus === "交易中" ? 1_000 : 15_000;
     const initial = window.setTimeout(() => void refreshRealtime(selectedCode), 0);
     const timer = window.setInterval(() => { if (!document.hidden) void refreshRealtime(selectedCode, true); }, pollDelay);
@@ -332,7 +364,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       realtimeControllerRef.current?.abort();
     };
-  }, [isDemo, realtimeSnapshot?.marketStatus, refreshRealtime, selectedCode]);
+  }, [isDemo, realtimeSnapshot?.marketStatus, refreshRealtime, selectedCode, selectedMarket]);
 
   useEffect(() => {
     if (!storageHydrated) return;
@@ -420,8 +452,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const benchmarkCandles = useMemo(() => benchmarkDataset ? aggregateCandles(benchmarkDataset.rows, benchmarkDataset.codes[0], "1d") : [], [benchmarkDataset]);
   const indicators = useMemo(() => calculateIndicators(candles), [candles]);
   const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles), [dailyCandles]);
-  const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], { benchmark: timeframe === "1d" ? benchmarkCandles : [] }), [benchmarkCandles, candles, indicators, timeframe]);
-  const scoreBacktest = useMemo(() => backtestGuideSignals(dailyCandles, dailyIndicators, [5, 10, 20], { benchmark: benchmarkCandles }), [benchmarkCandles, dailyCandles, dailyIndicators]);
+  const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], { benchmark: timeframe === "1d" ? benchmarkCandles : [], limitUpDownPct: selectedMarket === "US" ? null : 9.8 }), [benchmarkCandles, candles, indicators, selectedMarket, timeframe]);
+  const scoreBacktest = useMemo(() => backtestGuideSignals(dailyCandles, dailyIndicators, [5, 10, 20], { benchmark: benchmarkCandles, limitUpDownPct: selectedMarket === "US" ? null : 9.8 }), [benchmarkCandles, dailyCandles, dailyIndicators, selectedMarket]);
   const riskMetrics = useMemo(() => calculateRiskMetrics(dailyCandles, benchmarkCandles), [benchmarkCandles, dailyCandles]);
 
   const selectedIndex = hoverIndex ?? Math.max(0, candles.length - 1);
@@ -448,7 +480,9 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const selectedName = dataset.stockNames[selectedCode] ?? "";
   const liveQuote = realtimeSnapshot?.code === selectedCode ? realtimeSnapshot : null;
   const currentPrice = liveQuote?.price ?? latest?.close ?? null;
-  const currentHolding = holdings[selectedCode] ?? null;
+  const selectedIdentity = useMemo(() => ({ code: selectedCode, market: selectedMarket, currency: selectedMarket === "US" ? "USD" as const : "CNY" as const }), [selectedCode, selectedMarket]);
+  const selectedHoldingKey = useMemo(() => stockStorageKey(selectedIdentity), [selectedIdentity]);
+  const currentHolding = holdings[selectedHoldingKey] ?? null;
   const displayChange = liveQuote?.change ?? latest?.change ?? 0;
   const directionClass = displayChange >= 0 ? "is-up" : "is-down";
   const busy = fetchingStock;
@@ -486,14 +520,16 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const sidebarVolumeText = sidebarVolume == null ? "—" : sidebarVolume >= 10_000_000 ? `${formatNumber(sidebarVolume / 100_000_000, 2)}亿` : compactNumber(sidebarVolume);
   const dailyOnly = dataset.dataLevel.includes("日K聚合");
 
-  const rememberRecentStock = useCallback((code: string, name: string) => {
+  const rememberRecentStock = useCallback((code: string, name: string, market: StockMarket) => {
     const normalizedCode = code.trim();
     const normalizedName = name.trim();
-    if (!/^\d{6}$/.test(normalizedCode) || !normalizedName) return;
+    if (!(market === "US" ? isUSStockSymbol(normalizedCode) : cnStockCodePattern.test(normalizedCode)) || !normalizedName) return;
     setRecentStocks((current) => {
+      const identity = market === "US" ? { code: normalizedCode, name: normalizedName, market, currency: "USD" as const, queriedAt: Date.now() } : { code: normalizedCode, name: normalizedName, queriedAt: Date.now() };
+      const key = stockStorageKey(identity);
       const next = [
-        { code: normalizedCode, name: normalizedName, queriedAt: Date.now() },
-        ...current.filter((item) => item.code !== normalizedCode),
+        identity,
+        ...current.filter((item) => stockStorageKey(item) !== key),
       ].slice(0, maxRecentStocks);
       try {
         localStorage.setItem(recentStocksStorageKey, JSON.stringify(next));
@@ -505,26 +541,28 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   }, []);
 
   const saveHolding = useCallback((shares: number, cost: number) => {
-    if (isDemo || !/^\d{6}$/.test(selectedCode)) return;
+    if (isDemo || !(selectedMarket === "US" ? isUSStockSymbol(selectedCode) : cnStockCodePattern.test(selectedCode))) return;
     setHoldings((current) => ({
       ...current,
-      [selectedCode]: {
+      [selectedHoldingKey]: selectedMarket === "US" ? {
         code: selectedCode,
+        market: "US",
+        currency: "USD",
         shares,
         cost,
         updatedAt: new Date().toISOString(),
-      },
+      } : { code: selectedCode, shares, cost, updatedAt: new Date().toISOString() },
     }));
-  }, [isDemo, selectedCode]);
+  }, [isDemo, selectedCode, selectedHoldingKey, selectedMarket]);
 
   const clearHolding = useCallback(() => {
     setHoldings((current) => {
-      if (!current[selectedCode]) return current;
+      if (!current[selectedHoldingKey]) return current;
       const next = { ...current };
-      delete next[selectedCode];
+      delete next[selectedHoldingKey];
       return next;
     });
-  }, [selectedCode]);
+  }, [selectedHoldingKey]);
 
   const applyDataset = useCallback((parsed: ParsedDataset, name: string) => {
     const code = parsed.codes[0];
@@ -630,19 +668,31 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       const resolved = await resolveStockQuery(query, requestController.signal);
       if (requestVersion !== requestVersionRef.current) return;
       const normalizedCode = resolved.code;
+      const market = resolved.market;
+      const endpoints = market === "US" ? {
+        market: "/api/us-stock-data",
+        news: "/api/us-stock-news",
+        financials: "/api/us-stock-financials",
+      } : {
+        market: "/api/local-stock-data",
+        news: "/api/local-stock-news",
+        financials: "/api/local-stock-financials",
+      };
       const resolvedLabel = `${resolved.name ? `${resolved.name} · ` : ""}${normalizedCode}`;
+      setSelectedMarket(market);
+      setBenchmarkCode((current) => market === "US" ? (isUSStockSymbol(current) ? current : "SPY") : (cnStockCodePattern.test(current) ? current : "000300"));
       setQueryText(resolved.name || normalizedCode);
       setPendingQuery(resolvedLabel);
       setNewsSourceLabel(`${resolvedLabel} · 最新新闻`);
       setFinancialSourceLabel(`${resolvedLabel} · 基本面`);
-      setMarketLoad({ phase: "loading", detail: `正在获取 ${resolvedLabel} 最多约 5 年的前复权日 K；旧图表暂时保留` });
+      setMarketLoad({ phase: "loading", detail: `正在获取 ${resolvedLabel} 最多约 5 年的${market === "US" ? "美股" : "前复权"}日 K；旧图表暂时保留` });
       setNewsLoad({ phase: "loading", detail: "正在从 HTTPS 新闻服务获取并去重…" });
-      setFinancialLoad({ phase: "loading", detail: "正在获取估值、分红与三张财务报表…" });
+      setFinancialLoad({ phase: "loading", detail: market === "US" ? "正在从 SEC 获取 Company Facts…" : "正在获取估值、分红与三张财务报表…" });
       const sourceStartedAt = performance.now();
 
       // The three data sources run concurrently. Each branch updates its section
       // as soon as its own response arrives, without waiting for the other one.
-      const marketTask = requestCsv("/api/local-stock-data", { code: normalizedCode, days: 1250, kind: "stock" }, "获取行情数据失败")
+      const marketTask = requestCsv(endpoints.market, { code: normalizedCode, days: 1250, ...(market === "CN" ? { kind: "stock" } : {}) }, "获取行情数据失败")
         .then((csv) => {
           if (requestVersion !== requestVersionRef.current) return;
           const parsed = parseMarketCsv(csv);
@@ -650,7 +700,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           const resultName = parsed.stockNames[resultCode] ?? resolved.name;
           const resultCandles = aggregateCandles(parsed.rows, resultCode, "1d");
           applyDataset(parsed, `${resultName ? `${resultName} · ` : ""}${resultCode} · 最多5年前复权日K`);
-          rememberRecentStock(resultCode, resultName);
+          rememberRecentStock(resultCode, resultName, market);
           setMarketLoad({
             phase: "success",
             detail: `${resultCandles.length.toLocaleString("zh-CN")} 个交易日日K已加载，图表与风险指标已更新`,
@@ -670,14 +720,14 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           throw new Error(`行情：${message}`);
         });
 
-      const newsTask = requestCsv("/api/local-stock-news", { code: normalizedCode, limit: 30 }, "获取新闻数据失败")
+      const newsTask = requestCsv(endpoints.news, { code: normalizedCode, limit: 30 }, "获取新闻数据失败")
         .then((csv) => {
           if (requestVersion !== requestVersionRef.current) return;
           const parsed = parseNewsCsv(csv);
           const resultCode = parsed.codes[0] ?? normalizedCode;
           const resultName = parsed.stockNames[resultCode] ?? resolved.name;
           applyNewsDataset(parsed, `${resultName ? `${resultName} · ` : ""}${resultCode} · 新闻`);
-          rememberRecentStock(resultCode, resultName);
+          rememberRecentStock(resultCode, resultName, market);
           setNewsLoad({
             phase: "success",
             detail: `${parsed.items.length.toLocaleString("zh-CN")} 条新闻已加载，舆情已更新`,
@@ -694,7 +744,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         });
 
       const financialTask = requestJson<FinancialDataset>(
-        "/api/local-stock-financials",
+        endpoints.financials,
         { code: normalizedCode },
         "获取基本面数据失败",
       )
@@ -706,7 +756,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           setFinancialDataset(parsed);
           const resultName = parsed.name || resolved.name;
           setFinancialSourceLabel(`${resultName ? `${resultName} · ` : ""}${parsed.code} · 基本面`);
-          rememberRecentStock(parsed.code, resultName);
+          rememberRecentStock(parsed.code, resultName, market);
           setFinancialLoad({
             phase: "success",
             detail: `估值、股息与 ${parsed.analysis?.periods?.length || parsed.reports.length} 个报告期已加载`,
@@ -752,6 +802,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     requestVersionRef.current += 1;
     const demo = createDemoDataset();
     setDataset(demo);
+    setSelectedMarket("CN");
+    setBenchmarkCode("000300");
     setSelectedCode(demo.codes[0]);
     setRange(defaultRange(aggregateCandles(demo.rows, demo.codes[0], "1d").length, "1d"));
     setHoverIndex(null);
@@ -792,7 +844,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const exportCandles = () => {
     if (!candles.length) return;
     const rows = [
-      ["时间", "开盘", "最高", "最低", "收盘", "VWAP(前复权)", "涨跌", "涨跌幅(%)", "成交量(股)", "成交额(元)", "换手率(%)"],
+      ["时间", "开盘", "最高", "最低", "收盘", selectedMarket === "US" ? "VWAP(USD)" : "VWAP(前复权)", "涨跌", "涨跌幅(%)", "成交量(股)", selectedMarket === "US" ? "成交额(USD)" : "成交额(元)", "换手率(%)"],
       ...candles.map((candle) => [
         candle.key,
         candle.open.toFixed(3),
@@ -829,9 +881,9 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     const sharedMode = params.get("mode");
     const sharedBenchmark = params.get("benchmark");
     const applySharedState = async () => {
-      if (sharedCode && /^\d{6}$/.test(sharedCode)) await fetchStockData(sharedCode);
+      if (sharedCode && parseStockRoute(sharedCode)) await fetchStockData(sharedCode);
       if (sharedMode === "basic" || sharedMode === "pro") setViewMode(sharedMode);
-      if (sharedBenchmark && /^\d{6}$/.test(sharedBenchmark)) setBenchmarkCode(sharedBenchmark);
+      if (sharedBenchmark && (cnStockCodePattern.test(sharedBenchmark) || isUSStockSymbol(sharedBenchmark))) setBenchmarkCode(sharedBenchmark);
       if (timeframes.some((item) => item.key === sharedTimeframe)) setTimeframe(sharedTimeframe as Timeframe);
       if (lowerIndicators.includes(sharedLower as LowerIndicator)) setLowerIndicator(sharedLower as LowerIndicator);
       if (sharedOverlays.length) {
@@ -848,6 +900,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const currentWorkspace = (): SavedWorkspace => ({
     version: 1,
     code: selectedCode,
+    market: selectedMarket,
     isDemo,
     timeframe,
     lowerIndicator,
@@ -860,7 +913,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     const workspace = currentWorkspace();
     const url = new URL(window.location.href);
     url.search = "";
-    if (!workspace.isDemo) url.searchParams.set("stock", workspace.code);
+    if (!workspace.isDemo) url.searchParams.set("stock", stockRouteKey({ code: workspace.code, market: selectedMarket }));
     url.searchParams.set("tf", workspace.timeframe);
     url.searchParams.set("lower", workspace.lowerIndicator);
     url.searchParams.set("ov", workspace.overlays.join(","));
@@ -898,7 +951,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     try {
       const workspace = savedWorkspace ?? JSON.parse(localStorage.getItem(workspaceStorageKey) ?? "null") as SavedWorkspace | null;
       if (!workspace || workspace.version !== 1) throw new Error("未找到有效视图");
-      if (!workspace.isDemo && /^\d{6}$/.test(workspace.code)) await fetchStockData(workspace.code);
+      if (!workspace.isDemo && (cnStockCodePattern.test(workspace.code) || isUSStockSymbol(workspace.code))) await fetchStockData(workspace.market === "US" ? `US:${workspace.code}` : workspace.code);
       else resetDemo();
       setTimeframe(workspace.timeframe);
       setLowerIndicator(lowerIndicators.includes(workspace.lowerIndicator as LowerIndicator) ? workspace.lowerIndicator as LowerIndicator : "VOL");
@@ -982,7 +1035,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
 
   return (
     <div className="research-page">
-      <SiteBanner activePage="stock" currentStockCode={selectedCode} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} onOpenPortfolio={onBackHome} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
+      <SiteBanner activePage="stock" currentStockCode={selectedCode} currentStockMarket={selectedMarket} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} onOpenPortfolio={onBackHome} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
       <main className={`app-shell view-${viewMode}`}>
       <aside className="app-sidebar research-sidebar">
         <section className="sidebar-menu-summary sidebar-preview-card" aria-label="当前个股导航">
@@ -990,13 +1043,13 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <div>
               <span>个股研究</span>
               <strong>{selectedName || selectedCode}</strong>
-              <small>{selectedCode} · 沪深 A 股</small>
+              <small>{selectedCode} · {marketLabel(selectedMarket)}</small>
             </div>
             <em className={`sidebar-status-pill ${sidebarMarketStatus === "交易中" ? "is-live" : ""}`}><i />{sidebarMarketStatus}</em>
           </header>
           <div className="sidebar-preview-hero" aria-label="个股实时汇总">
             <span>实时价格</span>
-            <strong>{currentPrice == null ? "—" : `¥${formatNumber(currentPrice, currentPrice >= 100 ? 2 : 3)}`}</strong>
+            <strong>{currentPrice == null ? "—" : `${currencySymbol(selectedIdentity.currency)}${formatNumber(currentPrice, currentPrice >= 100 ? 2 : 3)}`}</strong>
             <em className={directionClass}>{sidebarChangePct == null ? "等待行情" : `${sidebarChangePct >= 0 ? "+" : ""}${formatNumber(sidebarChangePct, 2)}%`}</em>
           </div>
           <div className="sidebar-preview-metrics">
@@ -1097,7 +1150,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <h2>{selectedName || selectedCode}</h2>
           )}
           {selectedName ? <span className="stock-code">{selectedCode}</span> : null}
-          <span className="market-pill">A股</span>
+          <span className="market-pill">{selectedMarket === "US" ? "美股" : "A股"}</span>
           <span className="level-pill">{dataset.dataLevel}</span>
           <span className="date-span">{firstRow?.date ?? "—"} → {lastRow?.date ?? "—"}</span>
         </div>
@@ -1126,7 +1179,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
 
       <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
 
-      <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} onRefresh={() => void refreshRealtime(selectedCode)} />
+      <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} />
 
       <section className="workspace-grid" id="stock-market">
         <div className={`chart-card ${fetchingStock ? "is-stale" : ""}`}>
@@ -1135,7 +1188,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <span aria-hidden="true">⌁</span>
               <div>
                 <strong>价格走势</strong>
-                <small>{timeframes.find((item) => item.key === timeframe)?.label} · 前复权 · {benchmarkCandles.length ? "对比沪深300" : "等待基准"}</small>
+                <small>{timeframes.find((item) => item.key === timeframe)?.label} · {selectedMarket === "US" ? "美元日K" : "前复权"} · {benchmarkCandles.length ? `对比${selectedMarket === "US" ? benchmarkCode : "沪深300"}` : "等待基准"}</small>
               </div>
             </div>
             <div className="segmented" aria-label="K线周期">
@@ -1160,7 +1213,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <div className="toolbar-divider" />
             <label className="benchmark-select">基准
               <select value={benchmarkCode} onChange={(event) => setBenchmarkCode(event.target.value)} aria-label="相对表现比较基准">
-                <option value="000300">沪深300</option><option value="000001">上证指数</option><option value="399001">深证成指</option><option value="399006">创业板指</option>
+                {selectedMarket === "US" ? <><option value="SPY">标普500 ETF（SPY）</option><option value="QQQ">纳斯达克100 ETF（QQQ）</option><option value="DIA">道琼斯 ETF（DIA）</option></> : <><option value="000300">沪深300</option><option value="000001">上证指数</option><option value="399001">深证成指</option><option value="399006">创业板指</option></>}
               </select>
             </label>
             <div className="indicator-toggles" aria-label="主图指标">
@@ -1195,6 +1248,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             appearance={appearance}
             candles={candles}
             benchmarkCandles={timeframe === "1d" ? benchmarkCandles : []}
+            benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode}
             indicators={indicators}
             overlays={overlays}
             lowerIndicator={lowerIndicator}
@@ -1405,6 +1459,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             name={selectedName}
             currentPrice={currentPrice}
             holding={currentHolding}
+            currency={selectedIdentity.currency}
             isDemo={isDemo}
             onSave={saveHolding}
             onClear={clearHolding}
@@ -1429,19 +1484,19 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <section className="rail-card ownership-card">
             <HolderMix structure={financialDataset.holderStructure} loading={financialLoad.phase === "loading"} />
           </section>
-          <SignalBacktestCard backtest={signalBacktest} />
+          <SignalBacktestCard backtest={signalBacktest} benchmarkName={selectedMarket === "US" ? benchmarkCode : "沪深300"} market={selectedMarket} />
         </aside>
       </section>
 
-      <FinancialDashboard dataset={financialDataset} load={financialLoad} />
-      <details className="legacy-financial-summary">
+      <FinancialDashboard dataset={financialDataset} load={financialLoad} currency={selectedIdentity.currency} />
+      {selectedMarket === "CN" ? <details className="legacy-financial-summary">
         <summary>查看原始报告摘要、估值与分红明细</summary>
         <FundamentalsPanel dataset={financialDataset} load={financialLoad} />
         <FinancialReports dataset={financialDataset} load={financialLoad} />
-      </details>
+      </details> : null}
 
       <div className="advanced-only">
-        <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
+        <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
       </div>
 
       <ResearchDock

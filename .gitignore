@@ -8,6 +8,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+outputs/
 
 # Local environment and secrets
 .env

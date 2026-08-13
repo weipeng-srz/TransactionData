@@ -1,4 +1,5 @@
 import { parseCsvRecords } from "./csv.ts";
+import { cnStockCodePattern, usStockSymbolPattern } from "./security.ts";
 
 export type NewsSentiment = "正面" | "中性" | "负面";
 
@@ -86,7 +87,7 @@ export function parseNewsCsv(content: string): ParsedNewsDataset {
     const title = value(record, "新闻标题");
     const articleUrl = safeArticleUrl(value(record, "原文链接"));
     const sentiment = normalizeSentiment(value(record, "情绪倾向"));
-    if (!/^\d{6}$/.test(code) || !title || !articleUrl || !sentiment) {
+    if (!(cnStockCodePattern.test(code) || usStockSymbolPattern.test(code)) || !title || !articleUrl || !sentiment) {
       skipped += 1;
       continue;
     }

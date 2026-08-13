@@ -1,6 +1,7 @@
 import type { SignalBacktest } from "../lib/research";
+import type { StockMarket } from "../lib/security";
 
-export default function SignalBacktestCard({ backtest }: { backtest: SignalBacktest }) {
+export default function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "CN" }: { backtest: SignalBacktest; benchmarkName?: string; market?: StockMarket }) {
   const primary = backtest.horizons.find((item) => item.periods === 10) ?? backtest.horizons[0];
   return (
     <section className="rail-card backtest-card" id="signal-backtest">
@@ -42,10 +43,10 @@ export default function SignalBacktestCard({ backtest }: { backtest: SignalBackt
           <Metric label="Profit Factor" value={formatRatio(primary.profitFactor)} />
           <Metric label="信号序列回撤" value={formatPercent(primary.maxDrawdown)} tone={primary.maxDrawdown} />
           <Metric label="最大连亏" value={`${primary.maxLossStreak} 次`} />
-          <Metric label="相对沪深300" value={formatPercent(primary.averageExcessReturn)} tone={primary.averageExcessReturn} />
+          <Metric label={`相对${benchmarkName}`} value={formatPercent(primary.averageExcessReturn)} tone={primary.averageExcessReturn} />
         </div>
       ) : null}
-      <p className="method-note">{backtest.executionModel}；方向收益已扣除约 {backtest.roundTripCostPct.toFixed(2)}% 交易摩擦，并跳过无量或单边涨跌停开盘样本。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
+      <p className="method-note">{backtest.executionModel}；方向收益已扣除约 {backtest.roundTripCostPct.toFixed(2)}% 交易摩擦，并跳过无量{market === "CN" ? "或单边涨跌停开盘" : "开盘"}样本。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
     </section>
   );
 }
