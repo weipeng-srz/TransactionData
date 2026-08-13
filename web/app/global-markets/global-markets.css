@@ -1230,10 +1230,23 @@ body:has(.global-page-shell) {
     -webkit-backdrop-filter: none;
   }
 
-  .global-marker-label small,
-  .global-marker-label strong { display: none; }
-  .global-marker-label > span { display: block; }
-  .global-marker-label b { display: block; font-size: 10px; }
+  .global-marker-label small { display: none; }
+  .global-marker-label > span {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .global-marker-label strong { display: inline; font-size: 9px; }
+  .global-marker-label b { display: inline; font-size: 10px; }
+
+  .global-map-marker[data-map-id="shanghai"] .global-marker-label,
+  .global-map-marker[data-map-id="hsi"] .global-marker-label {
+    transform: scale(.72) translate(-8px, var(--marker-label-y));
+  }
+
+  .global-map-marker[data-map-id="nikkei"] .global-marker-label {
+    transform: scale(.72) translate(-32px, var(--marker-label-y));
+  }
 }
 
 /* Final frame guard: keep the global content aligned with the shared banner. */
