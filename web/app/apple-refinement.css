@@ -3817,3 +3817,309 @@ select:disabled {
   .research-page .query-source strong { display: none !important; }
   .research-page .source-title-row { justify-items: center; }
 }
+
+/* Next-day probability: use the same surfaces, spacing, and semantic colors as the research cards. */
+.next-day-card {
+  margin-top: 0;
+  overflow: hidden;
+  border: 1px solid var(--apple-border);
+  border-radius: var(--apple-radius-lg);
+  color: var(--apple-text);
+  background: var(--apple-surface);
+  box-shadow: var(--apple-shadow-card);
+}
+
+.next-day-card::before {
+  display: none;
+}
+
+.next-day-header {
+  min-height: 78px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--apple-border);
+  background: transparent;
+}
+
+.next-day-header h2 {
+  color: var(--apple-text);
+  font-size: 20px;
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+
+.next-day-header > div:first-child > span,
+.next-day-grade p,
+.next-day-panel > p,
+.next-day-scenario ul,
+.next-day-factors ul,
+.next-day-method ul,
+.next-day-method section > p,
+.next-day-notice,
+.next-day-empty {
+  color: var(--apple-secondary);
+}
+
+.next-day-controls {
+  gap: 8px;
+}
+
+.next-day-controls label {
+  color: var(--apple-tertiary);
+  font-size: 10px;
+  font-weight: 550;
+}
+
+.next-day-controls select,
+.next-day-asof {
+  min-height: 36px;
+  border: 1px solid var(--apple-border);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.next-day-controls select {
+  color: var(--apple-secondary);
+  background: var(--apple-surface-soft);
+}
+
+.next-day-asof {
+  color: var(--apple-accent);
+  background: color-mix(in srgb, var(--apple-accent) 7%, var(--apple-surface));
+}
+
+.next-day-hero {
+  padding: 18px 20px;
+  gap: 14px;
+  border-bottom: 1px solid var(--apple-border);
+}
+
+.next-day-grade,
+.next-day-range,
+.next-day-core-metrics,
+.next-day-scenario,
+.next-day-panel,
+.next-day-similar-table,
+.next-day-method {
+  border: 1px solid var(--apple-border);
+  border-radius: var(--apple-radius-md);
+  background: color-mix(in srgb, var(--apple-surface-soft) 78%, transparent);
+  box-shadow: none;
+}
+
+.next-day-grade,
+.next-day-range {
+  padding: 16px;
+}
+
+.grade-orbit {
+  --grade-color: var(--apple-accent);
+  background:
+    radial-gradient(circle, var(--apple-surface-soft) 0 61%, transparent 62%),
+    conic-gradient(var(--grade-color) 0 var(--prediction-score), var(--apple-fill-strong) var(--prediction-score) 360deg);
+  box-shadow: none;
+}
+
+.grade-s .grade-orbit,
+.grade-a .grade-orbit {
+  --grade-color: var(--apple-rise);
+  background:
+    radial-gradient(circle, var(--apple-surface-soft) 0 61%, transparent 62%),
+    conic-gradient(var(--grade-color) 0 var(--prediction-score), var(--apple-fill-strong) var(--prediction-score) 360deg);
+}
+
+.grade-c .grade-orbit {
+  --grade-color: var(--apple-fall);
+  background:
+    radial-gradient(circle, var(--apple-surface-soft) 0 61%, transparent 62%),
+    conic-gradient(var(--grade-color) 0 var(--prediction-score), var(--apple-fill-strong) var(--prediction-score) 360deg);
+}
+
+.grade-orbit span,
+.grade-orbit small,
+.next-day-grade > div:last-child > span,
+.next-day-core-metrics span,
+.next-day-range > span,
+.volume-hero span,
+.next-day-range dt,
+.volume-hero dt,
+.volume-probabilities span,
+.model-weights span,
+.distribution-bars span,
+.model-metrics span,
+.rule-table td small {
+  color: var(--apple-tertiary);
+}
+
+.grade-orbit strong,
+.next-day-grade > div:last-child strong,
+.next-day-core-metrics strong,
+.volume-hero strong,
+.next-day-panel h3,
+.next-day-similar-table h3,
+.next-day-method h3 {
+  color: var(--apple-text);
+}
+
+.next-day-core-metrics {
+  padding: 7px;
+  gap: 4px;
+  background: var(--apple-surface-soft);
+}
+
+.next-day-core-metrics > div {
+  padding: 15px 13px;
+  border-radius: 11px;
+  background: transparent;
+}
+
+.next-day-core-metrics > div.is-emphasized {
+  background: var(--apple-fill);
+}
+
+.next-day-core-metrics .is-emphasized strong {
+  color: var(--apple-rise);
+}
+
+.next-day-range dd,
+.volume-hero dd,
+.volume-probabilities strong,
+.model-weights strong,
+.distribution-bars strong,
+.model-metrics strong,
+.next-day-scenario p,
+.next-day-scenario header span,
+.next-day-factors h4,
+.next-day-method summary {
+  color: var(--apple-secondary);
+}
+
+.next-day-range > strong i { color: var(--apple-fall); }
+.next-day-range > strong em { color: var(--apple-rise); }
+.next-day-range > strong b { color: var(--apple-tertiary); }
+
+.next-day-scenarios {
+  padding: 0 20px 18px;
+  gap: 14px;
+  border-bottom: 1px solid var(--apple-border);
+}
+
+.next-day-scenario,
+.next-day-panel {
+  padding: 16px;
+}
+
+.scenario-track,
+.volume-probabilities > div > i,
+.model-weights > div > i,
+.distribution-bars > div > i {
+  background: var(--apple-fill-strong);
+}
+
+.next-day-scenario.is-strong header strong,
+.is-strong .scenario-track i,
+.volume-probabilities b.is-active,
+.distribution-bars > div:nth-child(n + 4) b {
+  color: var(--apple-rise);
+  background: var(--apple-rise);
+}
+
+.next-day-scenario.is-range header strong,
+.scenario-track i,
+.model-weights b.is-rule {
+  color: var(--apple-warning);
+  background: var(--apple-warning);
+}
+
+.next-day-scenario.is-weak header strong,
+.is-weak .scenario-track i,
+.distribution-bars > div:nth-child(-n + 3) b {
+  color: var(--apple-fall);
+  background: var(--apple-fall);
+}
+
+.volume-probabilities b.is-quiet,
+.model-weights b.is-analog {
+  background: var(--apple-accent);
+}
+
+.next-day-analysis-grid {
+  padding: 18px 20px;
+  gap: 14px;
+}
+
+.next-day-panel > header,
+.next-day-similar-table > header,
+.next-day-method > div {
+  border-color: var(--apple-border);
+}
+
+.next-day-panel > header > span,
+.next-day-similar-table > header > span,
+.volume-hero small,
+.next-day-similar-table td:first-child button,
+.next-day-method summary::after {
+  color: var(--apple-accent);
+}
+
+.next-day-factors h4 i {
+  color: var(--apple-rise);
+  background: color-mix(in srgb, var(--apple-rise) 9%, transparent);
+}
+
+.next-day-factors article + article h4 i {
+  color: var(--apple-fall);
+  background: color-mix(in srgb, var(--apple-fall) 9%, transparent);
+}
+
+.next-day-factors article + article,
+.next-day-model > p {
+  border-color: var(--apple-border);
+}
+
+.model-metrics > div {
+  border-color: var(--apple-border);
+  background: var(--apple-fill);
+}
+
+.next-day-similar-table,
+.next-day-method {
+  margin-right: 20px;
+  margin-left: 20px;
+}
+
+.next-day-similar-table td:first-child button {
+  background: transparent;
+}
+
+.next-day-notice {
+  padding: 13px 20px;
+  border-top: 1px solid var(--apple-border);
+  background: var(--apple-surface-soft);
+}
+
+@media (max-width: 560px) {
+  .next-day-card {
+    border-radius: var(--apple-radius-md);
+  }
+
+  .next-day-header,
+  .next-day-hero,
+  .next-day-analysis-grid {
+    padding: 15px;
+  }
+
+  .next-day-scenarios {
+    padding: 0 15px 15px;
+  }
+
+  .next-day-similar-table,
+  .next-day-method {
+    margin-right: 15px;
+    margin-left: 15px;
+  }
+
+  .next-day-notice {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+}
