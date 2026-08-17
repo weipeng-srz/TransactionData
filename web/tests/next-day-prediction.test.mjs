@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { buildNextDayPrediction } from "../app/lib/nextDayPrediction.ts";
+
+const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const globalStyles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
 function syntheticCandles(count = 320) {
   const candles = [];
@@ -69,4 +73,18 @@ test("adapts sample and neighbor counts to shorter histories", () => {
 
 test("returns no prediction when daily history cannot support labels and indicators", () => {
   assert.equal(buildNextDayPrediction(syntheticCandles(28)), null);
+});
+
+test("places next-day analysis directly above the daily B/S backtest and removes the bottom K-line table", () => {
+  const workspaceIndex = pageSource.indexOf('<section className="workspace-grid"');
+  const predictionIndex = pageSource.indexOf("<NextDayPredictionCard", workspaceIndex);
+  const backtestIndex = pageSource.indexOf("<SignalBacktestCard", workspaceIndex);
+
+  assert.ok(workspaceIndex >= 0);
+  assert.ok(predictionIndex > workspaceIndex);
+  assert.ok(backtestIndex > predictionIndex);
+  assert.doesNotMatch(pageSource, /className="recent-card"/);
+  assert.doesNotMatch(pageSource, /RECENT BARS|最近 K 线/);
+  assert.match(globalStyles, /\.next-day-card\s*\{[^}]*grid-row:\s*4/s);
+  assert.match(globalStyles, /\.backtest-card\s*\{[^}]*grid-row:\s*5/s);
 });

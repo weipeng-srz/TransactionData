@@ -1075,10 +1075,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         <nav className="workspace-nav" aria-label="个股信息章节导航">
           <p className="sidebar-nav-heading">快速定位</p>
           <a href="#stock-score"><span>综合评分</span><small>Score</small></a>
-          <a href="#next-day-prediction"><span>隔日预测</span><small>Next Day</small></a>
           <a href="#realtime-trading"><span>实时盘口</span><small>Live</small></a>
           <a href="#stock-market"><span>价格行情</span><small>Market</small></a>
           <a href="#kline-analysis"><span>K 线研判</span><small>Insight</small></a>
+          <a href="#next-day-prediction"><span>隔日预测</span><small>Next Day</small></a>
           <a href="#signal-backtest"><span>信号回测</span><small>Backtest</small></a>
           <a href="#advanced-research"><span>风险因子</span><small>Risk & Factor</small></a>
           <a href="#research-tools"><span>研究工具</span><small>Workspace</small></a>
@@ -1180,19 +1180,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       ) : null}
 
       <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
-
-      <NextDayPredictionCard
-        candles={dailyCandles}
-        stockName={selectedName || selectedCode}
-        onInspectDate={(date) => {
-          const index = dailyCandles.findIndex((candle) => candle.date === date);
-          if (index < 0) return;
-          setTimeframe("1d");
-          setHoverIndex(index);
-          setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
-          window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-        }}
-      />
 
       <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} />
 
@@ -1499,6 +1486,18 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <section className="rail-card ownership-card">
             <HolderMix structure={financialDataset.holderStructure} loading={financialLoad.phase === "loading"} />
           </section>
+          <NextDayPredictionCard
+            candles={dailyCandles}
+            stockName={selectedName || selectedCode}
+            onInspectDate={(date) => {
+              const index = dailyCandles.findIndex((candle) => candle.date === date);
+              if (index < 0) return;
+              setTimeframe("1d");
+              setHoverIndex(index);
+              setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
+              window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }}
+          />
           <SignalBacktestCard backtest={signalBacktest} benchmarkName={selectedMarket === "US" ? benchmarkCode : "沪深300"} market={selectedMarket} />
         </aside>
       </section>
@@ -1535,39 +1534,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         onAddAnnotation={addAnnotation}
         onRemoveAnnotation={removeAnnotation}
       />
-
-      <section className="recent-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">RECENT BARS</p>
-            <h3>最近 K 线</h3>
-          </div>
-          <span>按当前数据粒度在浏览器内聚合 · 可横向滑动查看更多</span>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr><th>时间</th><th>开盘</th><th>最高</th><th>最低</th><th>收盘</th><th>VWAP</th><th>涨跌幅</th><th>成交量</th><th>成交额</th><th>换手率</th></tr>
-            </thead>
-            <tbody>
-              {candles.slice(-8).reverse().map((candle) => (
-                <tr key={candle.key}>
-                  <td>{candle.key}</td>
-                  <td>{formatNumber(candle.open, 3)}</td>
-                  <td>{formatNumber(candle.high, 3)}</td>
-                  <td>{formatNumber(candle.low, 3)}</td>
-                  <td>{formatNumber(candle.close, 3)}</td>
-                  <td>{formatNumber(candle.vwap, 3)}</td>
-                  <td className={candle.changePct >= 0 ? "is-up" : "is-down"}>{candle.changePct >= 0 ? "+" : ""}{formatNumber(candle.changePct, 2)}%</td>
-                  <td>{compactNumber(candle.volume)}</td>
-                  <td>{compactNumber(candle.amount)}</td>
-                  <td>{candle.turnoverPct == null ? "—" : `${formatNumber(candle.turnoverPct, 2)}%`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <section className="news-card" id="stock-news">
         <div className="section-heading news-heading">
