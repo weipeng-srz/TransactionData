@@ -1327,7 +1327,7 @@ select:disabled {
   font-weight: 630;
 }
 
-.realtime-header-meta button {
+.realtime-header-meta button:not(.icon-button) {
   min-height: 38px;
   border-radius: 11px;
 }

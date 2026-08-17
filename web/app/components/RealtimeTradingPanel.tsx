@@ -9,6 +9,7 @@ import type { StockMarket } from "../lib/security";
 
 type LoadState = { phase: "idle" | "loading" | "success" | "error"; detail: string };
 type HoverPoint = { index: number; x: number; y: number; price: number };
+type DownloadState = { phase: "idle" | "loading" | "success" | "error"; detail: string; requestKey: string };
 
 export default function RealtimeTradingPanel({
   snapshot,
@@ -21,6 +22,7 @@ export default function RealtimeTradingPanel({
   market?: StockMarket;
   onRefresh: () => void;
 }) {
+  const [download, setDownload] = useState<DownloadState>({ phase: "idle", detail: "", requestKey: "" });
   const imbalance = useMemo(() => {
     if (!snapshot) return null;
     const bid = snapshot.bids.reduce((sum, item) => sum + item.volume, 0);
@@ -33,6 +35,36 @@ export default function RealtimeTradingPanel({
   );
   const direction = (snapshot?.change ?? 0) >= 0 ? "is-up" : "is-down";
   const refreshLabel = snapshot?.marketStatus === "交易中" ? "1 秒自动刷新" : "15 秒更新快照";
+  const snapshotKey = snapshot ? `${snapshot.code}:${snapshot.date}` : "";
+
+  const downloadDailyTrades = async () => {
+    if (!snapshot || market !== "CN" || download.phase === "loading") return;
+    const requestKey = `${snapshot.code}:${snapshot.date}`;
+    setDownload({ phase: "loading", detail: "正在汇总当日全部 L1 成交明细…", requestKey });
+    try {
+      const response = await fetch("/api/local-stock-trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: snapshot.code, name: snapshot.name, date: snapshot.date, previousClose: snapshot.previousClose }),
+        cache: "no-store",
+      });
+      const body = await response.text();
+      if (!response.ok) {
+        let message = "逐笔成交下载失败";
+        try { message = String((JSON.parse(body) as { error?: unknown }).error || message); } catch { /* keep fallback */ }
+        throw new Error(message);
+      }
+      const url = URL.createObjectURL(new Blob([body], { type: "text/csv;charset=utf-8" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${snapshot.code}-${snapshot.date}-level1-trades.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setDownload({ phase: "success", detail: `已下载 ${snapshot.date} 全部 L1 成交明细`, requestKey });
+    } catch (reason) {
+      setDownload({ phase: "error", detail: reason instanceof Error ? reason.message : "逐笔成交下载失败", requestKey });
+    }
+  };
 
   return (
     <section className={`realtime-panel ${snapshot ? "has-data" : "is-empty"}`} id="realtime-trading" aria-live="polite">
@@ -49,7 +81,21 @@ export default function RealtimeTradingPanel({
               <span>{snapshot.date} {snapshot.time}</span>
             </>
           ) : null}
+          {market === "CN" && snapshot ? (
+            <button
+              className="icon-button realtime-download-button"
+              type="button"
+              onClick={() => void downloadDailyTrades()}
+              disabled={download.phase === "loading"}
+              aria-busy={download.phase === "loading"}
+              aria-label={download.phase === "loading" ? "正在下载逐笔成交" : "下载逐笔成交"}
+              title="下载当前交易日全部 Level-1 成交明细；公开源约 3 秒聚合，不是 Level-2 原始订单"
+            >
+              ⇩
+            </button>
+          ) : null}
           <button type="button" onClick={onRefresh} disabled={load.phase === "loading"}>{load.phase === "loading" ? "刷新中…" : "立即刷新"}</button>
+          {download.detail && download.requestKey === snapshotKey ? <span className="sr-only" role="status">{download.detail}</span> : null}
         </div>
       </header>
 
@@ -84,7 +130,7 @@ export default function RealtimeTradingPanel({
               guidePoints={signalAnalysis.guidePoints}
             />
             <div className="realtime-chart-footer">
-              <span>1 分钟 K 线 · {snapshot.minuteCandles.length} 根 · B/S {signalAnalysis.signalCount} 个</span>
+              <span>1 分钟 K 线 · {snapshot.minuteCandles.length} 根 · B/S {signalAnalysis.signalCount} 个{market === "CN" ? " · 可下载当日 L1 成交明细" : ""}</span>
               <span>滚轮缩放 · 横向拖拽 · 双击复位 · ← → 定位</span>
               <span title={snapshot.source}>{market === "US" ? "美股延时报价" : "新浪 L1"} · 更新：{formatFetchedAt(snapshot.fetchedAt)}</span>
             </div>
