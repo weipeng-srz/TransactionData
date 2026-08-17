@@ -102,3 +102,18 @@ test("uses the shared card theme without the prediction grid overlay", () => {
   assert.match(appleRefinementStyles, /\.next-day-card::before\s*\{[^}]*display:\s*none/s);
   assert.match(appleRefinementStyles, /\.next-day-grade,[\s\S]*?background:\s*color-mix\(in srgb, var\(--apple-surface-soft\) 78%, transparent\)/);
 });
+
+test("keeps scenario cards clear of the preceding divider in every style layer", () => {
+  for (const source of [globalStyles, appleRefinementStyles]) {
+    const rules = [...source.matchAll(/\.next-day-scenarios\s*\{([^}]*)\}/gs)];
+    assert.ok(rules.length > 0);
+    for (const [, declarations] of rules) {
+      assert.doesNotMatch(declarations, /padding:\s*0(?:\s|;)/);
+    }
+  }
+
+  assert.match(appleRefinementStyles, /\.next-day-scenarios\s*\{[^}]*padding:\s*18px 20px/s);
+  assert.match(appleRefinementStyles, /\.next-day-similar-table,\s*\.next-day-method\s*\{[^}]*margin:\s*0 20px 18px/s);
+  assert.match(appleRefinementStyles, /@media \(max-width: 560px\)[\s\S]*?\.next-day-scenarios\s*\{[^}]*padding:\s*15px/s);
+  assert.match(appleRefinementStyles, /@media \(max-width: 560px\)[\s\S]*?\.next-day-similar-table,\s*\.next-day-method\s*\{[^}]*margin:\s*0 15px 15px/s);
+});

@@ -2770,7 +2770,7 @@ tbody tr:last-child td {
 }
 
 .next-day-scenarios {
-  padding: 0 22px 22px;
+  padding: 22px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
@@ -3060,7 +3060,7 @@ tbody tr:last-child td {
 }
 
 .next-day-method {
-  margin: 0 22px 20px;
+  margin: 0 22px 22px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(5, 14, 20, 0.46);
@@ -3226,7 +3226,7 @@ tbody tr:last-child td {
   }
 
   .next-day-scenarios {
-    padding: 0 16px 16px;
+    padding: 16px;
   }
 
   .next-day-factors > div,
@@ -4853,7 +4853,7 @@ body::before {
 }
 
 .next-day-scenarios {
-  padding: 0 16px 16px;
+  padding: 16px;
   gap: 14px;
 }
 

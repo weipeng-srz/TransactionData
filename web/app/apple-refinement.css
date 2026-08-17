@@ -3998,7 +3998,7 @@ select:disabled {
 .next-day-range > strong b { color: var(--apple-tertiary); }
 
 .next-day-scenarios {
-  padding: 0 20px 18px;
+  padding: 18px 20px;
   gap: 14px;
   border-bottom: 1px solid var(--apple-border);
 }
@@ -4083,8 +4083,7 @@ select:disabled {
 
 .next-day-similar-table,
 .next-day-method {
-  margin-right: 20px;
-  margin-left: 20px;
+  margin: 0 20px 18px;
 }
 
 .next-day-similar-table td:first-child button {
@@ -4122,13 +4121,12 @@ select:disabled {
   }
 
   .next-day-scenarios {
-    padding: 0 15px 15px;
+    padding: 15px;
   }
 
   .next-day-similar-table,
   .next-day-method {
-    margin-right: 15px;
-    margin-left: 15px;
+    margin: 0 15px 15px;
   }
 
   .next-day-notice {
