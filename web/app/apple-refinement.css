@@ -3820,7 +3820,7 @@ select:disabled {
 
 /* Next-day probability: use the same surfaces, spacing, and semantic colors as the research cards. */
 .next-day-card {
-  margin-top: 0;
+  margin-top: var(--section-gap);
   overflow: hidden;
   border: 1px solid var(--apple-border);
   border-radius: var(--apple-radius-lg);
@@ -4095,6 +4095,19 @@ select:disabled {
   padding: 13px 20px;
   border-top: 1px solid var(--apple-border);
   background: var(--apple-surface-soft);
+}
+
+@media (min-width: 1181px) {
+  .next-day-card {
+    border-color: var(--apple-glass-border);
+    background:
+      linear-gradient(138deg, var(--apple-glass-highlight), transparent 34%),
+      linear-gradient(315deg, color-mix(in srgb, var(--apple-accent) 3.5%, transparent), transparent 42%),
+      var(--apple-glass);
+    box-shadow: var(--apple-glass-shadow);
+    backdrop-filter: blur(26px) saturate(175%);
+    -webkit-backdrop-filter: blur(26px) saturate(175%);
+  }
 }
 
 @media (max-width: 560px) {

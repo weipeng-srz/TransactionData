@@ -4781,7 +4781,7 @@ body::before {
 }
 
 .backtest-card {
-  grid-row: 5;
+  grid-row: 4;
   border-color: rgba(195, 140, 255, 0.18);
   background:
     linear-gradient(120deg, rgba(195, 140, 255, 0.07), transparent 45%),
@@ -4789,8 +4789,6 @@ body::before {
 }
 
 .next-day-card {
-  grid-column: 1 / 13;
-  grid-row: 4;
   margin-top: 0;
   border-color: rgba(109, 211, 255, 0.18);
   border-radius: 18px;
@@ -4888,7 +4886,6 @@ body::before {
 }
 
 @media (max-width: 1180px) {
-  .analysis-rail > .next-day-card,
   .analysis-rail > .backtest-card {
     grid-column: 1 / -1;
     grid-row: auto;

@@ -1486,21 +1486,22 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <section className="rail-card ownership-card">
             <HolderMix structure={financialDataset.holderStructure} loading={financialLoad.phase === "loading"} />
           </section>
-          <NextDayPredictionCard
-            candles={dailyCandles}
-            stockName={selectedName || selectedCode}
-            onInspectDate={(date) => {
-              const index = dailyCandles.findIndex((candle) => candle.date === date);
-              if (index < 0) return;
-              setTimeframe("1d");
-              setHoverIndex(index);
-              setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
-              window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-            }}
-          />
           <SignalBacktestCard backtest={signalBacktest} benchmarkName={selectedMarket === "US" ? benchmarkCode : "沪深300"} market={selectedMarket} />
         </aside>
       </section>
+
+      <NextDayPredictionCard
+        candles={dailyCandles}
+        stockName={selectedName || selectedCode}
+        onInspectDate={(date) => {
+          const index = dailyCandles.findIndex((candle) => candle.date === date);
+          if (index < 0) return;
+          setTimeframe("1d");
+          setHoverIndex(index);
+          setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
+          window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+        }}
+      />
 
       <FinancialDashboard dataset={financialDataset} load={financialLoad} currency={selectedIdentity.currency} />
       {selectedMarket === "CN" ? <details className="legacy-financial-summary">

@@ -6,6 +6,7 @@ import { buildNextDayPrediction } from "../app/lib/nextDayPrediction.ts";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const globalStyles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+const appleRefinementStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 
 function syntheticCandles(count = 320) {
   const candles = [];
@@ -75,16 +76,29 @@ test("returns no prediction when daily history cannot support labels and indicat
   assert.equal(buildNextDayPrediction(syntheticCandles(28)), null);
 });
 
-test("places next-day analysis directly above the daily B/S backtest and removes the bottom K-line table", () => {
+test("keeps next-day analysis independent and directly after the daily B/S backtest", () => {
   const workspaceIndex = pageSource.indexOf('<section className="workspace-grid"');
-  const predictionIndex = pageSource.indexOf("<NextDayPredictionCard", workspaceIndex);
+  const analysisRailIndex = pageSource.indexOf("<aside", workspaceIndex);
   const backtestIndex = pageSource.indexOf("<SignalBacktestCard", workspaceIndex);
+  const analysisRailEndIndex = pageSource.indexOf("</aside>", backtestIndex);
+  const workspaceEndIndex = pageSource.indexOf("</section>", analysisRailEndIndex);
+  const predictionIndex = pageSource.indexOf("<NextDayPredictionCard", workspaceIndex);
 
   assert.ok(workspaceIndex >= 0);
-  assert.ok(predictionIndex > workspaceIndex);
-  assert.ok(backtestIndex > predictionIndex);
+  assert.ok(analysisRailIndex > workspaceIndex);
+  assert.ok(backtestIndex > analysisRailIndex);
+  assert.ok(analysisRailEndIndex > backtestIndex);
+  assert.ok(workspaceEndIndex > analysisRailEndIndex);
+  assert.ok(predictionIndex > workspaceEndIndex);
   assert.doesNotMatch(pageSource, /className="recent-card"/);
   assert.doesNotMatch(pageSource, /RECENT BARS|最近 K 线/);
-  assert.match(globalStyles, /\.next-day-card\s*\{[^}]*grid-row:\s*4/s);
-  assert.match(globalStyles, /\.backtest-card\s*\{[^}]*grid-row:\s*5/s);
+  assert.match(globalStyles, /\.backtest-card\s*\{[^}]*grid-row:\s*4/s);
+  assert.doesNotMatch(globalStyles, /\.next-day-card\s*\{[^}]*grid-row:/s);
+});
+
+test("uses the shared card theme without the prediction grid overlay", () => {
+  assert.match(appleRefinementStyles, /\.next-day-card\s*\{[^}]*border:\s*1px solid var\(--apple-border\)[^}]*background:\s*var\(--apple-surface\)[^}]*box-shadow:\s*var\(--apple-shadow-card\)/s);
+  assert.match(appleRefinementStyles, /\.next-day-card\s*\{[^}]*margin-top:\s*var\(--section-gap\)/s);
+  assert.match(appleRefinementStyles, /\.next-day-card::before\s*\{[^}]*display:\s*none/s);
+  assert.match(appleRefinementStyles, /\.next-day-grade,[\s\S]*?background:\s*color-mix\(in srgb, var\(--apple-surface-soft\) 78%, transparent\)/);
 });
