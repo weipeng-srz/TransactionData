@@ -9,6 +9,7 @@ import SignalBacktestCard from "./components/SignalBacktestCard";
 import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import HoldingProfitCard from "./components/HoldingProfitCard";
 import StockScoreCard from "./components/StockScoreCard";
+import NextDayPredictionCard from "./components/NextDayPredictionCard";
 import PortfolioHome from "./components/PortfolioHome";
 import SiteBanner from "./components/SiteBanner";
 import {
@@ -1074,6 +1075,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         <nav className="workspace-nav" aria-label="个股信息章节导航">
           <p className="sidebar-nav-heading">快速定位</p>
           <a href="#stock-score"><span>综合评分</span><small>Score</small></a>
+          <a href="#next-day-prediction"><span>隔日预测</span><small>Next Day</small></a>
           <a href="#realtime-trading"><span>实时盘口</span><small>Live</small></a>
           <a href="#stock-market"><span>价格行情</span><small>Market</small></a>
           <a href="#kline-analysis"><span>K 线研判</span><small>Insight</small></a>
@@ -1178,6 +1180,19 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       ) : null}
 
       <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
+
+      <NextDayPredictionCard
+        candles={dailyCandles}
+        stockName={selectedName || selectedCode}
+        onInspectDate={(date) => {
+          const index = dailyCandles.findIndex((candle) => candle.date === date);
+          if (index < 0) return;
+          setTimeframe("1d");
+          setHoverIndex(index);
+          setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
+          window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+        }}
+      />
 
       <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} />
 
