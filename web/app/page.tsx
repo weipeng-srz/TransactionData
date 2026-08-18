@@ -50,6 +50,7 @@ import { buildEventStudies, buildFactorProfile } from "./lib/advancedResearch";
 import { readCachedText, writeCachedText } from "./lib/browserCache";
 import { reportTelemetry } from "./lib/telemetry";
 import type { RealtimeSnapshot } from "./lib/realtimeMarket";
+import { mergeClosedCnRealtimeDay } from "./lib/closedMarketDay";
 import { parseHoldings, type StockHoldings } from "./lib/holdings";
 import { buildStockScore } from "./lib/stockScore";
 import {
@@ -269,6 +270,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const [storageHydrated, setStorageHydrated] = useState(false);
   const requestControllerRef = useRef<AbortController | null>(null);
   const realtimeControllerRef = useRef<AbortController | null>(null);
+  const candleSeriesRef = useRef({ key: "", length: 0 });
   const requestVersionRef = useRef(0);
   const sharedStateAppliedRef = useRef(false);
   const cloudLoadedRef = useRef(false);
@@ -442,14 +444,33 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  const analyticalDataset = useMemo(
+    () => selectedMarket === "CN" && realtimeSnapshot?.code === selectedCode
+      ? mergeClosedCnRealtimeDay(dataset, realtimeSnapshot)
+      : dataset,
+    [dataset, realtimeSnapshot, selectedCode, selectedMarket],
+  );
   const dailyCandles = useMemo(
-    () => aggregateCandles(dataset.rows, selectedCode, "1d"),
-    [dataset.rows, selectedCode],
+    () => aggregateCandles(analyticalDataset.rows, selectedCode, "1d"),
+    [analyticalDataset.rows, selectedCode],
   );
   const candles = useMemo(
-    () => aggregateCandles(dataset.rows, selectedCode, timeframe),
-    [dataset.rows, selectedCode, timeframe],
+    () => aggregateCandles(analyticalDataset.rows, selectedCode, timeframe),
+    [analyticalDataset.rows, selectedCode, timeframe],
   );
+  useEffect(() => {
+    const key = `${selectedCode}:${timeframe}`;
+    const previous = candleSeriesRef.current;
+    if (previous.key === key && candles.length > previous.length) {
+      setRange((current) => {
+        if (current.to < previous.length - 1) return current;
+        const span = Math.max(0, current.to - current.from);
+        const to = candles.length - 1;
+        return { from: Math.max(0, to - span), to };
+      });
+    }
+    candleSeriesRef.current = { key, length: candles.length };
+  }, [candles.length, selectedCode, timeframe]);
   const benchmarkCandles = useMemo(() => benchmarkDataset ? aggregateCandles(benchmarkDataset.rows, benchmarkDataset.codes[0], "1d") : [], [benchmarkDataset]);
   const indicators = useMemo(() => calculateIndicators(candles), [candles]);
   const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles), [dailyCandles]);
@@ -466,16 +487,16 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const { firstRow, lastRow } = useMemo(() => {
     let first: ParsedDataset["rows"][number] | undefined;
     let last: ParsedDataset["rows"][number] | undefined;
-    for (const row of dataset.rows) {
+    for (const row of analyticalDataset.rows) {
       if (row.code !== selectedCode) continue;
       if (!first) first = row;
       last = row;
     }
     return { firstRow: first, lastRow: last };
-  }, [dataset.rows, selectedCode]);
+  }, [analyticalDataset.rows, selectedCode]);
   const intent = useMemo(
-    () => lastRow ? analyzeMarketIntent(dataset, selectedCode, lastRow.date) : null,
-    [dataset, selectedCode, lastRow],
+    () => lastRow ? analyzeMarketIntent(analyticalDataset, selectedCode, lastRow.date) : null,
+    [analyticalDataset, selectedCode, lastRow],
   );
   const latest = candles[candles.length - 1];
   const selectedName = dataset.stockNames[selectedCode] ?? "";
@@ -1204,7 +1225,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                   title={dailyOnly && key !== "1d" ? "历史行情数据源为日 K 聚合；当前交易日 1 分钟 K 线请查看上方实时行情区域" : undefined}
                   onClick={() => {
                     setTimeframe(key);
-                    setRange(defaultRange(aggregateCandles(dataset.rows, selectedCode, key).length, key));
+                    setRange(defaultRange(aggregateCandles(analyticalDataset.rows, selectedCode, key).length, key));
                     setHoverIndex(null);
                   }}
                 >
@@ -1355,7 +1376,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <span className="live-indicator"><i /> {isDemo ? "DEMO" : "HTTPS"}</span>
             </div>
             <div className="data-grid">
-              <Stat label="行情数据点" value={dataset.rows.length.toLocaleString("zh-CN")} />
+              <Stat label="行情数据点" value={analyticalDataset.rows.length.toLocaleString("zh-CN")} />
               <Stat label="K线数量" value={candles.length.toLocaleString("zh-CN")} />
               <Stat label="股票数量" value={String(dataset.codes.length)} />
               <Stat label="跳过异常" value={String(dataset.skipped)} />
