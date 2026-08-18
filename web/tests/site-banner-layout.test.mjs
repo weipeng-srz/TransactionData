@@ -38,6 +38,11 @@ test("keeps the banner geometry and search outline consistent", () => {
   assert.match(bannerStyles, /\.searchField:focus-within \{[\s\S]*?border-color:[\s\S]*?72%/);
 });
 
+test("focuses the sticky search without changing the page scroll position", () => {
+  assert.match(bannerSource, /searchRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(bannerStyles, /\.banner \{[\s\S]*?overflow-anchor: none;/);
+});
+
 test("limits sidebars to in-page stock and global index navigation", () => {
   assert.match(stockSource, /className="app-sidebar research-sidebar"/);
   assert.match(stockSource, /aria-label="个股信息章节导航"/);

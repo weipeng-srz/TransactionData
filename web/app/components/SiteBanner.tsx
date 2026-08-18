@@ -43,7 +43,7 @@ export default function SiteBanner({
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        searchRef.current?.focus();
+        searchRef.current?.focus({ preventScroll: true });
       }
       if (event.key === "Escape") {
         setSuggestion(null);

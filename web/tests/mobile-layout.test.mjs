@@ -14,6 +14,9 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(bannerSource, /className=\{styles\.mobileSpacer\} aria-hidden="true"/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \{/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?position: fixed;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?right: var\(--site-frame-gutter, 12px\);[\s\S]*?left: var\(--site-frame-gutter, 12px\);/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?transform: none;/);
+  assert.doesNotMatch(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?translate3d\(-50%/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.mobileSpacer \{[\s\S]*?height: calc\(68px \+ env\(safe-area-inset-top\)\);[\s\S]*?display: block;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 46px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.navigation \{[\s\S]*?height: 40px;/);
