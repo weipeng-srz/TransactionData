@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import KlineViewportControls from "./KlineViewportControls";
 import {
   getKlineWheelIntent,
@@ -104,7 +104,7 @@ const chartPalettes = {
   },
 };
 
-export default function MarketChart({
+function MarketChart({
   appearance,
   candles,
   benchmarkCandles = [],
@@ -764,6 +764,27 @@ export default function MarketChart({
     </div>
   );
 }
+
+function marketChartPropsEqual(previous: Props, next: Props): boolean {
+  const annotationsMatch = previous.annotations.length === next.annotations.length
+    && previous.annotations.every((annotation, index) => annotation === next.annotations[index]);
+  return previous.appearance === next.appearance
+    && previous.candles === next.candles
+    && previous.benchmarkCandles === next.benchmarkCandles
+    && previous.benchmarkName === next.benchmarkName
+    && previous.indicators === next.indicators
+    && previous.overlays === next.overlays
+    && previous.lowerIndicator === next.lowerIndicator
+    && previous.range.from === next.range.from
+    && previous.range.to === next.range.to
+    && previous.resetVisible === next.resetVisible
+    && previous.events === next.events
+    && annotationsMatch
+    && previous.onRangeChange === next.onRangeChange
+    && previous.onHover === next.onHover;
+}
+
+export default memo(MarketChart, marketChartPropsEqual);
 
 function drawThresholds(
   context: CanvasRenderingContext2D,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Candle } from "../lib/market";
 import type { NewsItem } from "../lib/news";
 import type { RealtimeSnapshot } from "../lib/realtimeMarket";
@@ -15,16 +15,7 @@ import {
 const windows: PredictionWindow[] = [60, 126, 250];
 const neighborOptions: PredictionNeighborCount[] = [5, 10, 15, 20, 30];
 
-export default function NextDayPredictionCard({
-  candles,
-  benchmarkCandles,
-  benchmarkName,
-  newsItems,
-  realtimeSnapshot,
-  market,
-  stockName,
-  onInspectDate,
-}: {
+type Props = {
   candles: Candle[];
   benchmarkCandles: Candle[];
   benchmarkName: string;
@@ -33,11 +24,23 @@ export default function NextDayPredictionCard({
   market: StockMarket;
   stockName: string;
   onInspectDate: (date: string) => void;
-}) {
+};
+
+function NextDayPredictionCard({
+  candles,
+  benchmarkCandles,
+  benchmarkName,
+  newsItems,
+  realtimeSnapshot,
+  market,
+  stockName,
+  onInspectDate,
+}: Props) {
   const [mode, setMode] = useState<PredictionMode>("tomorrow");
   const [windowSize, setWindowSize] = useState<PredictionWindow>(126);
   const [neighbors, setNeighbors] = useState<PredictionNeighborCount>(15);
   const [predictionSnapshot, setPredictionSnapshot] = useState<RealtimeSnapshot | null>(realtimeSnapshot);
+  const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const latestSnapshotRef = useRef(realtimeSnapshot);
   useEffect(() => {
     latestSnapshotRef.current = realtimeSnapshot;
@@ -239,7 +242,13 @@ export default function NextDayPredictionCard({
           </div>
         </section>
 
-        <section className="next-day-panel next-day-model">
+        <button className="next-day-evidence-toggle" type="button" aria-expanded={evidenceExpanded} aria-controls="next-day-evidence" onClick={() => setEvidenceExpanded((current) => !current)}>
+          <span><small>DEEP DIAGNOSTICS</small><strong>模型验证与相似日证据</strong></span>
+          <em>{report.modelValidation.validationSamples} 个滚动样本 · {report.similarDays.count} 个相似日</em>
+          <i aria-hidden="true">{evidenceExpanded ? "收起 ↑" : "按需展开 ↓"}</i>
+        </button>
+
+        {evidenceExpanded ? <section className="next-day-panel next-day-model" id="next-day-evidence">
           <header><div><p className="eyebrow">WALK-FORWARD CHECK</p><h3>模型有效性与动态权重</h3></div><span className={report.modelValidation.panelEnabled || report.modelValidation.mlEnabled ? "is-enabled" : "is-disabled"}>{report.modelValidation.panelEnabled ? "面板 ML 已启用" : report.modelValidation.mlEnabled ? "个股 ML 已启用" : "ML 已降级"}</span></header>
           <div className="model-metrics">
             <div><span>Accuracy</span><strong>{modelMetric(report.modelValidation.accuracy)}</strong></div>
@@ -266,10 +275,11 @@ export default function NextDayPredictionCard({
             <WeightBar label="跨股票面板" value={report.weights.panel} tone="ml" />
           </div>
           <p>{report.modelValidation.reason}</p>
-        </section>
+        </section> : null}
       </div>
 
-      <section className="next-day-similar-table">
+      {evidenceExpanded ? <>
+        <section className="next-day-similar-table">
         <header>
           <div><p className="eyebrow">NEAREST TRADING DAYS</p><h3>历史相似交易日</h3></div>
           <span>点击日期定位到历史 K 线</span>
@@ -293,35 +303,53 @@ export default function NextDayPredictionCard({
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
 
-      <details className="next-day-method">
-        <summary>查看命中规则、样本量与方法说明</summary>
-        <div>
-          <section>
-            <h3>当前命中规则</h3>
-            {report.activeRules.length ? (
-              <div className="rule-table table-wrap"><table><thead><tr><th>规则</th><th>方向</th><th>样本数</th><th>可信度</th><th>历史上涨率</th><th>平均收益</th></tr></thead><tbody>{report.activeRules.map((rule) => <tr key={rule.key}><td><strong>{rule.name}</strong><small>{rule.description}</small></td><td>{rule.tone === "bullish" ? "偏多" : rule.tone === "risk" ? "风险" : "中性"}</td><td>{rule.sampleSize}</td><td>{rule.confidence}</td><td>{percent(rule.upRate)}</td><ReturnCell value={rule.averageReturn} /></tr>)}</tbody></table></div>
-            ) : <p>当前没有命中预设强形态或风险形态，规则层回退到该股票自身隔日上涨基准。</p>}
-          </section>
-          <section>
-            <h3>计算口径</h3>
-            <ul>
-              <li>“预测今日”会把今日 K 线完全移出输入；“预测明日”才合并今日截至当前的 OHLCV，盘中量能按交易进度投影。</li>
-              <li>相似度使用标准化后的价格形态、波动率、ATR、量能、大盘趋势与个股相对强弱计算，并加入时间衰减。</li>
-              <li>Logistic Regression 预测方向，Ridge Regression 辅助估计开盘、收盘、高低点与量比；规则胜率采用先验收缩避免小样本虚高。</li>
-              <li>验证采用按时间顺序扩展训练集的 Walk Forward 方式；准确率、AUC 与 Brier 校准未共同优于基准时，ML 权重自动归零。</li>
-              <li>新闻按发布时间、相关性和衰减权重计算，最多修正 ±5 个百分点；大盘因子直接进入相似日与 ML 特征。</li>
-              <li>止盈位、风险位和最高/最低均是历史条件下的统计观察带，不是保证成交的价格边界。</li>
-            </ul>
-          </section>
-        </div>
-      </details>
+        <details className="next-day-method">
+          <summary>查看命中规则、样本量与方法说明</summary>
+          <div>
+            <section>
+              <h3>当前命中规则</h3>
+              {report.activeRules.length ? (
+                <div className="rule-table table-wrap"><table><thead><tr><th>规则</th><th>方向</th><th>样本数</th><th>可信度</th><th>历史上涨率</th><th>平均收益</th></tr></thead><tbody>{report.activeRules.map((rule) => <tr key={rule.key}><td><strong>{rule.name}</strong><small>{rule.description}</small></td><td>{rule.tone === "bullish" ? "偏多" : rule.tone === "risk" ? "风险" : "中性"}</td><td>{rule.sampleSize}</td><td>{rule.confidence}</td><td>{percent(rule.upRate)}</td><ReturnCell value={rule.averageReturn} /></tr>)}</tbody></table></div>
+              ) : <p>当前没有命中预设强形态或风险形态，规则层回退到该股票自身隔日上涨基准。</p>}
+            </section>
+            <section>
+              <h3>计算口径</h3>
+              <ul>
+                <li>“预测今日”会把今日 K 线完全移出输入；“预测明日”才合并今日截至当前的 OHLCV，盘中量能按交易进度投影。</li>
+                <li>相似度使用标准化后的价格形态、波动率、ATR、量能、大盘趋势与个股相对强弱计算，并加入时间衰减。</li>
+                <li>Logistic Regression 预测方向，Ridge Regression 辅助估计开盘、收盘、高低点与量比；规则胜率采用先验收缩避免小样本虚高。</li>
+                <li>验证采用按时间顺序扩展训练集的 Walk Forward 方式；准确率、AUC 与 Brier 校准未共同优于基准时，ML 权重自动归零。</li>
+                <li>新闻按发布时间、相关性和衰减权重计算，最多修正 ±5 个百分点；大盘因子直接进入相似日与 ML 特征。</li>
+                <li>止盈位、风险位和最高/最低均是历史条件下的统计观察带，不是保证成交的价格边界。</li>
+              </ul>
+            </section>
+          </div>
+        </details>
+      </> : null}
 
       <footer className="next-day-notice">{report.notice}</footer>
     </section>
   );
 }
+
+function predictionSliceKey(snapshot: RealtimeSnapshot | null): string {
+  return snapshot ? `${snapshot.code}:${snapshot.date}:${snapshot.time.slice(0, 5)}:${snapshot.marketStatus}` : "";
+}
+
+function nextDayPropsEqual(previous: Props, next: Props): boolean {
+  return previous.candles === next.candles
+    && previous.benchmarkCandles === next.benchmarkCandles
+    && previous.benchmarkName === next.benchmarkName
+    && previous.newsItems === next.newsItems
+    && predictionSliceKey(previous.realtimeSnapshot) === predictionSliceKey(next.realtimeSnapshot)
+    && previous.market === next.market
+    && previous.stockName === next.stockName
+    && previous.onInspectDate === next.onInspectDate;
+}
+
+export default memo(NextDayPredictionCard, nextDayPropsEqual);
 
 function ModeSwitch({ mode, onChange }: { mode: PredictionMode; onChange: (mode: PredictionMode) => void }) {
   return (

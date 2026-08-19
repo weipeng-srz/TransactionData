@@ -534,6 +534,14 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   );
   const factorProfile = useMemo(() => buildFactorProfile(dailyCandles, financialDataset, riskMetrics), [dailyCandles, financialDataset, riskMetrics]);
   const eventStudies = useMemo(() => buildEventStudies(chartEvents, dailyCandles), [chartEvents, dailyCandles]);
+  const inspectPredictionDate = useCallback((date: string) => {
+    const index = dailyCandles.findIndex((candle) => candle.date === date);
+    if (index < 0) return;
+    setTimeframe("1d");
+    setHoverIndex(index);
+    setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
+    window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [dailyCandles]);
   const stockScore = useMemo(() => buildStockScore({
     candles: dailyCandles,
     indicators: dailyIndicators,
@@ -1543,14 +1551,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         realtimeSnapshot={liveQuote}
         market={selectedMarket}
         stockName={selectedName || selectedCode}
-        onInspectDate={(date) => {
-          const index = dailyCandles.findIndex((candle) => candle.date === date);
-          if (index < 0) return;
-          setTimeframe("1d");
-          setHoverIndex(index);
-          setRange({ from: Math.max(0, index - 30), to: Math.min(dailyCandles.length - 1, index + 30) });
-          window.requestAnimationFrame(() => document.getElementById("stock-market")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-        }}
+        onInspectDate={inspectPredictionDate}
       /> : null}
 
       <FinancialDashboard dataset={financialDataset} load={financialLoad} currency={selectedIdentity.currency} />

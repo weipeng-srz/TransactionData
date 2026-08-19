@@ -1,8 +1,9 @@
+import { memo } from "react";
 import type { SignalBacktest } from "../lib/research";
 import type { StockMarket } from "../lib/security";
 import styles from "./SignalBacktestCard.module.css";
 
-export default function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "CN", priceBasis = "", onCostChange }: { backtest: SignalBacktest; benchmarkName?: string; market?: StockMarket; priceBasis?: string; onCostChange?: (value: number) => void }) {
+function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "CN", priceBasis = "", onCostChange }: { backtest: SignalBacktest; benchmarkName?: string; market?: StockMarket; priceBasis?: string; onCostChange?: (value: number) => void }) {
   const primary = backtest.horizons.find((item) => item.periods === 10) ?? backtest.horizons[0];
   return (
     <section className="rail-card backtest-card" id="signal-backtest">
@@ -57,6 +58,8 @@ export default function SignalBacktestCard({ backtest, benchmarkName = "沪深30
     </section>
   );
 }
+
+export default memo(SignalBacktestCard);
 
 function Metric({ label, value, tone: metricTone }: { label: string; value: string; tone?: number | null }) {
   return <div><span>{label}</span><strong className={metricTone == null ? "" : tone(metricTone)}>{value}</strong></div>;

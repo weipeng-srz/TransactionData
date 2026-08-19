@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { FinancialDataset } from "../lib/financials";
 import type {
   FinancialAnalysisPeriod,
@@ -64,12 +64,13 @@ const tableRows: TableRow[] = [
   { key: "interestCoverage", label: "利息保障倍数", group: "偿债能力", source: "balance", format: "ratio", formula: "息税前利润 ÷ 利息费用" },
 ];
 
-export default function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: FinancialDataset; load: LoadState; currency?: StockCurrency }) {
+function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: FinancialDataset; load: LoadState; currency?: StockCurrency }) {
   const [range, setRange] = useState<RangeKey>("8q");
   const [mode, setMode] = useState<FinancialViewMode>("single");
   const [profitKey, setProfitKey] = useState<ProfitKey>("deductNetProfit");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("absolute");
   const [expandedMetric, setExpandedMetric] = useState<MetricKey | null>(null);
+  const [detailExpanded, setDetailExpanded] = useState(false);
   const hasAnalysis = dataset.analysis.periods.length > 0;
 
   const visiblePeriods = useMemo(() => {
@@ -222,24 +223,50 @@ export default function FinancialDashboard({ dataset, load, currency = "CNY" }: 
             </section>
           </div>
 
-          <section className="finance-detail-card" id="finance-detail">
+          <section className={`finance-detail-card ${detailExpanded ? "is-expanded" : "is-collapsed"}`} id="finance-detail">
             <header>
               <div><p className="eyebrow">FINANCIAL MATRIX</p><h4>详细财务指标对比</h4></div>
-              <div><span>点击指标可展开趋势 · 悬停查看公式</span><button type="button" onClick={() => exportFinancialCsv(dataset.name || dataset.code, visiblePeriods, effectiveMode, currency)}>导出 Excel / CSV</button></div>
-            </header>
-            {expandedMetric ? (
-              <div className="expanded-metric-chart">
-                <div><strong>{tableRows.find((row) => row.key === expandedMetric)?.label}</strong><button type="button" onClick={() => setExpandedMetric(null)}>收起</button></div>
-                <FinancialChart labels={labels} series={[expandedSeries(expandedMetric, visiblePeriods, effectiveMode)]} leftUnit={metricUnit(expandedMetric, currency)} height={190} ariaLabel={`${String(expandedMetric)}趋势`} />
+              <div>
+                <span>{detailExpanded ? "点击指标可展开趋势 · 悬停查看公式" : `${tableRows.length} 项指标 · ${visiblePeriods.length} 个报告期 · 按需加载`}</span>
+                {detailExpanded ? <button type="button" onClick={() => exportFinancialCsv(dataset.name || dataset.code, visiblePeriods, effectiveMode, currency)}>导出 Excel / CSV</button> : null}
+                <button
+                  type="button"
+                  aria-expanded={detailExpanded}
+                  aria-controls="finance-detail-content"
+                  onClick={() => {
+                    setDetailExpanded((current) => {
+                      if (current) setExpandedMetric(null);
+                      return !current;
+                    });
+                  }}
+                >
+                  {detailExpanded ? "收起矩阵" : "展开矩阵"}
+                </button>
               </div>
-            ) : null}
-            <div className="finance-table-wrap">
-              <table className="finance-table">
-                <thead><tr><th>指标</th>{visiblePeriods.map((period) => <th key={period.reportDate}>{shortPeriodLabel(period)}</th>)}</tr></thead>
-                <tbody>{renderTableRows(tableRows, visiblePeriods, effectiveMode, displayMode, expandedMetric, setExpandedMetric, currency)}</tbody>
-              </table>
-            </div>
-            <p className="finance-table-note">流量指标的单季度值由同一会计年度累计值差分；Q4 = 年报 - 三季报。TTM 为最近四个单季度之和；资产负债指标始终使用期末值。</p>
+            </header>
+            {detailExpanded ? (
+              <div id="finance-detail-content">
+                {expandedMetric ? (
+                  <div className="expanded-metric-chart">
+                    <div><strong>{tableRows.find((row) => row.key === expandedMetric)?.label}</strong><button type="button" onClick={() => setExpandedMetric(null)}>收起</button></div>
+                    <FinancialChart labels={labels} series={[expandedSeries(expandedMetric, visiblePeriods, effectiveMode)]} leftUnit={metricUnit(expandedMetric, currency)} height={190} ariaLabel={`${String(expandedMetric)}趋势`} />
+                  </div>
+                ) : null}
+                <div className="finance-table-wrap">
+                  <table className="finance-table">
+                    <thead><tr><th>指标</th>{visiblePeriods.map((period) => <th key={period.reportDate}>{shortPeriodLabel(period)}</th>)}</tr></thead>
+                    <tbody>{renderTableRows(tableRows, visiblePeriods, effectiveMode, displayMode, expandedMetric, setExpandedMetric, currency)}</tbody>
+                  </table>
+                </div>
+                <p className="finance-table-note">流量指标的单季度值由同一会计年度累计值差分；Q4 = 年报 - 三季报。TTM 为最近四个单季度之和；资产负债指标始终使用期末值。</p>
+              </div>
+            ) : (
+              <button className="finance-detail-preview" type="button" aria-expanded="false" aria-controls="finance-detail-content" onClick={() => setDetailExpanded(true)}>
+                <span><strong>需要精确数值时再展开</strong><small>减少首屏约 {tableRows.length * Math.max(1, visiblePeriods.length)} 个财务单元格的布局与更新成本</small></span>
+                <em>查看矩阵</em>
+                <i aria-hidden="true">⌄</i>
+              </button>
+            )}
           </section>
 
           <section className="finance-conclusion-card" id="finance-conclusion">
@@ -256,6 +283,8 @@ export default function FinancialDashboard({ dataset, load, currency = "CNY" }: 
     </section>
   );
 }
+
+export default memo(FinancialDashboard);
 
 function calculateAdvancedQuality(latest: FinancialAnalysisPeriod, previous: FinancialAnalysisPeriod | undefined, dataset: FinancialDataset) {
   const averageAssets = averageAvailable(latest.balance.totalAssets, previous?.balance.totalAssets ?? null);

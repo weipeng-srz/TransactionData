@@ -1,11 +1,11 @@
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import type { StockScoreDimension, StockScoreReport } from "../lib/stockScore";
 
 const radarSize = 360;
 const radarCenter = radarSize / 2;
 const radarRadius = 112;
 
-export default function StockScoreCard({ report, stockName }: { report: StockScoreReport; stockName: string }) {
+function StockScoreCard({ report, stockName }: { report: StockScoreReport; stockName: string }) {
   const weakestDimension = [...report.dimensions].sort((left, right) => left.score - right.score)[0];
   const riskDimension = report.dimensions.find((dimension) => dimension.key === "risk");
 
@@ -70,6 +70,8 @@ export default function StockScoreCard({ report, stockName }: { report: StockSco
     </section>
   );
 }
+
+export default memo(StockScoreCard);
 
 function RadarChart({ dimensions }: { dimensions: StockScoreDimension[] }) {
   const rings = [25, 50, 75, 100];

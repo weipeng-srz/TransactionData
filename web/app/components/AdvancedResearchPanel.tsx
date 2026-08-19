@@ -1,7 +1,8 @@
+import { memo } from "react";
 import type { EventStudy, FactorProfile } from "../lib/advancedResearch";
 import type { RiskMetrics } from "../lib/research";
 
-export default function AdvancedResearchPanel({ risk, factors, events, benchmarkName = "沪深300" }: { risk: RiskMetrics; factors: FactorProfile[]; events: EventStudy[]; benchmarkName?: string }) {
+function AdvancedResearchPanel({ risk, factors, events, benchmarkName = "沪深300" }: { risk: RiskMetrics; factors: FactorProfile[]; events: EventStudy[]; benchmarkName?: string }) {
   return (
     <section className="advanced-research-panel" id="advanced-research">
       <header className="section-heading advanced-heading">
@@ -51,6 +52,8 @@ export default function AdvancedResearchPanel({ risk, factors, events, benchmark
     </section>
   );
 }
+
+export default memo(AdvancedResearchPanel);
 
 function Risk({ label, value, tone: valueTone }: { label: string; value: string; tone?: number | null }) { return <article><span>{label}</span><strong className={valueTone == null ? "" : tone(valueTone)}>{value}</strong></article>; }
 function pct(value: number | null): string { return value == null || !Number.isFinite(value) ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`; }

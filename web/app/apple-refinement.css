@@ -4637,3 +4637,161 @@ summary:active,
     --apple-dense-material: #1b202a;
   }
 }
+
+/* Performance pass: keep the refined depth, but avoid continuously sampling
+   the page backdrop for every large card while it moves through the viewport. */
+.finance-detail-card.is-collapsed > header {
+  border-bottom: 1px solid var(--apple-border);
+}
+
+.finance-detail-preview {
+  width: calc(100% - 24px);
+  min-height: 78px;
+  margin: 12px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--apple-accent) 14%, var(--apple-border));
+  border-radius: 14px;
+  color: var(--apple-text);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--apple-accent) 5%, var(--apple-surface)), var(--apple-surface-soft));
+  text-align: left;
+  cursor: pointer;
+}
+
+.finance-detail-preview > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.finance-detail-preview strong { font-size: 12px; }
+.finance-detail-preview small { color: var(--apple-tertiary); font-size: 9px; line-height: 1.45; }
+.finance-detail-preview em { color: var(--apple-accent); font-size: 10px; font-style: normal; font-weight: 680; }
+.finance-detail-preview i { color: var(--apple-accent); font-size: 18px; font-style: normal; transition: transform var(--apple-motion-fast) ease; }
+.finance-detail-preview:hover i { transform: translateY(2px); }
+
+.next-day-evidence-toggle {
+  min-height: 76px;
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid color-mix(in srgb, var(--apple-accent) 16%, var(--apple-border));
+  border-radius: 16px;
+  color: var(--apple-text);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--apple-accent) 5%, var(--apple-surface)), var(--apple-surface-soft));
+  text-align: left;
+  cursor: pointer;
+}
+
+.next-day-evidence-toggle > span { display: grid; gap: 3px; }
+.next-day-evidence-toggle small { color: var(--apple-accent); font-size: 8px; font-weight: 720; letter-spacing: .12em; }
+.next-day-evidence-toggle strong { font-size: 13px; }
+.next-day-evidence-toggle em { color: var(--apple-tertiary); font-size: 10px; font-style: normal; }
+.next-day-evidence-toggle i { min-width: 72px; color: var(--apple-accent); font-size: 10px; font-style: normal; font-weight: 680; text-align: right; }
+
+#next-day-evidence {
+  grid-column: 1 / -1;
+}
+
+.research-page .stock-score-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 620px;
+}
+
+.research-page .realtime-panel {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 650px;
+}
+
+.research-page .workspace-grid {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2500px;
+}
+
+.research-page .next-day-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1900px;
+}
+
+.research-page .finance-dashboard {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1600px;
+}
+
+.research-page .legacy-financial-summary {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
+}
+
+.research-page .advanced-only {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 680px;
+}
+
+.research-page .research-dock,
+.research-page .news-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 620px;
+}
+
+@media (min-width: 1181px) {
+  .research-page .app-sidebar,
+  .research-page .query-strip,
+  .research-page .quote-head,
+  .research-page .stock-score-card,
+  .research-page .realtime-panel,
+  .research-page .chart-card,
+  .research-page .rail-card,
+  .research-page .next-day-card,
+  .research-page .finance-dashboard,
+  .research-page .legacy-financial-summary,
+  .research-page .fundamentals-card,
+  .research-page .financial-card,
+  .research-page .advanced-research-panel,
+  .research-page .research-dock,
+  .research-page .news-card {
+    background:
+      linear-gradient(132deg, var(--apple-reflection), var(--apple-reflection-soft) 17%, transparent 39%),
+      linear-gradient(315deg, color-mix(in srgb, var(--apple-accent) 3%, transparent), transparent 46%),
+      color-mix(in srgb, var(--apple-surface) 96%, var(--apple-page));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .finance-detail-preview,
+  .next-day-evidence-toggle {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .finance-detail-preview small,
+  .next-day-evidence-toggle em {
+    grid-column: 1 / -1;
+  }
+
+  .finance-detail-preview em { display: none; }
+  .next-day-evidence-toggle i { min-width: 64px; }
+}
+
+@media print {
+  .research-page .stock-score-card,
+  .research-page .realtime-panel,
+  .research-page .workspace-grid,
+  .research-page .next-day-card,
+  .research-page .finance-dashboard,
+  .research-page .legacy-financial-summary,
+  .research-page .advanced-only,
+  .research-page .research-dock,
+  .research-page .news-card {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+  }
+}
