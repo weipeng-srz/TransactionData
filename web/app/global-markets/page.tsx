@@ -5,7 +5,17 @@ import KlineViewportControls from "../components/KlineViewportControls";
 import SiteBanner from "../components/SiteBanner";
 import { plotIndexFromPointer } from "../lib/chartInteraction";
 import { analyzeShanghaiIndexHistory, GLOBAL_INDEXES, type FearGaugeCandle, type FearGaugeQuote, type GlobalIndexFeed, type GlobalIndexQuote, type GlobalRegion, type ShanghaiIndexCandle } from "../lib/globalIndexes";
-import { normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange, type KlineRange } from "../lib/klineViewport";
+import {
+  getKlineWheelIntent,
+  normalizeWheelDelta,
+  panKlineRange,
+  rangeForLatest,
+  resolveKlineDragIntent,
+  wheelDeltaToKlinePan,
+  zoomKlineRange,
+  type KlineDragIntent,
+  type KlineRange,
+} from "../lib/klineViewport";
 import { projectRobinsonPoint } from "../lib/robinsonProjection";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
 import "./global-markets.css";
@@ -176,9 +186,19 @@ export default function GlobalMarketsPage() {
           <a href="#europe-indexes"><span>欧洲市场</span><small>Europe</small></a>
           <a href="#asia-indexes"><span>亚太市场</span><small>Asia</small></a>
         </nav>
+        <span className="mobile-nav-hint" aria-hidden="true">滑动 ›</span>
       </aside>
 
       <div className="app-workspace-shell global-main">
+        <h1 className="sr-only">全球市场</h1>
+        <button
+          className="global-mobile-refresh"
+          type="button"
+          disabled={feedState === "refreshing"}
+          onClick={() => void refresh()}
+        >
+          {feedState === "refreshing" ? "刷新中…" : "刷新行情"}
+        </button>
         {error ? <div className="global-error" role="status"><strong>行情连接提示</strong><span>{error}，页面将在下一个刷新周期自动重试。</span></div> : null}
 
         <section id="global-overview" className="global-summary" aria-label="全球市场概览">
@@ -258,7 +278,13 @@ function ShanghaiIndexPanel({ candles }: { candles: ShanghaiIndexCandle[] }) {
   const [range, setRange] = useState<KlineRange>(() => rangeForLatest(candles.length, 60));
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef<{ x: number; range: KlineRange } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    range: KlineRange;
+    pointerId: number;
+    intent: KlineDragIntent;
+  } | null>(null);
   const visible = useMemo(() => candles.slice(range.from, range.to + 1), [candles, range]);
   const analysis = useMemo(() => analyzeShanghaiIndexHistory(candles), [candles]);
   const latest = candles.at(-1);
@@ -346,17 +372,41 @@ function ShanghaiIndexPanel({ candles }: { candles: ShanghaiIndexCandle[] }) {
           <div
             className={`global-shanghai-chart-stage ${isDragging ? "is-dragging" : ""}`}
             tabIndex={0}
+            aria-label={`上证指数 K 线交互区，当前显示 ${visible.length} 根；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，双击复位`}
+            style={{ touchAction: "pan-y pinch-zoom" }}
             onPointerDown={(event) => {
               if (event.pointerType === "mouse" && event.button !== 0) return;
-              event.currentTarget.setPointerCapture(event.pointerId);
-              dragRef.current = { x: event.clientX, range };
-              setIsDragging(true);
-              setHoverIndex(null);
+              const intent = event.pointerType === "touch" ? "pending" : "horizontal";
+              dragRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+                range,
+                pointerId: event.pointerId,
+                intent,
+              };
+              if (intent === "horizontal") {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setIsDragging(true);
+                setHoverIndex(null);
+              }
             }}
             onPointerLeave={() => { if (!dragRef.current) setHoverIndex(null); }}
             onPointerMove={(event) => {
               const bounds = event.currentTarget.getBoundingClientRect();
               if (dragRef.current && visible.length) {
+                if (dragRef.current.pointerId !== event.pointerId) return;
+                if (dragRef.current.intent === "pending") {
+                  dragRef.current.intent = resolveKlineDragIntent(
+                    event.clientX - dragRef.current.x,
+                    event.clientY - dragRef.current.y,
+                  );
+                  if (dragRef.current.intent === "horizontal") {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    setIsDragging(true);
+                    setHoverIndex(null);
+                  }
+                }
+                if (dragRef.current.intent !== "horizontal") return;
                 const candleWidth = (bounds.width * (plotWidth / width)) / visible.length;
                 const delta = Math.round((dragRef.current.x - event.clientX) / Math.max(candleWidth, 1));
                 setRange(panKlineRange(dragRef.current.range, candles.length, delta));
@@ -373,13 +423,25 @@ function ShanghaiIndexPanel({ candles }: { candles: ShanghaiIndexCandle[] }) {
             onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
             onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
             onWheel={(event) => {
+              const wheelIntent = getKlineWheelIntent(event);
+              if (wheelIntent === "page") return;
               event.preventDefault();
+              const wheelDelta = wheelIntent === "pan" && Math.abs(event.deltaX) > Math.abs(event.deltaY)
+                ? event.deltaX
+                : event.deltaY;
+              const delta = normalizeWheelDelta(wheelDelta, event.deltaMode, height);
+              if (wheelIntent === "pan") {
+                const candleDelta = wheelDeltaToKlinePan(delta, visible.length);
+                if (candleDelta) setRange(panKlineRange(range, candles.length, candleDelta));
+                setHoverIndex(null);
+                return;
+              }
               const bounds = event.currentTarget.getBoundingClientRect();
               const pointerX = (event.clientX - bounds.left) * (width / Math.max(bounds.width, 1));
               setRange(zoomKlineRange({
                 range,
                 total: candles.length,
-                deltaY: normalizeWheelDelta(event.deltaY, event.deltaMode, height),
+                deltaY: delta,
                 anchorRatio: (pointerX - padding.left) / Math.max(plotWidth, 1),
                 minVisible: 12,
               }));
@@ -593,7 +655,13 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
   const [range, setRange] = useState<KlineRange>(() => rangeForLatest(candles.length, 60));
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef<{ x: number; range: KlineRange } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    range: KlineRange;
+    pointerId: number;
+    intent: KlineDragIntent;
+  } | null>(null);
   const visible = useMemo(() => candles.slice(range.from, range.to + 1), [candles, range]);
 
   const width = 720;
@@ -633,17 +701,41 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
           <div
             className={`global-fear-chart-stage ${isDragging ? "is-dragging" : ""}`}
             tabIndex={0}
+            aria-label={`VIX K 线交互区，当前显示 ${visible.length} 根；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，双击复位`}
+            style={{ touchAction: "pan-y pinch-zoom" }}
             onPointerDown={(event) => {
               if (event.pointerType === "mouse" && event.button !== 0) return;
-              event.currentTarget.setPointerCapture(event.pointerId);
-              dragRef.current = { x: event.clientX, range };
-              setIsDragging(true);
-              setHoverIndex(null);
+              const intent = event.pointerType === "touch" ? "pending" : "horizontal";
+              dragRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+                range,
+                pointerId: event.pointerId,
+                intent,
+              };
+              if (intent === "horizontal") {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setIsDragging(true);
+                setHoverIndex(null);
+              }
             }}
             onPointerLeave={() => { if (!dragRef.current) setHoverIndex(null); }}
             onPointerMove={(event) => {
               const bounds = event.currentTarget.getBoundingClientRect();
               if (dragRef.current && visible.length) {
+                if (dragRef.current.pointerId !== event.pointerId) return;
+                if (dragRef.current.intent === "pending") {
+                  dragRef.current.intent = resolveKlineDragIntent(
+                    event.clientX - dragRef.current.x,
+                    event.clientY - dragRef.current.y,
+                  );
+                  if (dragRef.current.intent === "horizontal") {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    setIsDragging(true);
+                    setHoverIndex(null);
+                  }
+                }
+                if (dragRef.current.intent !== "horizontal") return;
                 const candleWidth = (bounds.width * (plotWidth / width)) / visible.length;
                 const delta = Math.round((dragRef.current.x - event.clientX) / Math.max(candleWidth, 1));
                 setRange(panKlineRange(dragRef.current.range, candles.length, delta));
@@ -667,13 +759,25 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
             onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
             onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
             onWheel={(event) => {
+              const wheelIntent = getKlineWheelIntent(event);
+              if (wheelIntent === "page") return;
               event.preventDefault();
+              const wheelDelta = wheelIntent === "pan" && Math.abs(event.deltaX) > Math.abs(event.deltaY)
+                ? event.deltaX
+                : event.deltaY;
+              const delta = normalizeWheelDelta(wheelDelta, event.deltaMode, height);
+              if (wheelIntent === "pan") {
+                const candleDelta = wheelDeltaToKlinePan(delta, visible.length);
+                if (candleDelta) setRange(panKlineRange(range, candles.length, candleDelta));
+                setHoverIndex(null);
+                return;
+              }
               const bounds = event.currentTarget.getBoundingClientRect();
               const pointerX = (event.clientX - bounds.left) * (width / Math.max(bounds.width, 1));
               setRange(zoomKlineRange({
                 range,
                 total: candles.length,
-                deltaY: normalizeWheelDelta(event.deltaY, event.deltaMode, height),
+                deltaY: delta,
                 anchorRatio: (pointerX - padding.left) / Math.max(plotWidth, 1),
                 minVisible: 10,
               }));

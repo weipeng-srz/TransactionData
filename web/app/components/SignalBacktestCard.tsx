@@ -1,16 +1,23 @@
 import type { SignalBacktest } from "../lib/research";
 import type { StockMarket } from "../lib/security";
+import styles from "./SignalBacktestCard.module.css";
 
-export default function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "CN" }: { backtest: SignalBacktest; benchmarkName?: string; market?: StockMarket }) {
+export default function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "CN", priceBasis = "", onCostChange }: { backtest: SignalBacktest; benchmarkName?: string; market?: StockMarket; priceBasis?: string; onCostChange?: (value: number) => void }) {
   const primary = backtest.horizons.find((item) => item.periods === 10) ?? backtest.horizons[0];
   return (
     <section className="rail-card backtest-card" id="signal-backtest">
       <div className="rail-heading">
-        <div>
+        <div className={styles.headingControls}>
           <p className="eyebrow">HISTORICAL VALIDATION</p>
           <h3>B/S 信号回测</h3>
         </div>
-        <span className="calc-badge">{backtest.totalSignals} SIGNALS</span>
+        <div>
+          <label className={styles.costControl}>交易摩擦
+            <input type="number" min="0" max="5" step="0.05" value={backtest.roundTripCostPct} onChange={(event) => onCostChange?.(Math.max(0, Math.min(5, Number(event.target.value) || 0)))} aria-label="回测单次往返交易摩擦百分比" />
+            <span>%</span>
+          </label>
+          <span className="calc-badge">{backtest.totalSignals} SIGNALS</span>
+        </div>
       </div>
       <div className="backtest-layout">
         <div className="backtest-hero">
@@ -46,7 +53,7 @@ export default function SignalBacktestCard({ backtest, benchmarkName = "沪深30
           <Metric label={`相对${benchmarkName}`} value={formatPercent(primary.averageExcessReturn)} tone={primary.averageExcessReturn} />
         </div>
       ) : null}
-      <p className="method-note">{backtest.executionModel}；方向收益已扣除约 {backtest.roundTripCostPct.toFixed(2)}% 交易摩擦，并跳过无量{market === "CN" ? "或单边涨跌停开盘" : "开盘"}样本。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
+      <p className="method-note">{backtest.executionModel}；方向收益已扣除 {backtest.roundTripCostPct.toFixed(2)}% 往返交易摩擦（手续费、税费与滑点合计假设），并跳过无量{market === "CN" ? "或单边涨跌停开盘" : "开盘"}样本。价格口径：{priceBasis || "未明确复权，需核对分红送转影响"}。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
     </section>
   );
 }

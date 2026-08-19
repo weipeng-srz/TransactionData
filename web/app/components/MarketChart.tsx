@@ -2,9 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import KlineViewportControls from "./KlineViewportControls";
-import { normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange } from "../lib/klineViewport";
+import {
+  getKlineWheelIntent,
+  normalizeWheelDelta,
+  panKlineRange,
+  rangeForLatest,
+  resolveKlineDragIntent,
+  wheelDeltaToKlinePan,
+  zoomKlineRange,
+  type KlineDragIntent,
+} from "../lib/klineViewport";
 import type { Candle, IndicatorSet, LowerIndicator } from "../lib/market";
-import { formatNumber } from "../lib/market";
+import { compactNumber, formatNumber } from "../lib/market";
 import type { ChartAnnotation, ChartEvent } from "../lib/research";
 
 type OverlayKey = "ma5" | "ma10" | "ma20" | "ema" | "boll" | "vwap" | "nineTurn" | "guides";
@@ -25,7 +34,7 @@ type Props = {
   onHover: (index: number | null) => void;
 };
 
-type HoverState = { index: number; x: number; y: number } | null;
+type HoverState = { index: number; x: number; y: number; rangeEpoch: symbol } | null;
 type Layout = {
   left: number;
   plotWidth: number;
@@ -114,15 +123,25 @@ export default function MarketChart({
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layoutRef = useRef<Layout | null>(null);
-  const dragRef = useRef<{ x: number; from: number; to: number } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    y: number;
+    from: number;
+    to: number;
+    pointerId: number;
+    pointerType: string;
+    intent: KlineDragIntent;
+  } | null>(null);
   const [size, setSize] = useState({ width: 960, height: 560 });
   const [hover, setHover] = useState<HoverState>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const rangeSignature = `${range.from}:${range.to}:${candles.length}:${candles[range.from]?.key ?? ""}:${candles[range.to]?.key ?? ""}`;
+  const rangeEpoch = useMemo(() => Symbol(`market-chart-range:${rangeSignature}`), [rangeSignature]);
 
   useEffect(() => {
     if (!wrapRef.current) return;
     const observer = new ResizeObserver(([entry]) => {
-      setSize({ width: Math.max(320, entry.contentRect.width), height: Math.max(480, entry.contentRect.height) });
+      setSize({ width: Math.max(1, entry.contentRect.width), height: Math.max(1, entry.contentRect.height) });
     });
     observer.observe(wrapRef.current);
     return () => observer.disconnect();
@@ -162,6 +181,7 @@ export default function MarketChart({
     context.clearRect(0, 0, size.width, size.height);
 
     if (visible.length === 0) {
+      layoutRef.current = null;
       context.fillStyle = colors.text;
       context.font = "13px ui-monospace, SFMono-Regular, Menlo, monospace";
       context.fillText("没有可显示的 K 线数据", 24, 40);
@@ -515,7 +535,7 @@ export default function MarketChart({
     context.font = "700 10px ui-monospace, SFMono-Regular, Menlo, monospace";
     context.fillText(last.close.toFixed(3), left + plotWidth + 35, lastY + 3.5);
 
-    if (hover && hover.index >= range.from && hover.index <= range.to) {
+    if (hover && hover.rangeEpoch === rangeEpoch && hover.index >= range.from && hover.index <= range.to) {
       const localIndex = hover.index - range.from;
       const candle = candles[hover.index];
       const x = xFor(localIndex);
@@ -532,11 +552,16 @@ export default function MarketChart({
     }
 
     layoutRef.current = { left, plotWidth, candleWidth, from: range.from, to: range.to, mainTop, mainBottom, priceMin, priceMax };
-  }, [annotations, candles, colors, eventsByDate, hover, indicators, lowerIndicator, normalizedBenchmark, overlays, range, size, visible]);
+  }, [annotations, candles, colors, eventsByDate, hover, indicators, lowerIndicator, normalizedBenchmark, overlays, range, rangeEpoch, size, visible]);
 
   useEffect(() => {
     draw();
   }, [draw]);
+
+  useEffect(() => {
+    if (!hover) return;
+    if (hover.rangeEpoch !== rangeEpoch || !candles[hover.index]) onHover(null);
+  }, [candles, hover, onHover, rangeEpoch]);
 
   const updateHover = (clientX: number, clientY: number) => {
     const layout = layoutRef.current;
@@ -545,13 +570,20 @@ export default function MarketChart({
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     if (x < layout.left || x > layout.left + layout.plotWidth) {
-      setHover(null);
-      onHover(null);
+      if (hover) {
+        setHover(null);
+        onHover(null);
+      }
       return;
     }
     const localIndex = Math.max(0, Math.min(layout.to - layout.from, Math.floor((x - layout.left) / layout.candleWidth)));
     const index = layout.from + localIndex;
-    setHover({ index, x, y });
+    if (hover?.rangeEpoch === rangeEpoch && hover.index === index) {
+      const crossedMidline = (hover.x < size.width / 2) !== (x < size.width / 2);
+      if (crossedMidline) setHover({ ...hover, x, y });
+      return;
+    }
+    setHover({ index, x, y, rangeEpoch });
     onHover(index);
   };
 
@@ -559,24 +591,62 @@ export default function MarketChart({
     onRangeChange(panKlineRange(range, candles.length, delta));
   };
 
+  const hoveredCandle = hover
+    && hover.rangeEpoch === rangeEpoch
+    && hover.index >= range.from
+    && hover.index <= range.to
+    ? candles[hover.index]
+    : null;
+  const hoveredGuide = hover ? indicators.guidePoints[hover.index] : null;
+  const hoveredEvent = hoveredCandle ? eventsByDate.get(hoveredCandle.date)?.[0] : null;
+  const hoverTone = hoveredCandle?.change && hoveredCandle.change !== 0
+    ? hoveredCandle.change > 0 ? "is-up" : "is-down"
+    : "";
+
   return (
     <div className={`chart-stage ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
       <canvas
         ref={canvasRef}
         role="img"
-        aria-describedby="chart-accessible-summary"
-        aria-label={`K线图，共 ${candles.length} 根，当前显示第 ${range.from + 1} 到 ${range.to + 1} 根，叠加 ${events.length} 个新闻或财务事件、${annotations.length} 个研究标注`}
+        aria-describedby={hoveredCandle ? "chart-accessible-summary chart-day-tooltip" : "chart-accessible-summary"}
+        aria-label={`K线图，共 ${candles.length} 根，${candles.length ? `当前显示第 ${range.from + 1} 到 ${range.to + 1} 根` : "暂无可显示 K 线"}；悬停或使用左右方向键可逐根查看开高低收、成交量与成交额，按 Escape 清除明细；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，双击复位；叠加 ${events.length} 个新闻或财务事件、${annotations.length} 个研究标注`}
         tabIndex={0}
+        style={{ touchAction: "pan-y pinch-zoom" }}
         onPointerDown={(event) => {
           if (event.pointerType === "mouse" && event.button !== 0) return;
-          event.currentTarget.setPointerCapture(event.pointerId);
-          dragRef.current = { x: event.clientX, from: range.from, to: range.to };
-          setIsDragging(true);
-          setHover(null);
-          onHover(null);
+          const intent = event.pointerType === "touch" ? "pending" : "horizontal";
+          dragRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+            from: range.from,
+            to: range.to,
+            pointerId: event.pointerId,
+            pointerType: event.pointerType,
+            intent,
+          };
+          if (intent === "horizontal") {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setIsDragging(true);
+            setHover(null);
+            onHover(null);
+          }
         }}
         onPointerMove={(event) => {
           if (dragRef.current && layoutRef.current) {
+            if (dragRef.current.pointerId !== event.pointerId) return;
+            if (dragRef.current.intent === "pending") {
+              dragRef.current.intent = resolveKlineDragIntent(
+                event.clientX - dragRef.current.x,
+                event.clientY - dragRef.current.y,
+              );
+              if (dragRef.current.intent === "horizontal") {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                setIsDragging(true);
+                setHover(null);
+                onHover(null);
+              }
+            }
+            if (dragRef.current.intent !== "horizontal") return;
             const candleDelta = Math.round((dragRef.current.x - event.clientX) / layoutRef.current.candleWidth);
             onRangeChange(panKlineRange({ from: dragRef.current.from, to: dragRef.current.to }, candles.length, candleDelta));
           } else {
@@ -584,10 +654,11 @@ export default function MarketChart({
           }
         }}
         onPointerUp={(event) => {
+          const pointerType = dragRef.current?.pointerType;
           dragRef.current = null;
           setIsDragging(false);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-          updateHover(event.clientX, event.clientY);
+          if (pointerType !== "touch") updateHover(event.clientX, event.clientY);
         }}
         onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
         onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
@@ -598,27 +669,42 @@ export default function MarketChart({
           }
         }}
         onWheel={(event) => {
+          const wheelIntent = getKlineWheelIntent(event);
+          if (wheelIntent === "page") return;
           event.preventDefault();
           const layout = layoutRef.current;
-          const rect = event.currentTarget.getBoundingClientRect();
           if (!layout) return;
+          const wheelDelta = wheelIntent === "pan" && Math.abs(event.deltaX) > Math.abs(event.deltaY)
+            ? event.deltaX
+            : event.deltaY;
+          const delta = normalizeWheelDelta(wheelDelta, event.deltaMode, size.height);
+          if (wheelIntent === "pan") {
+            const candleDelta = wheelDeltaToKlinePan(delta, range.to - range.from + 1);
+            if (candleDelta) onRangeChange(panKlineRange(range, candles.length, candleDelta));
+            return;
+          }
+          const rect = event.currentTarget.getBoundingClientRect();
           const pointerX = (event.clientX - rect.left) * (size.width / Math.max(rect.width, 1));
           const anchorRatio = (pointerX - layout.left) / Math.max(layout.plotWidth, 1);
           onRangeChange(zoomKlineRange({
             range,
             total: candles.length,
-            deltaY: normalizeWheelDelta(event.deltaY, event.deltaMode, size.height),
+            deltaY: delta,
             anchorRatio,
             minVisible: 10,
           }));
         }}
         onDoubleClick={() => onRangeChange(rangeForLatest(candles.length, resetVisible))}
         onKeyDown={(event) => {
-          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          if (event.key === "Escape") {
+            setHover(null);
+            onHover(null);
+          } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            if (!candles.length) return;
             event.preventDefault();
-            const current = hover?.index ?? range.to;
+            const current = hover?.rangeEpoch === rangeEpoch ? hover.index : range.to;
             const index = Math.max(range.from, Math.min(range.to, current + (event.key === "ArrowRight" ? 1 : -1)));
-            setHover({ index, x: 0, y: 0 });
+            setHover({ index, x: 0, y: 0, rangeEpoch });
             onHover(index);
           } else if (event.key === "+" || event.key === "=") {
             event.preventDefault();
@@ -632,18 +718,42 @@ export default function MarketChart({
           }
         }}
       />
-      {hover && candles[hover.index] ? (
+      {hover && hoveredCandle ? (
         <div
-          className={`chart-float ${hover.x < size.width / 2 ? "is-edge-end" : "is-edge-start"}`}
-          style={{ ...(hover.x < size.width / 2 ? { right: 84 } : { left: 12 }), top: Math.min(size.height - 92, Math.max(42, hover.y - 28)) }}
+          id="chart-day-tooltip"
+          role="tooltip"
+          className={`chart-float chart-day-tooltip ${hover.x < size.width / 2 ? "is-edge-end" : "is-edge-start"}`}
+          style={hover.x < size.width / 2 ? { right: size.width < 420 ? 84 : 112 } : { left: 44 }}
         >
-          <span>{candles[hover.index].key}</span>
-          <strong>{formatNumber(candles[hover.index].close, 3)}</strong>
-          {indicators.guidePoints[hover.index] ? <em>{indicators.guidePoints[hover.index]?.type === "buy" ? "B" : "S"}{indicators.guidePoints[hover.index]?.score}</em> : null}
-          {eventsByDate.get(candles[hover.index].date)?.[0] ? <small className="chart-event-detail">{eventsByDate.get(candles[hover.index].date)?.[0].label}</small> : null}
+          <header>
+            <div>
+              <span>{hoveredCandle.key}</span>
+              <small>{hoveredCandle.time ? "分时 K 线明细" : "日 K 明细"}</small>
+            </div>
+            <div>
+              <strong>{formatNumber(hoveredCandle.close, 3)}</strong>
+              <em className={hoverTone}>{hoveredCandle.change >= 0 ? "+" : ""}{formatNumber(hoveredCandle.change, 3)} · {hoveredCandle.changePct >= 0 ? "+" : ""}{formatNumber(hoveredCandle.changePct, 2)}%</em>
+            </div>
+          </header>
+          <dl className="chart-day-stats">
+            <div><dt>开盘</dt><dd>{formatNumber(hoveredCandle.open, 3)}</dd></div>
+            <div><dt>最高</dt><dd>{formatNumber(hoveredCandle.high, 3)}</dd></div>
+            <div><dt>最低</dt><dd>{formatNumber(hoveredCandle.low, 3)}</dd></div>
+            <div><dt>收盘</dt><dd>{formatNumber(hoveredCandle.close, 3)}</dd></div>
+            <div><dt>成交量</dt><dd>{compactNumber(hoveredCandle.volume)}</dd></div>
+            <div><dt>成交额</dt><dd>{compactNumber(hoveredCandle.amount)}</dd></div>
+            <div><dt>均价</dt><dd>{formatNumber(hoveredCandle.vwap, 3)}</dd></div>
+            <div><dt>换手率</dt><dd>{hoveredCandle.turnoverPct == null ? "—" : `${formatNumber(hoveredCandle.turnoverPct, 2)}%`}</dd></div>
+          </dl>
+          {hoveredGuide || hoveredEvent ? (
+            <footer className="chart-day-meta">
+              {hoveredGuide ? <span className="chart-day-guide">信号 {hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</span> : null}
+              {hoveredEvent ? <small className="chart-event-detail">{hoveredEvent.label}</small> : null}
+            </footer>
+          ) : null}
         </div>
       ) : null}
-      <div className="chart-hint">指针锚定缩放 · 拖拽平移 · 双击复位{benchmarkCandles.length ? ` · 青色虚线为${benchmarkName}归一化走势` : ""}</div>
+      <div className="chart-hint">Ctrl/⌘ + 滚轮缩放 · Shift + 滚轮或横向拖动平移 · 双击复位{benchmarkCandles.length ? ` · 青色虚线为${benchmarkName}归一化走势` : ""}</div>
       <KlineViewportControls range={range} total={candles.length} minVisible={10} resetVisible={resetVisible} onRangeChange={onRangeChange} />
       <button className="chart-nudge chart-nudge-left" type="button" onClick={() => shiftRange(-Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向前移动图表">
         ‹

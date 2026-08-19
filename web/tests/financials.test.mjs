@@ -277,5 +277,24 @@ test("production financial route returns recent reports", async () => {
 test("production financial route rejects unsupported methods", async () => {
   const response = GET();
   assert.equal(response.status, 405);
+  assert.equal(response.headers.get("Allow"), "POST");
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
   assert.deepEqual(await response.json(), { error: "仅支持 POST 请求" });
+});
+
+test("production financial route maps provider failures to bad gateway", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("unavailable", { status: 503 });
+  try {
+    const response = await POST(new Request("http://localhost/api/local-stock-financials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "000001" }),
+    }));
+    assert.equal(response.status, 502);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.match(response.headers.get("Content-Type") ?? "", /^application\/json\b/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

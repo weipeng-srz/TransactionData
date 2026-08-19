@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Candle } from "../lib/market";
+import type { NewsItem } from "../lib/news";
+import type { RealtimeSnapshot } from "../lib/realtimeMarket";
+import type { StockMarket } from "../lib/security";
 import {
   buildNextDayPrediction,
+  type PredictionMode,
   type PredictionNeighborCount,
   type PredictionWindow,
 } from "../lib/nextDayPrediction";
@@ -13,27 +17,58 @@ const neighborOptions: PredictionNeighborCount[] = [5, 10, 15, 20, 30];
 
 export default function NextDayPredictionCard({
   candles,
+  benchmarkCandles,
+  benchmarkName,
+  newsItems,
+  realtimeSnapshot,
+  market,
   stockName,
   onInspectDate,
 }: {
   candles: Candle[];
+  benchmarkCandles: Candle[];
+  benchmarkName: string;
+  newsItems: NewsItem[];
+  realtimeSnapshot: RealtimeSnapshot | null;
+  market: StockMarket;
   stockName: string;
   onInspectDate: (date: string) => void;
 }) {
+  const [mode, setMode] = useState<PredictionMode>("tomorrow");
   const [windowSize, setWindowSize] = useState<PredictionWindow>(126);
   const [neighbors, setNeighbors] = useState<PredictionNeighborCount>(15);
+  const [predictionSnapshot, setPredictionSnapshot] = useState<RealtimeSnapshot | null>(realtimeSnapshot);
+  const latestSnapshotRef = useRef(realtimeSnapshot);
+  useEffect(() => {
+    latestSnapshotRef.current = realtimeSnapshot;
+  }, [realtimeSnapshot]);
+  const predictionMinute = realtimeSnapshot ? `${realtimeSnapshot.date} ${realtimeSnapshot.time.slice(0, 5)} ${realtimeSnapshot.marketStatus}` : "";
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setPredictionSnapshot(latestSnapshotRef.current), 0);
+    return () => window.clearTimeout(timeout);
+  }, [predictionMinute]);
   const report = useMemo(
-    () => buildNextDayPrediction(candles, { window: windowSize, neighbors }),
-    [candles, neighbors, windowSize],
+    () => buildNextDayPrediction(candles, {
+      window: windowSize,
+      neighbors,
+      mode,
+      market,
+      realtimeSnapshot: predictionSnapshot,
+      benchmarkCandles,
+      benchmarkName,
+      newsItems,
+    }),
+    [benchmarkCandles, benchmarkName, candles, market, mode, neighbors, newsItems, predictionSnapshot, windowSize],
   );
 
   if (!report) {
     return (
       <section className="next-day-card is-empty" id="next-day-prediction" aria-labelledby="next-day-title">
         <header className="next-day-header">
-          <div><p className="eyebrow">NEXT-DAY PROBABILITY LAB</p><h2 id="next-day-title">AI 隔日交易概率分析</h2></div>
+          <div><p className="eyebrow">ADAPTIVE PREDICTION LAB</p><h2 id="next-day-title">统计今日 / 明日概率实验</h2></div>
         </header>
-        <p className="next-day-empty">至少需要 32 个有效交易日，才能建立隔日标签、历史相似日和滚动验证样本。</p>
+        <ModeSwitch mode={mode} onChange={setMode} />
+        <p className="next-day-empty">至少需要 32 个有效交易日，才能建立隔日标签、历史相似日和滚动验证样本。预测今日模式还需要识别当前交易日。</p>
       </section>
     );
   }
@@ -44,9 +79,9 @@ export default function NextDayPredictionCard({
     <section className={`next-day-card grade-${report.signal.grade.toLowerCase()}`} id="next-day-prediction" aria-labelledby="next-day-title">
       <header className="next-day-header">
         <div>
-          <p className="eyebrow">NEXT-DAY PROBABILITY LAB</p>
-          <h2 id="next-day-title">AI 隔日交易概率分析</h2>
-          <span>规则统计 × 历史相似日 × 轻量模型 · 自动随 {stockName || "当前股票"} 日 K 更新</span>
+          <p className="eyebrow">ADAPTIVE PREDICTION LAB</p>
+          <h2 id="next-day-title">统计今日 / 明日概率实验</h2>
+          <span>技术面 × 市场基准 × 消息面 × 轻量 ML · 自动随 {stockName || "当前股票"} 数据滚动重训</span>
         </div>
         <div className="next-day-controls" aria-label="隔日预测参数">
           <label>分析窗口
@@ -59,9 +94,15 @@ export default function NextDayPredictionCard({
               {neighborOptions.map((value) => <option key={value} value={value}>{value} 个</option>)}
             </select>
           </label>
-          <span className="next-day-asof">截至 {report.asOf}</span>
+          <span className="next-day-asof">模型切片 {report.asOf} · {report.asOfTime}</span>
         </div>
       </header>
+
+      <ModeSwitch mode={mode} onChange={setMode} />
+      <div className="next-day-basis" role="status">
+        <div><strong>{report.target.label}</strong><span>{report.target.basis}</span></div>
+        <i>{report.target.isPartialSession ? `盘中样本 · 交易进度约 ${percent(report.target.sessionProgress)}` : report.target.usesCurrentSession ? "完整当日样本" : "严格收盘切片"}</i>
+      </div>
 
       <div className="next-day-hero">
         <section className="next-day-grade" aria-label={`隔日信号 ${report.signal.grade} 级，评分 ${report.signal.score}`}>
@@ -73,16 +114,18 @@ export default function NextDayPredictionCard({
           <div>
             <span>当前状态</span>
             <strong>{report.signal.state}</strong>
-            <p>{report.trainingSamples} 个带标签样本 · 分析置信度 {report.signal.confidence}%</p>
+            <p>{report.trainingSamples} 个带标签样本 · 决策可信度 {report.signal.decisionConfidence}%（{report.signal.reliability}）</p>
           </div>
         </section>
 
         <div className="next-day-core-metrics">
-          <PredictionMetric label="隔日上涨概率" value={percent(report.prediction.upProbability)} emphasized />
+          <PredictionMetric label={`${report.target.label}上涨概率`} value={percent(report.prediction.upProbability)} emphasized />
+          <PredictionMetric label="较自然上涨率" value={signedPercent(report.prediction.upProbability - report.modelValidation.baselineUpRate, 1)} tone={report.prediction.upProbability - report.modelValidation.baselineUpRate} />
           <PredictionMetric label="预期收盘涨跌" value={signedPercent(report.prediction.expectedCloseReturn)} tone={report.prediction.expectedCloseReturn} />
           <PredictionMetric label="预期开盘缺口" value={signedPercent(report.prediction.expectedOpenGap)} tone={report.prediction.expectedOpenGap} />
           <PredictionMetric label="盘中预计上探" value={signedPercent(report.prediction.expectedHighReturn)} tone={report.prediction.expectedHighReturn} />
           <PredictionMetric label="盘中预计下探" value={signedPercent(report.prediction.expectedLowReturn)} tone={report.prediction.expectedLowReturn} />
+          <PredictionMetric label="消息面概率修正" value={signedPercent(report.prediction.contextAdjustment, 1)} tone={report.prediction.contextAdjustment} />
           <PredictionMetric label="放量概率" value={percent(report.volumePrediction.volumeUpProbability)} />
         </div>
 
@@ -93,9 +136,27 @@ export default function NextDayPredictionCard({
             <div><dt>中位数</dt><dd>{signedPercent(report.prediction.median)}</dd></div>
             <div><dt>相似日胜率</dt><dd>{percent(report.similarDays.upRate)}</dd></div>
             <div><dt>平均相似度</dt><dd>{percent(report.similarDays.averageSimilarity)}</dd></div>
+            <div><dt>相似日胜率 95% 区间</dt><dd>{percent(report.similarDays.upRateInterval95[0])}～{percent(report.similarDays.upRateInterval95[1])}</dd></div>
           </dl>
         </section>
       </div>
+
+      <section className={`next-day-decision is-${report.decisionSupport.tone}`} aria-label="止盈止损决策辅助">
+        <header>
+          <div><p className="eyebrow">POSITION DECISION</p><h3>仓位与退出纪律</h3></div>
+          <strong>{report.decisionSupport.action}</strong>
+        </header>
+        <p>{report.decisionSupport.summary}</p>
+        <div className="next-day-decision-metrics">
+          <div><span>当前涨跌</span><strong className={(report.decisionSupport.currentReturn ?? 0) >= 0 ? "is-up" : "is-down"}>{report.decisionSupport.currentReturn == null ? "—" : signedPercent(report.decisionSupport.currentReturn)}</strong></div>
+          <div><span>统计期望价</span><strong>{formatPrice(report.decisionSupport.expectedPrice)}</strong></div>
+          <div><span>止盈观察位</span><strong>{formatPrice(report.decisionSupport.takeProfitReference)}</strong></div>
+          <div><span>风险观察位</span><strong>{formatPrice(report.decisionSupport.riskReference)}</strong></div>
+          <div><span>统计风险收益比</span><strong>{report.decisionSupport.riskRewardRatio == null ? "—" : `${report.decisionSupport.riskRewardRatio.toFixed(2)} : 1`}</strong></div>
+          <div><span>模型一致度</span><strong>{percent(report.signal.ensembleAgreement)}</strong></div>
+        </div>
+        <ul>{report.decisionSupport.checks.map((check) => <li key={check}>{check}</li>)}</ul>
+      </section>
 
       <div className="next-day-scenarios" aria-label="隔日三种概率场景">
         {report.scenarios.map((scenario) => (
@@ -109,6 +170,32 @@ export default function NextDayPredictionCard({
       </div>
 
       <div className="next-day-analysis-grid">
+        <section className="next-day-panel next-day-context">
+          <header><div><p className="eyebrow">MARKET & NEWS CONTEXT</p><h3>大盘与消息面验证</h3></div><span>覆盖度 {percent(report.externalContext.coverage)}</span></header>
+          <div className="next-day-context-grid">
+            <article>
+              <div><span>市场基准</span><strong>{report.externalContext.market.available ? report.externalContext.market.name : "数据缺失"}</strong></div>
+              <dl>
+                <div><dt>当日走势</dt><dd className={report.externalContext.market.return1d >= 0 ? "is-up" : "is-down"}>{report.externalContext.market.available ? signedPercent(report.externalContext.market.return1d) : "—"}</dd></div>
+                <div><dt>近 5 日</dt><dd>{report.externalContext.market.available ? signedPercent(report.externalContext.market.return5d) : "—"}</dd></div>
+                <div><dt>个股相对强弱</dt><dd>{report.externalContext.market.available ? signedPercent(report.externalContext.market.relativeStrength5d) : "—"}</dd></div>
+              </dl>
+              <p>{report.externalContext.market.regime} · {report.externalContext.market.asOf || "无日期"}{report.externalContext.market.fresh ? "" : "（最近可用）"}</p>
+              <small>{report.externalContext.market.role}</small>
+            </article>
+            <article>
+              <div><span>消息面</span><strong className={report.externalContext.news.tone === "正面" ? "is-up" : report.externalContext.news.tone === "负面" ? "is-down" : ""}>{report.externalContext.news.available ? report.externalContext.news.tone : "数据缺失"}</strong></div>
+              <dl>
+                <div><dt>有效新闻</dt><dd>{report.externalContext.news.itemCount} 条</dd></div>
+                <div><dt>近 3 日</dt><dd>{report.externalContext.news.freshItemCount} 条</dd></div>
+                <div><dt>加权情绪分</dt><dd>{report.externalContext.news.available ? report.externalContext.news.weightedScore.toFixed(3) : "—"}</dd></div>
+              </dl>
+              <p>修正 {signedPercent(report.externalContext.news.probabilityAdjustment, 1)} · 数据可信 {percent(report.externalContext.news.confidence)}</p>
+              <small>{report.externalContext.news.role}；切片截止 {report.externalContext.news.cutoff}</small>
+            </article>
+          </div>
+        </section>
+
         <section className="next-day-panel next-day-factors">
           <header><div><p className="eyebrow">BULL VS RISK</p><h3>主要多空因素</h3></div><span>当前形态</span></header>
           <div>
@@ -124,7 +211,7 @@ export default function NextDayPredictionCard({
         </section>
 
         <section className="next-day-panel next-day-volume">
-          <header><div><p className="eyebrow">VOLUME OUTLOOK</p><h3>明日成交活跃度</h3></div><span>{report.volumePrediction.label}</span></header>
+          <header><div><p className="eyebrow">VOLUME OUTLOOK</p><h3>{report.target.label}成交活跃度</h3></div><span>{report.volumePrediction.label}</span></header>
           <div className="volume-hero">
             <div><span>预计成交量</span><strong>{compact(report.volumePrediction.expectedVolume)}</strong><small>20 日均量 {report.volumePrediction.expectedVolumeRatio20.toFixed(2)} 倍</small></div>
             <dl>
@@ -153,19 +240,30 @@ export default function NextDayPredictionCard({
         </section>
 
         <section className="next-day-panel next-day-model">
-          <header><div><p className="eyebrow">WALK-FORWARD CHECK</p><h3>模型有效性与动态权重</h3></div><span className={report.modelValidation.mlEnabled ? "is-enabled" : "is-disabled"}>{report.modelValidation.mlEnabled ? "ML 已启用" : "ML 已降级"}</span></header>
+          <header><div><p className="eyebrow">WALK-FORWARD CHECK</p><h3>模型有效性与动态权重</h3></div><span className={report.modelValidation.panelEnabled || report.modelValidation.mlEnabled ? "is-enabled" : "is-disabled"}>{report.modelValidation.panelEnabled ? "面板 ML 已启用" : report.modelValidation.mlEnabled ? "个股 ML 已启用" : "ML 已降级"}</span></header>
           <div className="model-metrics">
             <div><span>Accuracy</span><strong>{modelMetric(report.modelValidation.accuracy)}</strong></div>
             <div><span>ROC-AUC</span><strong>{report.modelValidation.auc == null ? "样本不足" : report.modelValidation.auc.toFixed(3)}</strong></div>
             <div><span>Precision</span><strong>{modelMetric(report.modelValidation.precision)}</strong></div>
             <div><span>Recall</span><strong>{modelMetric(report.modelValidation.recall)}</strong></div>
+            <div><span>Brier Score</span><strong>{report.modelValidation.brierScore == null ? "样本不足" : report.modelValidation.brierScore.toFixed(3)}</strong></div>
+            <div><span>基准 Brier</span><strong>{report.modelValidation.baselineBrierScore == null ? "样本不足" : report.modelValidation.baselineBrierScore.toFixed(3)}</strong></div>
+            <div><span>Brier 改善</span><strong>{report.modelValidation.brierImprovement == null ? "样本不足" : signedNumber(report.modelValidation.brierImprovement, 3)}</strong></div>
+            <div><span>概率提升</span><strong>{signedPercent(report.modelValidation.probabilityLift, 1)}</strong></div>
             <div><span>自然上涨率</span><strong>{percent(report.modelValidation.baselineUpRate, 1)}</strong></div>
             <div><span>滚动样本</span><strong>{report.modelValidation.validationSamples}</strong></div>
+            <div><span>面板验证 Accuracy</span><strong>{percent(report.modelValidation.panelValidationAccuracy, 1)}</strong></div>
+            <div><span>面板验证 Brier</span><strong>{report.modelValidation.panelValidationBrierScore.toFixed(3)}</strong></div>
+            <div><span>面板验证样本</span><strong>{report.modelValidation.panelValidationSamples}</strong></div>
+            <div><span>市场状态 Logit 校准</span><strong>{signedNumber(report.modelValidation.regimeLogitAdjustment, 3)}</strong></div>
+            <div><span>模型版本</span><strong>{report.modelValidation.version}</strong></div>
+            <div><span>数据充分度</span><strong>{report.signal.dataSufficiency}%</strong></div>
           </div>
           <div className="model-weights" aria-label="组合模型权重">
             <WeightBar label="规则模型" value={report.weights.rule} tone="rule" />
             <WeightBar label="历史相似日" value={report.weights.analog} tone="analog" />
             <WeightBar label="轻量 ML" value={report.weights.ml} tone="ml" />
+            <WeightBar label="跨股票面板" value={report.weights.panel} tone="ml" />
           </div>
           <p>{report.modelValidation.reason}</p>
         </section>
@@ -209,10 +307,12 @@ export default function NextDayPredictionCard({
           <section>
             <h3>计算口径</h3>
             <ul>
-              <li>相似度使用标准化后的价格、K 线、趋势、量能、新高与连续涨跌特征计算。</li>
-              <li>Logistic Regression 预测隔日方向，Ridge Regression 辅助估计开盘、收盘、高低点与量比。</li>
-              <li>验证采用按时间顺序扩展训练集的 Walk Forward 方式；未优于基准时，ML 权重自动归零。</li>
-              <li>最高/最低是历史条件下的统计期望，不是明日价格边界，也不包含突发消息与盘前事件。</li>
+              <li>“预测今日”会把今日 K 线完全移出输入；“预测明日”才合并今日截至当前的 OHLCV，盘中量能按交易进度投影。</li>
+              <li>相似度使用标准化后的价格形态、波动率、ATR、量能、大盘趋势与个股相对强弱计算，并加入时间衰减。</li>
+              <li>Logistic Regression 预测方向，Ridge Regression 辅助估计开盘、收盘、高低点与量比；规则胜率采用先验收缩避免小样本虚高。</li>
+              <li>验证采用按时间顺序扩展训练集的 Walk Forward 方式；准确率、AUC 与 Brier 校准未共同优于基准时，ML 权重自动归零。</li>
+              <li>新闻按发布时间、相关性和衰减权重计算，最多修正 ±5 个百分点；大盘因子直接进入相似日与 ML 特征。</li>
+              <li>止盈位、风险位和最高/最低均是历史条件下的统计观察带，不是保证成交的价格边界。</li>
             </ul>
           </section>
         </div>
@@ -220,6 +320,19 @@ export default function NextDayPredictionCard({
 
       <footer className="next-day-notice">{report.notice}</footer>
     </section>
+  );
+}
+
+function ModeSwitch({ mode, onChange }: { mode: PredictionMode; onChange: (mode: PredictionMode) => void }) {
+  return (
+    <div className="next-day-mode-switch" role="group" aria-label="选择预测时点">
+      <button type="button" className={mode === "today" ? "active" : ""} aria-pressed={mode === "today"} onClick={() => onChange("today")}>
+        <strong>预测今日</strong><small>昨日完整日 K → 今日</small>
+      </button>
+      <button type="button" className={mode === "tomorrow" ? "active" : ""} aria-pressed={mode === "tomorrow"} onClick={() => onChange("tomorrow")}>
+        <strong>预测明日</strong><small>今日截至当前 → 下一交易日</small>
+      </button>
+    </div>
   );
 }
 
@@ -245,6 +358,15 @@ function percent(value: number, digits = 0): string {
 
 function signedPercent(value: number, digits = 2): string {
   return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`;
+}
+
+function signedNumber(value: number, digits = 2): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
+}
+
+function formatPrice(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "—";
+  return value >= 1000 ? value.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : value.toFixed(value >= 10 ? 2 : 3);
 }
 
 function compact(value: number): string {

@@ -16,10 +16,10 @@ export default function CommandPalette({ open, commands, onClose }: { open: bool
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    const frame = window.requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
     return () => {
       window.cancelAnimationFrame(frame);
-      previousFocusRef.current?.focus();
+      previousFocusRef.current?.focus({ preventScroll: true });
     };
   }, [open]);
   if (!open) return null;

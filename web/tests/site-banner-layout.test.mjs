@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
+const commandPaletteSource = readFileSync(new URL("../app/components/CommandPalette.tsx", import.meta.url), "utf8");
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 const portfolioStyles = readFileSync(new URL("../app/components/PortfolioHome.module.css", import.meta.url), "utf8");
@@ -25,6 +26,12 @@ test("uses one shared banner for portfolio, stock and global pages", () => {
 });
 
 test("keeps the banner geometry and search outline consistent", () => {
+  const mediumStart = bannerStyles.indexOf("@media (max-width: 1280px)");
+  const mobileStart = bannerStyles.indexOf("@media (max-width: 820px)", mediumStart);
+  const mediumStyles = bannerStyles.slice(mediumStart, mobileStart);
+
+  assert.ok(mediumStart >= 0);
+  assert.ok(mobileStart > mediumStart);
   assert.match(appleStyles, /--site-frame-max: 1600px;/);
   assert.match(appleStyles, /--site-frame-inset: 40px;/);
   assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?--site-frame-inset: 24px;/);
@@ -33,14 +40,25 @@ test("keeps the banner geometry and search outline consistent", () => {
   assert.match(appleStyles, /@media \(min-width: 821px\)[\s\S]*?\.research-page > \.app-shell,[\s\S]*?\.global-page > \.app-shell \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset\)\), var\(--site-frame-max\)\);[\s\S]*?padding: 18px 0 48px !important;/);
   assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.research-page > \.app-shell,[\s\S]*?\.global-page > \.app-shell \{[\s\S]*?padding: 12px var\(--site-frame-gutter\) 24px !important;/);
   assert.match(globalStyles, /Final frame guard: keep the global content aligned with the shared banner[\s\S]*?padding: 12px var\(--site-frame-gutter, 12px\) 24px !important;/);
-  assert.match(bannerStyles, /position: sticky;[\s\S]*?top: 12px;/);
+  assert.match(bannerStyles, /position: fixed;[\s\S]*?top: 12px;[\s\S]*?left: 50%;/);
+  assert.match(bannerStyles, /transform: translateX\(-50%\);/);
+  assert.match(bannerStyles, /\.mobileSpacer \{[\s\S]*?height: 80px;[\s\S]*?display: block;/);
+  assert.match(mediumStyles, /\.mobileSpacer \{ height: 138px; \}/);
   assert.match(bannerStyles, /\.searchField \{[\s\S]*?border: 1px solid color-mix/);
+  assert.match(bannerStyles, /\.banner \.search input \{[\s\S]*?font-size: 12px;/);
   assert.match(bannerStyles, /\.searchField:focus-within \{[\s\S]*?border-color:[\s\S]*?72%/);
+  assert.match(mediumStyles, /grid-template-rows: 48px 48px;/);
+  assert.match(mediumStyles, /\.navigation \{ height: 48px; min-height: 48px; padding: 1px;/);
+  assert.match(mediumStyles, /\.navigation a \{ min-height: 44px; \}/);
+  assert.match(mediumStyles, /\.searchField \{ height: 48px; min-height: 48px; padding-block: 1px; \}/);
+  assert.match(mediumStyles, /\.iconButton \{ width: 48px; height: 48px; min-height: 48px; \}/);
 });
 
-test("focuses the sticky search without changing the page scroll position", () => {
+test("keeps the fixed search outside the document flow while preserving its space", () => {
   assert.match(bannerSource, /searchRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(bannerStyles, /\.banner \{[\s\S]*?overflow-anchor: none;/);
+  assert.match(commandPaletteSource, /inputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(commandPaletteSource, /previousFocusRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
 test("limits sidebars to in-page stock and global index navigation", () => {

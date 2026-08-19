@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { klineRangeLength, normalizeKlineRange, normalizeWheelDelta, panKlineRange, rangeForLatest, zoomKlineRange } from "../app/lib/klineViewport.ts";
+import {
+  getKlineWheelIntent,
+  klineRangeLength,
+  normalizeKlineRange,
+  normalizeWheelDelta,
+  panKlineRange,
+  rangeForLatest,
+  resolveKlineDragIntent,
+  wheelDeltaToKlinePan,
+  zoomKlineRange,
+} from "../app/lib/klineViewport.ts";
 
 test("builds and normalizes latest K-line ranges", () => {
   assert.deepEqual(rangeForLatest(300, 60), { from: 240, to: 299 });
@@ -31,4 +41,26 @@ test("clamps zoom density and pan boundaries", () => {
   assert.deepEqual(panKlineRange({ from: 20, to: 39 }, 100, 999), { from: 80, to: 99 });
   assert.equal(normalizeWheelDelta(3, 1), 48);
   assert.equal(normalizeWheelDelta(1, 2, 640), 640);
+});
+
+test("keeps ordinary wheel scrolling with the page and reserves modifiers for chart navigation", () => {
+  assert.equal(getKlineWheelIntent({ ctrlKey: false, metaKey: false, shiftKey: false }), "page");
+  assert.equal(getKlineWheelIntent({ ctrlKey: true, metaKey: false, shiftKey: false }), "zoom");
+  assert.equal(getKlineWheelIntent({ ctrlKey: false, metaKey: true, shiftKey: false }), "zoom");
+  assert.equal(getKlineWheelIntent({ ctrlKey: false, metaKey: false, shiftKey: true }), "pan");
+  assert.equal(getKlineWheelIntent({ ctrlKey: true, metaKey: false, shiftKey: true }), "zoom");
+});
+
+test("locks touch gestures to their first deliberate direction", () => {
+  assert.equal(resolveKlineDragIntent(3, 2), "pending");
+  assert.equal(resolveKlineDragIntent(12, 3), "horizontal");
+  assert.equal(resolveKlineDragIntent(3, 12), "vertical");
+  assert.equal(resolveKlineDragIntent(9, 9), "vertical");
+});
+
+test("converts deliberate Shift-wheel movement into bounded candle steps", () => {
+  assert.equal(wheelDeltaToKlinePan(4, 60), 0);
+  assert.equal(wheelDeltaToKlinePan(100, 60), 5);
+  assert.equal(wheelDeltaToKlinePan(-100, 20), -2);
+  assert.equal(wheelDeltaToKlinePan(Number.NaN, 60), 0);
 });

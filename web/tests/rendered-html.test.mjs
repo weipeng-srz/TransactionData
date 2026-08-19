@@ -38,7 +38,7 @@ test("server-renders the TrendSight watchlist homepage", async () => {
   assert.doesNotMatch(html, /自选股，一目了然/);
   assert.doesNotMatch(html, /集中查看行情、持仓与收益/);
   assert.match(html, /平安银行/);
-  assert.match(html, /输入股票名称或代码，如 平安银行 \/ 000001/);
+  assert.match(html, /搜索名称 \/ 代码/);
   assert.match(html, /切换个股/);
   assert.match(html, /<header[^>]*>[\s\S]*aria-label="快速搜索股票"/);
   assert.match(html, />自选<\/a>/);
@@ -50,7 +50,7 @@ test("server-renders the TrendSight watchlist homepage", async () => {
   assert.match(html, /今日持仓盈亏/);
   assert.match(html, /我的自选股/);
   assert.match(html, /建立你的第一份自选列表/);
-  assert.match(html, /迷你 K 线、实时行情、持仓市值与收益/);
+  assert.match(html, /明日预测结论、上涨概率、迷你 K 线、实时行情与持仓收益/);
   assert.match(html, /全球市场/);
   assert.match(html, /全球市场脉动/);
   assert.match(html, /上证指数/);

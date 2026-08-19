@@ -1,4 +1,33 @@
 export type KlineRange = { from: number; to: number };
+export type KlineDragIntent = "pending" | "horizontal" | "vertical";
+export type KlineWheelIntent = "page" | "pan" | "zoom";
+
+export function getKlineWheelIntent({
+  ctrlKey,
+  metaKey,
+  shiftKey,
+}: {
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}): KlineWheelIntent {
+  if (ctrlKey || metaKey) return "zoom";
+  if (shiftKey) return "pan";
+  return "page";
+}
+
+export function resolveKlineDragIntent(deltaX: number, deltaY: number, threshold = 8): KlineDragIntent {
+  const horizontalDistance = Math.abs(deltaX);
+  const verticalDistance = Math.abs(deltaY);
+  if (Math.max(horizontalDistance, verticalDistance) < Math.max(1, threshold)) return "pending";
+  return horizontalDistance > verticalDistance ? "horizontal" : "vertical";
+}
+
+export function wheelDeltaToKlinePan(deltaPixels: number, visibleCount: number): number {
+  if (!Number.isFinite(deltaPixels) || Math.abs(deltaPixels) < 8) return 0;
+  const candlesPerNotch = Math.max(1, Math.round(Math.max(1, visibleCount) * .08));
+  return Math.sign(deltaPixels) * Math.max(1, Math.round((Math.abs(deltaPixels) / 100) * candlesPerNotch));
+}
 
 export function klineRangeLength(range: KlineRange): number {
   return Math.max(0, range.to - range.from + 1);

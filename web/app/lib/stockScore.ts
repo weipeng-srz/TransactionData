@@ -21,7 +21,7 @@ export type StockScoreDimension = {
 };
 
 export type StockScoreSignal = {
-  action: "买入观察" | "中性观察" | "卖出警示";
+  action: "正向证据较多" | "证据大致均衡" | "风险证据较多" | "数据不足";
   tone: "buy" | "hold" | "sell";
   headline: string;
   description: string;
@@ -310,30 +310,30 @@ function summarizeNews(items: NewsItem[]): { average: number | null; positiveRat
 function scoreSignal(score: number, coverage: number): StockScoreSignal {
   if (coverage < 35) {
     return {
-      action: "中性观察",
+      action: "数据不足",
       tone: "hold",
       headline: "数据覆盖不足，暂不形成方向结论",
-      description: "补齐基本面、估值与新闻数据后，模型指示会自动更新。",
+      description: "补齐基本面、估值与新闻数据后，证据状态会自动更新。",
     };
   }
   if (score >= 72) {
     return {
-      action: "买入观察",
+      action: "正向证据较多",
       tone: "buy",
       headline: "多维数据共振偏强",
-      description: "模型倾向积极，但仍应结合价格区间、仓位和风险承受能力复核。",
+      description: "当前正向证据占优，但仍应结合价格区间、仓位和风险承受能力复核。",
     };
   }
   if (score <= 38) {
     return {
-      action: "卖出警示",
+      action: "风险证据较多",
       tone: "sell",
       headline: "弱项与风险项占据主导",
-      description: "模型倾向防守，建议优先核对下方扣分原因与数据时效。",
+      description: "当前风险证据占优，建议优先核对下方扣分原因与数据时效。",
     };
   }
   return {
-    action: "中性观察",
+    action: "证据大致均衡",
     tone: "hold",
     headline: score >= 58 ? "优势存在，但尚未形成充分共振" : score <= 48 ? "短板偏多，等待信号修复" : "多空证据接近平衡",
     description: "当前不形成明确买卖方向，等待趋势、资金或基本面出现更一致的变化。",

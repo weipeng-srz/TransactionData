@@ -27,6 +27,8 @@ type Props = {
 export default function ResearchDock(props: Props) {
   const [annotation, setAnnotation] = useState("");
   const stockAnnotations = props.annotations.filter((item) => item.code === props.code);
+  const availableSources = [props.freshness.market, props.freshness.financial, props.freshness.news].filter(Boolean).length;
+  const dataReadiness = Math.max(0, Math.round((availableSources / 3) * 100 - props.dataProfile.qualityWarnings * 8));
 
   return (
     <section className="research-dock current-stock-tools" id="research-tools">
@@ -36,7 +38,7 @@ export default function ResearchDock(props: Props) {
           <h3>{props.name || props.code} · 研究记录与数据口径</h3>
         </div>
         <div className="research-actions">
-          <span className={`cloud-sync-badge is-${props.cloudStatus}`}>{props.cloudStatus === "synced" ? "云端已同步" : props.cloudStatus === "loading" ? "同步中" : props.cloudStatus === "error" ? "同步异常" : "本机模式"}</span>
+          <span className={`cloud-sync-badge is-${props.cloudStatus}`} aria-live="polite">{props.cloudStatus === "synced" ? "云端已同步" : props.cloudStatus === "loading" ? "同步中" : props.cloudStatus === "error" ? "云端不可用 · 本机仍保留" : "仅本机保存"}</span>
           <button type="button" onClick={props.onRefresh} disabled={props.busy || props.isDemo}>刷新当前股票</button>
           <button type="button" onClick={props.onCopyLink}>分享当前研究</button>
           <details className="research-more-actions">
@@ -58,7 +60,7 @@ export default function ResearchDock(props: Props) {
           <header><strong>当前股票研究标注</strong><span>{stockAnnotations.length} 条</span></header>
           <div className="annotation-form">
             <input value={annotation} maxLength={180} placeholder="记录当前股票的观察、假设或风险…" aria-label="研究标注内容" onChange={(event) => setAnnotation(event.target.value)} />
-            <button type="button" onClick={() => { const value = annotation.trim(); if (!value) return; props.onAddAnnotation(value); setAnnotation(""); }}>记录</button>
+            <button type="button" disabled={!annotation.trim()} onClick={() => { const value = annotation.trim(); if (!value) return; props.onAddAnnotation(value); setAnnotation(""); }}>记录</button>
           </div>
           <div className="annotation-list">
             {stockAnnotations.slice(0, 8).map((item) => <article key={item.id}><div><strong>{item.date || "当前"}</strong><p>{item.text}</p></div><button type="button" aria-label="删除研究标注" onClick={() => props.onRemoveAnnotation(item.id)}>×</button></article>)}
@@ -74,13 +76,14 @@ export default function ResearchDock(props: Props) {
             <div><dt>新闻更新</dt><dd>{formatTime(props.freshness.news)}</dd></div>
           </dl>
           <dl className="provenance-list">
+            <div><dt>页面数据可用度</dt><dd>{dataReadiness}/100</dd></div>
             <div><dt>行情粒度</dt><dd>{props.dataProfile.level}</dd></div>
             <div><dt>价格口径</dt><dd>{props.dataProfile.priceBasis || "原始价格"}</dd></div>
             <div><dt>成交额口径</dt><dd>{props.dataProfile.amountBasis}</dd></div>
             <div><dt>时间精度</dt><dd>{props.dataProfile.timePrecision}</dd></div>
             <div><dt>质量提示</dt><dd>{props.dataProfile.qualityWarnings} 条</dd></div>
           </dl>
-          <p>行情最多覆盖约 5 年日 K；财报、估值和新闻独立更新。数据失败时保留最后一次成功结果。</p>
+          <p>可用度只反映三类数据是否成功更新及页面质量警告，不代表内容准确率。行情最多覆盖约 5 年日 K；财报、估值和新闻独立更新，失败时保留最后一次成功结果。</p>
         </section>
       </div>
     </section>

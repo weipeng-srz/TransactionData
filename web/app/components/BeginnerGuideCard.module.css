@@ -1,0 +1,215 @@
+.card {
+  margin: 0 0 var(--section-gap);
+  padding: clamp(18px, 2.4vw, 28px);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--apple-accent) 18%, var(--apple-border));
+  border-radius: var(--apple-radius-lg);
+  background: color-mix(in srgb, var(--apple-surface) 82%, transparent);
+  box-shadow: inset 0 1px color-mix(in srgb, #fff 48%, transparent), var(--apple-shadow-card);
+  backdrop-filter: blur(24px) saturate(155%);
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 42%;
+  pointer-events: none;
+  background: linear-gradient(115deg, color-mix(in srgb, #fff 25%, transparent), transparent 46%, color-mix(in srgb, var(--apple-accent) 7%, transparent));
+}
+
+.header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header p,
+.header h2,
+.header span,
+.item p,
+.item strong,
+.item small,
+.guardrail,
+.glossary summary,
+.glossary dl,
+.glossary dd {
+  margin: 0;
+}
+
+.header p {
+  color: var(--apple-accent);
+  font: 720 10px/1.2 var(--apple-mono);
+  letter-spacing: .12em;
+}
+
+.header h2 {
+  margin-top: 5px;
+  color: var(--apple-text);
+  font-size: clamp(22px, 2.3vw, 30px);
+  letter-spacing: -.035em;
+}
+
+.header span {
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--apple-secondary);
+  background: var(--apple-fill);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.item {
+  min-width: 0;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid var(--apple-border);
+  border-radius: var(--apple-radius-md);
+  background: color-mix(in srgb, var(--apple-surface) 78%, transparent);
+  box-shadow: inset 0 1px color-mix(in srgb, #fff 35%, transparent);
+}
+
+.item > span {
+  color: var(--apple-tertiary);
+  font: 700 10px/1 var(--apple-mono);
+}
+
+.item strong {
+  color: var(--apple-text);
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.item p,
+.item small,
+.guardrail,
+.glossary dd {
+  color: var(--apple-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.item small {
+  color: var(--apple-tertiary);
+}
+
+.profile {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.profile button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--apple-border);
+  border-radius: 9px;
+  color: var(--apple-secondary);
+  background: var(--apple-surface-soft);
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 150ms ease, color 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  touch-action: manipulation;
+}
+
+.profile button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--apple-accent) 38%, var(--apple-border));
+  color: var(--apple-accent);
+  background: color-mix(in srgb, var(--apple-accent) 9%, var(--apple-surface));
+  box-shadow: inset 0 1px color-mix(in srgb, #fff 36%, transparent);
+}
+
+.profile button:hover:not([aria-pressed="true"]) {
+  border-color: color-mix(in srgb, var(--apple-accent) 24%, var(--apple-border));
+  color: var(--apple-text);
+  background: color-mix(in srgb, var(--apple-fill) 70%, transparent);
+}
+
+.profile button:focus-visible,
+.glossary summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--apple-accent) 64%, transparent);
+  outline-offset: 2px;
+}
+
+.profile button:active { transform: translateY(1px) scale(.98); }
+
+.guardrail {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--apple-warning);
+  border-radius: 0 12px 12px 0;
+  background: color-mix(in srgb, var(--apple-warning) 8%, var(--apple-surface));
+}
+
+.glossary {
+  margin-top: 12px;
+  border-top: 1px solid var(--apple-border);
+}
+
+.glossary summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--apple-accent);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color 150ms ease, padding 150ms ease;
+  touch-action: manipulation;
+}
+
+.glossary summary:hover,
+.glossary[open] summary { color: var(--apple-text); }
+
+.glossary[open] dl { animation: glossaryReveal 180ms ease-out; }
+
+.glossary dl {
+  padding: 0 2px 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+}
+
+.glossary dt {
+  color: var(--apple-text);
+  font: 650 11px var(--apple-mono);
+}
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .profile button { min-height: 44px; }
+}
+
+@keyframes glossaryReveal {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile button,
+  .glossary summary { transition-duration: .01ms; }
+  .glossary[open] dl { animation: none; }
+}

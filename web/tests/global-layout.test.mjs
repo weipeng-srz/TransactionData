@@ -50,3 +50,9 @@ test("keeps compact map values visible on mobile", () => {
   assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-marker-label b \{ display: inline;/);
   assert.doesNotMatch(globalStyles, /@media \(max-width: 700px\)[\s\S]*?\.global-marker-label \{ display: none;/);
 });
+
+test("keeps a touch-sized manual refresh action reachable on mobile", () => {
+  assert.match(pageSource, /className="global-mobile-refresh"[\s\S]*?disabled=\{feedState === "refreshing"\}[\s\S]*?onClick=\{\(\) => void refresh\(\)\}/);
+  assert.match(globalStyles, /\.global-mobile-refresh \{ display: none; \}/);
+  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-mobile-refresh \{[\s\S]*?min-height: 44px;[\s\S]*?width: max-content;[\s\S]*?display: flex;/);
+});

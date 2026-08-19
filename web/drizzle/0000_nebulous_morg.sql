@@ -1,4 +1,4 @@
-CREATE TABLE `price_alerts` (
+CREATE TABLE IF NOT EXISTS `price_alerts` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_key` text NOT NULL,
 	`code` text NOT NULL,
@@ -11,9 +11,9 @@ CREATE TABLE `price_alerts` (
 	`last_checked_at` text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `price_alerts_user_idx` ON `price_alerts` (`user_key`);--> statement-breakpoint
-CREATE INDEX `price_alerts_active_idx` ON `price_alerts` (`triggered_at`,`code`);--> statement-breakpoint
-CREATE TABLE `research_states` (
+CREATE INDEX IF NOT EXISTS `price_alerts_user_idx` ON `price_alerts` (`user_key`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `price_alerts_active_idx` ON `price_alerts` (`triggered_at`,`code`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `research_states` (
 	`user_key` text PRIMARY KEY NOT NULL,
 	`payload` text DEFAULT '{}' NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL

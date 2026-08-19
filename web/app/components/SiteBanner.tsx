@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import { isUSStockSymbol, marketLabel, marketOf, normalizeUSSymbol, stockRouteKey, stockStorageKey, type StockIdentity, type StockMarket } from "../lib/security";
+import { publicStockLookupError } from "../lib/stockLookupError";
 import styles from "./SiteBanner.module.css";
 
 type BannerPage = "portfolio" | "stock" | "global";
@@ -157,16 +158,19 @@ export default function SiteBanner({
             id={`site-stock-search-${activePage}`}
             value={query}
             onChange={(event) => { setQuery(event.target.value); setSuggestion(null); setMessage(""); }}
-            placeholder="输入股票名称或代码，如 平安银行 / 000001 / AAPL"
+            placeholder="搜索名称 / 代码"
             autoComplete="off"
             maxLength={40}
             disabled={busy}
           />
           <kbd>⌘ K</kbd>
           <button className={styles.addButton} type="button" disabled={busy} onClick={() => void addStock()} aria-label="添加自选股">{phase === "adding" ? "添加中…" : "添加自选"}</button>
-          <button type="submit" disabled={busy}>{phase === "opening" ? "切换中…" : "切换个股"}</button>
+          <button type="submit" disabled={busy}>
+            <span className={styles.desktopButtonLabel}>{phase === "opening" ? "切换中…" : "切换个股"}</span>
+            <span className={styles.mobileButtonLabel}>{phase === "opening" ? "加载" : "查看"}</span>
+          </button>
           {suggestion ? (
-            <div className={styles.suggestion} role="listbox" aria-label="股票搜索结果">
+            <div className={styles.suggestion} role="group" aria-label="股票搜索结果与操作">
               <button className={styles.suggestionIdentity} type="button" onClick={() => void openStock(stockRouteKey(suggestion))}>
                 <span className={styles.stockAvatar}>{suggestion.name.slice(0, 1)}</span>
                 <span><strong>{suggestion.name}</strong><small>{suggestion.code} · {marketLabel(marketOf(suggestion))}</small></span>
@@ -211,6 +215,12 @@ async function lookupStock(query: string, signal?: AbortSignal): Promise<StockId
     if (!(market === "US" ? isUSStockSymbol(code) : /^\d{6}$/.test(code)) || !name) throw new Error("股票查询返回了无效结果");
     return { code, name, market, currency: market === "US" ? "USD" : "CNY" };
   };
-  if (queryLooksUS) return request("/api/us-stock-lookup");
-  try { return await request("/api/local-stock-lookup"); } catch (cnReason) { try { return await request("/api/us-stock-lookup"); } catch { throw cnReason; } }
+  if (queryLooksUS) {
+    try { return await request("/api/us-stock-lookup"); } catch (reason) { throw publicStockLookupError([reason]); }
+  }
+  try {
+    return await request("/api/local-stock-lookup");
+  } catch (cnReason) {
+    try { return await request("/api/us-stock-lookup"); } catch (usReason) { throw publicStockLookupError([cnReason, usReason]); }
+  }
 }

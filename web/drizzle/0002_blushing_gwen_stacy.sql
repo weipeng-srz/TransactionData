@@ -1,1 +1,1 @@
-DROP TABLE `price_alerts`;
+DROP TABLE IF EXISTS `price_alerts`;

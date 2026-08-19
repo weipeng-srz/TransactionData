@@ -28,5 +28,33 @@ test("production stock lookup route resolves a stock name", async () => {
 test("production stock lookup route rejects unsupported methods", async () => {
   const response = GET();
   assert.equal(response.status, 405);
+  assert.equal(response.headers.get("Allow"), "POST");
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
   assert.deepEqual(await response.json(), { error: "仅支持 POST 请求" });
+});
+
+test("production stock lookup route distinguishes no match from provider failure", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => Response.json({ QuotationCodeTable: { Data: [] } });
+    const missing = await POST(new Request("http://localhost/api/local-stock-lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "不存在公司" }),
+    }));
+    assert.equal(missing.status, 404);
+    assert.equal(missing.headers.get("Cache-Control"), "no-store");
+
+    globalThis.fetch = async () => new Response("unavailable", { status: 503 });
+    const unavailable = await POST(new Request("http://localhost/api/local-stock-lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "平安银行" }),
+    }));
+    assert.equal(unavailable.status, 502);
+    assert.equal(unavailable.headers.get("Cache-Control"), "no-store");
+    assert.match(unavailable.headers.get("Content-Type") ?? "", /^application\/json\b/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

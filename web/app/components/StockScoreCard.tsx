@@ -24,14 +24,14 @@ export default function StockScoreCard({ report, stockName }: { report: StockSco
       </header>
 
       <div className="stock-score-layout">
-        <section className="stock-score-verdict" aria-label={`综合评分 ${report.score} 分，模型指示 ${report.signal.action}`}>
+        <section className="stock-score-verdict" aria-label={`综合评分 ${report.score} 分，证据状态 ${report.signal.action}`}>
           <div className="stock-score-number" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={report.score} aria-label={`综合评分 ${report.score} 分`}>
             <span>综合评分</span>
             <strong>{report.score}<small>/100</small></strong>
             <i style={{ "--score-progress": `${report.score * 3.6}deg` } as CSSProperties} aria-hidden="true" />
           </div>
           <div className={`stock-score-signal is-${report.signal.tone}`}>
-            <span>模型指示</span>
+            <span>证据状态</span>
             <strong>{report.signal.action}</strong>
           </div>
           <div className="stock-score-copy">

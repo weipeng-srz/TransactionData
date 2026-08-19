@@ -25,4 +25,4 @@ export async function POST(request: Request) {
   }
 }
 
-export function GET() { return Response.json({ error: "仅支持 POST 请求" }, { status: 405 }); }
+export function GET() { return Response.json({ error: "仅支持 POST 请求" }, { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } }); }
