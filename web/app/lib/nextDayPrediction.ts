@@ -247,6 +247,7 @@ type PreparedPredictionInput = {
   asOfTime: string;
   observedCurrentReturn: number | null;
   observedVolume: number | null;
+  decisionReferencePrice: number | null;
 };
 
 const predictionModelVersion = "ensemble-v2.2-regime";
@@ -580,7 +581,7 @@ export function buildNextDayPrediction(
     expectedLowReturn,
     q25: quantile(analogReturns, 0.25),
     q75: quantile(analogReturns, 0.75),
-    referencePrice: candles[latestIndex].close,
+    referencePrice: prepared.decisionReferencePrice ?? candles[latestIndex].close,
     riskCount: riskFactors.length,
     marketContext,
   });
@@ -702,9 +703,13 @@ function preparePredictionInput(sourceCandles: Candle[], options: NextDayPredict
     .filter((candle) => /^\d{4}-\d{2}-\d{2}$/.test(candle.date) && [candle.open, candle.high, candle.low, candle.close].every((value) => Number.isFinite(value) && value > 0))
     .sort((left, right) => left.date.localeCompare(right.date));
   const snapshot = isUsableSnapshot(options.realtimeSnapshot) ? options.realtimeSnapshot : null;
+  const market = options.market ?? "CN";
+  const latestCompleted = ordered.at(-1);
+  const snapshotIsLiveSession = snapshot ? representsLiveTradingSession(snapshot, market) : false;
 
   if (mode === "today") {
     if (snapshot) {
+      const canObserveCurrentSession = snapshotIsLiveSession && snapshot.date > (latestCompleted?.date ?? "");
       return {
         candles: ordered.filter((candle) => candle.date < snapshot.date),
         mode,
@@ -713,10 +718,11 @@ function preparePredictionInput(sourceCandles: Candle[], options: NextDayPredict
         basis: `严格使用 ${snapshot.date} 之前的完整日 K；今日行情仅用于检验预测与风控，不进入模型特征`,
         usesCurrentSession: false,
         isPartialSession: false,
-        sessionProgress: estimateSessionProgress(snapshot.time, options.market ?? "CN", snapshot.marketStatus),
+        sessionProgress: canObserveCurrentSession ? estimateSessionProgress(snapshot.time, market, snapshot.marketStatus) : 1,
         asOfTime: "15:00 前一交易日收盘",
-        observedCurrentReturn: snapshot.previousClose > 0 ? snapshot.price / snapshot.previousClose - 1 : null,
-        observedVolume: snapshot.volume,
+        observedCurrentReturn: canObserveCurrentSession && snapshot.previousClose > 0 ? snapshot.price / snapshot.previousClose - 1 : null,
+        observedVolume: canObserveCurrentSession ? snapshot.volume : null,
+        decisionReferencePrice: canObserveCurrentSession ? snapshot.price : latestCompleted?.close ?? null,
       };
     }
     const target = ordered.at(-1);
@@ -733,15 +739,16 @@ function preparePredictionInput(sourceCandles: Candle[], options: NextDayPredict
       asOfTime: "收盘",
       observedCurrentReturn: target && previous?.close ? target.close / previous.close - 1 : null,
       observedVolume: target?.volume ?? null,
+      decisionReferencePrice: target?.close ?? null,
     };
   }
 
-  if (snapshot && (!ordered.length || snapshot.date >= ordered.at(-1)!.date)) {
+  if (snapshot && snapshotIsLiveSession && (!ordered.length || snapshot.date >= ordered.at(-1)!.date)) {
     const completed = ordered.filter((candle) => candle.date < snapshot.date);
     const previous = completed.at(-1);
     const existing = ordered.find((candle) => candle.date === snapshot.date);
     const partial = isPartialMarketSession(snapshot.marketStatus);
-    const sessionProgress = estimateSessionProgress(snapshot.time, options.market ?? "CN", snapshot.marketStatus);
+    const sessionProgress = estimateSessionProgress(snapshot.time, market, snapshot.marketStatus);
     const liveCandle = buildLiveSessionCandle(snapshot, previous, existing, partial ? sessionProgress : 1);
     return {
       candles: liveCandle ? [...completed, liveCandle] : ordered,
@@ -757,6 +764,7 @@ function preparePredictionInput(sourceCandles: Candle[], options: NextDayPredict
       asOfTime: snapshot.time,
       observedCurrentReturn: snapshot.previousClose > 0 ? snapshot.price / snapshot.previousClose - 1 : null,
       observedVolume: snapshot.volume,
+      decisionReferencePrice: snapshot.price,
     };
   }
 
@@ -765,13 +773,16 @@ function preparePredictionInput(sourceCandles: Candle[], options: NextDayPredict
     mode,
     targetDate: null,
     targetLabel: "明日 / 下一交易日",
-    basis: "使用最近完整日 K 预测下一交易日；实时快照不可用时不伪造盘中特征",
+    basis: snapshot && market === "US" && /盘前|盘后/.test(snapshot.marketStatus)
+      ? `当前为美股${snapshot.marketStatus}，不把延长时段报价伪装成完整日 K；使用最近完整日 K 预测下一交易日`
+      : "使用最近完整日 K 预测下一交易日；实时快照不可用时不伪造盘中特征",
     usesCurrentSession: false,
     isPartialSession: false,
     sessionProgress: 1,
     asOfTime: "收盘",
     observedCurrentReturn: ordered.length > 1 ? ordered.at(-1)!.close / ordered.at(-2)!.close - 1 : null,
     observedVolume: ordered.at(-1)?.volume ?? null,
+    decisionReferencePrice: ordered.at(-1)?.close ?? null,
   };
 }
 
@@ -783,7 +794,12 @@ function isUsableSnapshot(snapshot: RealtimeSnapshot | null | undefined): snapsh
 }
 
 function isPartialMarketSession(status: string): boolean {
-  return !/已收盘|休市|最近收盘/.test(status) && /交易中|午间休市|盘前|盘中/.test(status);
+  return !/已收盘|休市|最近收盘/.test(status) && /交易中|午间休市|盘中/.test(status);
+}
+
+function representsLiveTradingSession(snapshot: RealtimeSnapshot, market: StockMarket): boolean {
+  if (market === "US") return /交易中|盘中/.test(snapshot.marketStatus);
+  return /交易中|午间休市|盘中/.test(snapshot.marketStatus);
 }
 
 function estimateSessionProgress(time: string, market: StockMarket, status: string): number {
@@ -874,7 +890,9 @@ function buildNewsContext(items: NewsItem[], cutoff: string) {
     if (ageDays > 14) return [];
     const recency = Math.exp(-ageDays / 4.5);
     const relevance = clamp(item.relevance, 0, 1);
-    const weight = recency * (0.3 + relevance * 0.7) * (item.media || item.portal ? 1 : 0.85);
+    const sourceQuality = clamp(item.sourceQualityScore ?? (item.media || item.portal ? 0.7 : 0.4), 0.3, 1);
+    const corroboration = 1 + Math.min(0.12, Math.log2(Math.max(1, item.duplicateCount ?? 1)) * 0.05);
+    const weight = recency * (0.3 + relevance * 0.7) * (0.55 + sourceQuality * 0.45) * corroboration;
     return [{ item, ageDays, weight }];
   });
   const totalWeight = eligible.reduce((sum, value) => sum + value.weight, 0);

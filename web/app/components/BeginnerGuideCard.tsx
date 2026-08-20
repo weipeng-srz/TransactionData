@@ -62,7 +62,7 @@ export default function BeginnerGuideCard({
       <div className={styles.grid}>
         <article className={styles.item}>
           <span>01 · 数据是否可用</span>
-          <strong>覆盖度 {report.coverage}% · {dataWarnings ? `${dataWarnings} 条质量提示` : "暂无质量警告"}</strong>
+          <strong>评分证据覆盖 {report.coverage}% · {dataWarnings ? `${dataWarnings} 条质量提示` : "暂无质量警告"}</strong>
           <p>已纳入 {newsCount} 条经过实体匹配的新闻。任何缺失项都按中性处理，不应把分数当作确定结论。</p>
         </article>
         <article className={styles.item}>

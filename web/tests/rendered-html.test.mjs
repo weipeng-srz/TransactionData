@@ -56,7 +56,7 @@ test("server-renders the TrendSight watchlist homepage", async () => {
   assert.match(html, /上证指数/);
   assert.match(html, /创业板指/);
   assert.match(html, /纳斯达克综指/);
-  assert.match(html, /A股恐慌指数/);
+  assert.match(html, /A股市场压力温度/);
   assert.match(html, /美股恐慌指数/);
   assert.match(html, /10 秒自动刷新/);
   assert.doesNotMatch(html, /\[object Object\]/);
@@ -74,7 +74,7 @@ test("server-renders the global realtime index map", async () => {
   assert.match(html, /EMEA/);
   assert.match(html, /APAC/);
   assert.match(html, /A股核心指数/);
-  assert.match(html, /A股恐慌指标/);
+  assert.match(html, /A股市场压力温度/);
   assert.match(html, /沪深 300/);
   assert.match(html, /创业板指/);
   assert.match(html, /北证 50/);

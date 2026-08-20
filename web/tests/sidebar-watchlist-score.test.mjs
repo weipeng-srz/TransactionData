@@ -19,7 +19,7 @@ test("shows live stock and global market summaries at the top of each sidebar", 
   assert.match(stockSource, /个股日内行情摘要/);
   assert.match(stockSource, /快速定位/);
   assert.match(globalSource, /aria-label="全球股指实时汇总"/);
-  assert.match(globalSource, /市场广度/);
+  assert.match(globalSource, /当前开市广度/);
   assert.match(globalSource, /上证指数/);
   assert.match(globalSource, /美股波动/);
   assert.match(globalSource, /波动焦点/);

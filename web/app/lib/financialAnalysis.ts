@@ -63,6 +63,13 @@ export type FinancialAnalysisPeriod = {
   balance: FinancialBalanceMetrics;
   balanceYoY: FinancialBalanceMetrics;
   balanceQoQ: FinancialBalanceMetrics;
+  qualityFlags: FinancialQualityFlag[];
+};
+
+export type FinancialQualityFlag = {
+  key: "roe-thin-equity" | "roe-nonpositive-equity" | "cash-coverage-loss" | "cash-coverage-negative" | "cash-coverage-financial";
+  tone: "warning" | "risk";
+  message: string;
 };
 
 export type FinancialAnalysis = {
@@ -133,7 +140,7 @@ export function buildFinancialAnalysis({
     const cashflowRow = cashflowByDate.get(reportDate) ?? {};
     const indicatorRow = indicatorByDate.get(reportDate) ?? {};
     const cumulativeRaw: NullableNumberMap = {
-      revenue: toNumber(incomeRow.TOTAL_OPERATE_INCOME),
+      revenue: toNumber(incomeRow.TOTAL_OPERATE_INCOME) ?? toNumber(incomeRow.OPERATE_INCOME),
       operatingCost: toNumber(incomeRow.OPERATE_COST),
       operatingProfit: toNumber(incomeRow.OPERATE_PROFIT),
       parentNetProfit: toNumber(incomeRow.PARENT_NETPROFIT),
@@ -156,6 +163,7 @@ export function buildFinancialAnalysis({
       balance: parseBalance(balanceRow, indicatorRow),
       reportedRoe: toNumber(indicatorRow.ROEJQ),
       reportedRoic: toNumber(indicatorRow.ROIC),
+      cashCoverageComparable: !/银行|保险|证券/.test(String(indicatorRow.ORG_TYPE ?? incomeRow.ORG_TYPE ?? "")),
     }];
   }).sort((left, right) => left.ordinal - right.ordinal);
 
@@ -180,12 +188,12 @@ export function buildFinancialAnalysis({
       : nullMap(flowKeys);
     const yearAgoBalance = rawByOrdinal.get(period.ordinal - 4)?.balance;
     const averageEquity = averageNullable(period.balance.parentEquity, yearAgoBalance?.parentEquity ?? null);
-    const ttmRoe = dividePercent(ttmRaw.parentNetProfit, averageEquity);
+    const ttmRoe = averageEquity != null && averageEquity > 0 ? dividePercent(ttmRaw.parentNetProfit, averageEquity) : null;
     return {
       ...period,
-      single: deriveMetrics(singleRaw, null, null),
-      cumulative: deriveMetrics(period.cumulativeRaw, period.reportedRoe, period.reportedRoic),
-      ttm: deriveMetrics(ttmRaw, ttmRoe, period.reportedRoic),
+      single: deriveMetrics(singleRaw, null, null, period.cashCoverageComparable),
+      cumulative: deriveMetrics(period.cumulativeRaw, period.reportedRoe, period.reportedRoic, period.cashCoverageComparable),
+      ttm: deriveMetrics(ttmRaw, ttmRoe, period.reportedRoic, period.cashCoverageComparable),
     };
   });
 
@@ -212,6 +220,14 @@ export function buildFinancialAnalysis({
       balance: period.balance,
       balanceYoY: compareBalance(period.balance, yearAgo?.balance),
       balanceQoQ: compareBalance(period.balance, previous?.balance),
+      qualityFlags: financialQualityFlags({
+        profit: period.single.parentNetProfit,
+        operatingCashFlow: period.single.operatingCashFlow,
+        averageEquity: averageNullable(period.balance.parentEquity, yearAgo?.balance.parentEquity ?? null),
+        totalAssets: period.balance.totalAssets,
+        roe: period.ttm.roe,
+        cashCoverageComparable: period.cashCoverageComparable,
+      }),
     };
   }).reverse();
 
@@ -250,7 +266,7 @@ function parseBalance(row: Row, indicators: Row): FinancialBalanceMetrics {
   };
 }
 
-function deriveMetrics(raw: NullableNumberMap, roe: number | null, roic: number | null): FinancialMetrics {
+function deriveMetrics(raw: NullableNumberMap, roe: number | null, roic: number | null, cashCoverageComparable = true): FinancialMetrics {
   const revenue = raw.revenue ?? null;
   const operatingCost = raw.operatingCost ?? null;
   const parentNetProfit = raw.parentNetProfit ?? null;
@@ -275,11 +291,45 @@ function deriveMetrics(raw: NullableNumberMap, roe: number | null, roic: number 
     grossMargin: dividePercent(grossProfit, revenue),
     netMargin: dividePercent(parentNetProfit, revenue),
     deductMargin: dividePercent(deductNetProfit, revenue),
-    cashCoverage: divideRatio(operatingCashFlow, parentNetProfit),
+    cashCoverage: cashCoverageComparable && parentNetProfit != null && parentNetProfit > 0 ? divideRatio(operatingCashFlow, parentNetProfit) : null,
     researchExpenseRatio: dividePercent(raw.researchExpense ?? null, revenue),
     roe,
     roic,
   };
+}
+
+export function financialQualityFlags({
+  profit,
+  operatingCashFlow,
+  averageEquity,
+  totalAssets,
+  roe,
+  cashCoverageComparable = true,
+}: {
+  profit: number | null;
+  operatingCashFlow: number | null;
+  averageEquity: number | null;
+  totalAssets: number | null;
+  roe: number | null;
+  cashCoverageComparable?: boolean;
+}): FinancialQualityFlag[] {
+  const flags: FinancialQualityFlag[] = [];
+  if (averageEquity != null && averageEquity <= 0) {
+    flags.push({ key: "roe-nonpositive-equity", tone: "risk", message: "平均归母权益不为正，ROE 不具备可比意义，页面不展示该倍数。" });
+  } else if (
+    averageEquity != null
+    && ((totalAssets != null && totalAssets > 0 && averageEquity / totalAssets < 0.08) || (roe != null && Math.abs(roe) > 80))
+  ) {
+    flags.push({ key: "roe-thin-equity", tone: "warning", message: "平均权益基数较薄或 ROE 极高，金融业杠杆、回购或累计亏损等资本结构因素可能放大 ROE；应结合行业资本约束、净利率和现金流判断。" });
+  }
+  if (!cashCoverageComparable) {
+    flags.push({ key: "cash-coverage-financial", tone: "warning", message: "银行、保险和证券公司的经营现金流受存贷款、保费与客户资金影响，不用经营现金流／净利润倍数评价盈利质量。" });
+  } else if (profit != null && profit <= 0) {
+    flags.push({ key: "cash-coverage-loss", tone: "warning", message: "净利润不为正，经营现金流／净利润倍数不具备通常的盈利质量含义。" });
+  } else if (profit != null && profit > 0 && operatingCashFlow != null && operatingCashFlow < 0) {
+    flags.push({ key: "cash-coverage-negative", tone: "risk", message: "净利润为正但经营现金流为负，现金转化需要重点核查。" });
+  }
+  return flags;
 }
 
 function compareMetrics(current: FinancialMetrics, comparison?: FinancialMetrics): FinancialMetrics {

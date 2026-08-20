@@ -2,6 +2,8 @@ import { parseCsvRecords } from "./csv.ts";
 import { cnStockCodePattern, usStockSymbolPattern } from "./security.ts";
 
 export type NewsSentiment = "正面" | "中性" | "负面";
+export type NewsEventType = "财报与业绩" | "融资与资本动作" | "监管与诉讼" | "并购重组" | "产品与经营" | "分析师观点" | "其他事件";
+export type NewsSourceQuality = "高" | "中" | "低";
 
 export type NewsItem = {
   code: string;
@@ -19,6 +21,11 @@ export type NewsItem = {
   summary: string;
   url: string;
   fetchedAt: string;
+  eventType?: NewsEventType;
+  sourceQuality?: NewsSourceQuality;
+  sourceQualityScore?: number;
+  sourceQualityReason?: string;
+  duplicateCount?: number;
 };
 
 export type NewsSummary = {
@@ -111,6 +118,12 @@ export function parseNewsCsv(content: string): ParsedNewsDataset {
       url: articleUrl,
       fetchedAt: value(record, "采集时间"),
     };
+    const sourceQuality = classifySourceQuality(item.media, item.portal, item.url);
+    item.eventType = classifyNewsEvent(`${item.title} ${item.summary}`);
+    item.sourceQuality = sourceQuality.label;
+    item.sourceQualityScore = sourceQuality.score;
+    item.sourceQualityReason = sourceQuality.reason;
+    item.duplicateCount = 1;
     items.push(item);
     codes.add(code);
     if (stockName) stockNames[code] = stockName;
@@ -118,30 +131,93 @@ export function parseNewsCsv(content: string): ParsedNewsDataset {
   }
 
   items.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
-  const positive = items.filter((item) => item.sentiment === "正面").length;
-  const neutral = items.filter((item) => item.sentiment === "中性").length;
-  const negative = items.filter((item) => item.sentiment === "负面").length;
-  const averageScore = items.length
-    ? items.reduce((sum, item) => sum + item.sentimentScore, 0) / items.length
+  const groupedItems = groupRelatedNews(items);
+  const positive = groupedItems.filter((item) => item.sentiment === "正面").length;
+  const neutral = groupedItems.filter((item) => item.sentiment === "中性").length;
+  const negative = groupedItems.filter((item) => item.sentiment === "负面").length;
+  const averageScore = groupedItems.length
+    ? groupedItems.reduce((sum, item) => sum + item.sentimentScore, 0) / groupedItems.length
     : 0;
   const tone: NewsSentiment = averageScore >= 0.15 ? "正面" : averageScore <= -0.15 ? "负面" : "中性";
 
   return {
-    items,
+    items: groupedItems,
     codes: [...codes].sort(),
     stockNames,
     skipped,
     summary: {
-      total: items.length,
+      total: groupedItems.length,
       positive,
       neutral,
       negative,
       averageScore,
       tone,
       portals: portals.size,
-      latestAt: items[0]?.publishedAt ?? "",
+      latestAt: groupedItems[0]?.publishedAt ?? "",
     },
   };
+}
+
+function classifyNewsEvent(value: string): NewsEventType {
+  const text = value.toLowerCase();
+  if (/财报|财季|业绩|营收|净利润|预增|预减|earnings|revenue|guidance/.test(text)) return "财报与业绩";
+  if (/回购|增持|减持|分红|派息|发行|融资|定增|可转债|buyback|dividend|offering/.test(text)) return "融资与资本动作";
+  if (/监管|调查|处罚|诉讼|仲裁|问询|警示函|召回|antitrust|lawsuit|probe|regulat/.test(text)) return "监管与诉讼";
+  if (/并购|收购|重组|合并|要约|acquisition|merger|takeover/.test(text)) return "并购重组";
+  if (/中标|订单|获批|发布|推出|产能|产品|合作|签约|launch|approval|contract/.test(text)) return "产品与经营";
+  if (/评级|目标价|研报|分析师|上调|下调|upgrade|downgrade|price target|analyst/.test(text)) return "分析师观点";
+  return "其他事件";
+}
+
+function classifySourceQuality(media: string, portal: string, value: string): { label: NewsSourceQuality; score: number; reason: string } {
+  const source = `${media} ${portal}`.toLowerCase();
+  let host = "";
+  try { host = new URL(value).hostname.toLowerCase(); } catch { /* Invalid URLs are rejected before this point. */ }
+  if (
+    /公告|交易所|证券时报|上海证券报|中国证券报|sec|公司官网/.test(source)
+    || /(?:^|\.)(?:sec\.gov|cninfo\.com\.cn|sse\.com\.cn|szse\.cn)$/.test(host)
+  ) return { label: "高", score: 1, reason: "监管披露、公司原始信息或主流证券媒体" };
+  if (/新浪|东方财富|财联社|路透|彭博|华尔街日报|央视|中新|证券/.test(source)) return { label: "中", score: 0.75, reason: "具名财经或综合媒体" };
+  return { label: "低", score: 0.45, reason: "来源身份或原始出处不足" };
+}
+
+function groupRelatedNews(items: NewsItem[]): NewsItem[] {
+  const groups: NewsItem[] = [];
+  for (const item of items) {
+    const date = item.publishedAt.slice(0, 10);
+    const titleKey = normalizedNewsTitle(item.title, item.stockName);
+    const existingIndex = groups.findIndex((candidate) => (
+      candidate.code === item.code
+      && candidate.publishedAt.slice(0, 10) === date
+      && candidate.eventType === item.eventType
+      && titleSimilarity(normalizedNewsTitle(candidate.title, candidate.stockName), titleKey) >= 0.82
+    ));
+    if (existingIndex < 0) {
+      groups.push(item);
+      continue;
+    }
+    const existing = groups[existingIndex];
+    const duplicateCount = (existing.duplicateCount ?? 1) + 1;
+    if ((item.sourceQualityScore ?? 0) > (existing.sourceQualityScore ?? 0)) groups[existingIndex] = { ...item, duplicateCount };
+    else existing.duplicateCount = duplicateCount;
+  }
+  return groups;
+}
+
+function normalizedNewsTitle(title: string, stockName: string): string {
+  return title.normalize("NFKC").toLowerCase().replaceAll(stockName.toLowerCase(), "").replace(/[\s\p{P}\p{S}]/gu, "");
+}
+
+function titleSimilarity(left: string, right: string): number {
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (Math.min(left.length, right.length) >= 8 && (left.includes(right) || right.includes(left))) return Math.min(left.length, right.length) / Math.max(left.length, right.length);
+  const grams = (value: string) => new Set(Array.from({ length: Math.max(0, value.length - 1) }, (_, index) => value.slice(index, index + 2)));
+  const a = grams(left);
+  const b = grams(right);
+  if (!a.size || !b.size) return 0;
+  const intersection = [...a].filter((value) => b.has(value)).length;
+  return intersection / (a.size + b.size - intersection);
 }
 
 function normalizeSentiment(value: string): NewsSentiment | null {

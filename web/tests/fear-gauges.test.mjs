@@ -21,9 +21,14 @@ test("parses the official US VIX and labels the A-share proxy transparently", ()
   assert.equal(vix?.changePct, -8.68);
   assert.equal(vix?.official, true);
   assert.equal(aShare?.official, false);
-  assert.equal(aShare?.name, "A股恐慌指数（代理）");
+  assert.match(aShare?.level ?? "", /压力/);
+  assert.doesNotMatch(aShare?.level ?? "", /恐慌|平静/);
+  assert.equal(aShare?.name, "A股市场压力温度");
   assert.match(aShare?.source ?? "", /代理模型/);
   assert.match(aShare?.description ?? "", /上涨.*下跌/);
+  assert.match(aShare?.formula ?? "", /下跌占比/);
+  assert.equal(aShare?.historyPercentile, null);
+  assert.deepEqual(aShare?.components.map((item) => item.label), ["核心指数下跌占比", "核心指数平均涨跌"]);
   assert.ok((aShare?.value ?? -1) >= 0 && (aShare?.value ?? 101) <= 100);
 });
 

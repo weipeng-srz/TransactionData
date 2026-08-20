@@ -1,4 +1,5 @@
 import { lookupUSStock, normalizeUSStockLookupRequest } from "../../lib/usStockLookup.ts";
+import { isUSStockSymbol, normalizeUSSymbol } from "../../lib/security.ts";
 
 export async function POST(request: Request) {
   let query: string;
@@ -9,7 +10,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    return Response.json(await lookupUSStock(query), { headers: { "Cache-Control": "no-store" } });
+    const stock = await lookupUSStock(query);
+    const querySymbol = normalizeUSSymbol(query);
+    if (isUSStockSymbol(querySymbol) && stock.code === querySymbol && stock.name === stock.code) {
+      throw new Error("没有找到匹配的美股代码或名称");
+    }
+    return Response.json(stock, { headers: { "Cache-Control": "no-store" } });
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : "美股检索服务不可用";
     return Response.json({ error: message }, { status: message.includes("没有找到匹配") ? 404 : 502, headers: { "Cache-Control": "no-store" } });

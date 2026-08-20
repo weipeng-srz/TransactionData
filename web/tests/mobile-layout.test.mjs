@@ -32,12 +32,14 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.suggestionActions button \{[^}]*min-height: 44px;[^}]*flex: 1;/);
 });
 
-test("keeps stock loading sources and the bottom menu on one mobile row", () => {
+test("keeps stock loading sources compact and replaces the overflowing bottom rail with a section picker", () => {
   assert.match(appleStyles, /@media \(max-width: 620px\)[\s\S]*?\.stock-initial-sources \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
-  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.app-sidebar \.workspace-nav a > span,[\s\S]*?white-space: nowrap;/);
   assert.match(appleStyles, /Stable mobile compositor:[\s\S]*?backdrop-filter: none;/);
-  assert.match(pageSource, /className="mobile-nav-hint"[^>]*>滑动 ›<\/span>/);
-  assert.match(appleStyles, /\.mobile-nav-hint \{[\s\S]*?background: linear-gradient/);
+  assert.match(pageSource, /className="mobile-section-jump"/);
+  assert.match(pageSource, /aria-label="跳转到研究章节"/);
+  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.app-sidebar \.workspace-nav,[\s\S]*?display: none !important;/);
+  assert.match(appleStyles, /\.mobile-section-jump select \{[\s\S]*?height: 44px;/);
+  assert.doesNotMatch(pageSource, /滑动 ›/);
 });
 
 test("adds touch-friendly horizontal tracks only within mobile media rules", () => {

@@ -14,7 +14,7 @@ export function normalizeUSRealtimeRequest(value: unknown): { code: string } {
   return { code };
 }
 
-export function parseUSQuoteResponse(body: string, code: string): RealtimeSnapshot {
+export function parseUSQuoteResponse(body: string, code: string, now = new Date()): RealtimeSnapshot {
   const match = body.match(/="([\s\S]*)";?\s*$/);
   if (!match || !match[1].trim()) throw new Error("美股报价服务暂未返回该证券的数据");
   const fields = match[1].split(",");
@@ -22,16 +22,16 @@ export function parseUSQuoteResponse(body: string, code: string): RealtimeSnapsh
   const price = positiveNumber(fields[1]);
   const previousClose = positiveNumber(fields[26]) || price - finiteNumber(fields[4]);
   if (!price || !previousClose) throw new Error("美股报价暂未返回有效价格");
-  const timestamp = String(fields[3] ?? "").trim();
-  const date = timestamp.slice(0, 10);
-  const time = timestamp.slice(11, 19);
+  // 新浪该字段在不同出口曾返回北京时间，不能直接拿来判断美股交易阶段。
+  // 报价的交易语义统一以抓取时刻对应的纽约交易所时钟为准。
+  const { date, time } = newYorkExchangeClock(now);
   const volume = nonNegativeNumber(fields[10]);
   return {
     code: normalizeUSSymbol(code),
     name: String(fields[0] ?? "").trim() || normalizeUSSymbol(code),
     date,
     time,
-    marketStatus: usMarketStatus(date, time),
+    marketStatus: usMarketStatus(now),
     price,
     previousClose,
     open: positiveNumber(fields[5]) || price,
@@ -44,8 +44,8 @@ export function parseUSQuoteResponse(body: string, code: string): RealtimeSnapsh
     bids: [],
     asks: [],
     minuteCandles: [],
-    source: "新浪美股延时报价（不含五档与分钟线）",
-    fetchedAt: new Date().toISOString(),
+    source: "新浪美股延时报价（时间已换算为美东时间；不含五档与分钟线）",
+    fetchedAt: now.toISOString(),
   };
 }
 
@@ -101,7 +101,7 @@ async function fallbackFromDaily(code: string): Promise<RealtimeSnapshot> {
     name: identity.name,
     date: latest.date,
     time: "16:00:00",
-    marketStatus: usMarketStatus(latest.date, "16:00:00"),
+    marketStatus: usMarketStatus(),
     price: latest.close,
     previousClose,
     open: latest.open,
@@ -119,19 +119,32 @@ async function fallbackFromDaily(code: string): Promise<RealtimeSnapshot> {
   };
 }
 
-export function usMarketStatus(date: string, time: string): string {
-  const current = new Date().toLocaleString("sv-SE", { timeZone: "America/New_York", hour12: false });
-  const currentDate = current.slice(0, 10);
-  const currentTime = current.slice(11, 19);
-  const referenceDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : currentDate;
-  const referenceTime = /^\d{2}:\d{2}/.test(time) ? time : currentTime;
-  if (referenceDate !== currentDate) return "已收盘";
-  const weekday = new Date(`${currentDate}T12:00:00-04:00`).getUTCDay();
+export function usMarketStatus(now = new Date()): string {
+  const { date, time } = newYorkExchangeClock(now);
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   if (weekday === 0 || weekday === 6) return "休市";
-  if (referenceTime < "09:30:00") return referenceTime >= "04:00:00" ? "盘前" : "休市";
-  if (referenceTime < "16:00:00") return "交易中";
-  if (referenceTime < "20:00:00") return "盘后";
+  if (time < "09:30:00") return time >= "04:00:00" ? "盘前" : "休市";
+  if (time < "16:00:00") return "交易中";
+  if (time < "20:00:00") return "盘后";
   return "已收盘";
+}
+
+function newYorkExchangeClock(now: Date): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    date: `${value("year")}-${value("month")}-${value("day")}`,
+    time: `${value("hour")}:${value("minute")}:${value("second")}`,
+  };
 }
 
 function decodeText(bytes: ArrayBuffer, encoding: "gbk" | "utf-8"): string { try { return new TextDecoder(encoding).decode(bytes); } catch { return new TextDecoder().decode(bytes); } }

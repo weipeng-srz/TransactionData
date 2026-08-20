@@ -9,6 +9,7 @@ import type {
   FinancialBalanceMetrics,
   FinancialMetrics,
 } from "./financialAnalysis.ts";
+import { financialQualityFlags } from "./financialAnalysis.ts";
 import { isUSStockSymbol, normalizeUSSymbol } from "./security.ts";
 import { lookupUSStock } from "./usStockLookup.ts";
 import { fetchUSRealtimeSnapshot } from "./usStockRealtime.ts";
@@ -103,7 +104,7 @@ export async function fetchUSFinancials(code: string): Promise<FinancialDataset>
     reports,
     snapshot,
     holderStructure,
-    analysis: { periods, latestReportDate: latest.reportDate, sourceScope: "SEC Company Facts · USD · 正式申报" },
+    analysis: { periods, latestReportDate: latest.reportDate, sourceScope: "SEC Company Facts · USD · 公司财政年度 FY · 正式申报" },
     source: "美国 SEC Company Facts（美元口径）",
     fetchedAt: new Date().toISOString(),
   };
@@ -130,12 +131,16 @@ export function buildUSFinancialPeriods(companyFacts: SecCompanyFacts): Financia
     const ttm = trailing.every(Boolean) ? sumMetrics(trailing.map((candidate) => candidate!.single)) : emptyMetrics();
     if (ttm.parentNetProfit != null && item.balance.parentEquity != null) {
       const priorEquity = yearAgo?.balance.parentEquity;
-      ttm.roe = priorEquity == null ? percent(ttm.parentNetProfit, item.balance.parentEquity) : percent(ttm.parentNetProfit, (item.balance.parentEquity + priorEquity) / 2);
+      const averageEquity = priorEquity == null ? item.balance.parentEquity : (item.balance.parentEquity + priorEquity) / 2;
+      ttm.roe = averageEquity > 0 ? percent(ttm.parentNetProfit, averageEquity) : null;
     }
+    const averageEquity = yearAgo?.balance.parentEquity == null || item.balance.parentEquity == null
+      ? item.balance.parentEquity
+      : (item.balance.parentEquity + yearAgo.balance.parentEquity) / 2;
     return {
       reportDate: item.seed.reportDate,
       noticeDate: item.seed.noticeDate,
-      periodLabel: `${item.seed.fiscalYear}Q${item.seed.quarter}`,
+      periodLabel: `FY${item.seed.fiscalYear} Q${item.seed.quarter}`,
       reportType: item.seed.quarter === 4 ? "10-K 年报" : "10-Q 季报",
       fiscalYear: item.seed.fiscalYear,
       quarter: item.seed.quarter,
@@ -151,6 +156,13 @@ export function buildUSFinancialPeriods(companyFacts: SecCompanyFacts): Financia
       balance: item.balance,
       balanceYoY: compareBalance(item.balance, yearAgo?.balance),
       balanceQoQ: compareBalance(item.balance, prior?.balance),
+      qualityFlags: financialQualityFlags({
+        profit: item.single.parentNetProfit,
+        operatingCashFlow: item.single.operatingCashFlow,
+        averageEquity,
+        totalAssets: item.balance.totalAssets,
+        roe: ttm.roe,
+      }),
     };
   }).reverse().slice(0, 40);
 }
@@ -235,14 +247,25 @@ function instantValue(companyFacts: SecCompanyFacts, concepts: readonly string[]
 }
 
 function factsFor(companyFacts: SecCompanyFacts, concepts: readonly string[], unit: string): SecUnit[] {
+  const merged = new Map<string, SecUnit>();
   for (const facts of [companyFacts.facts?.["us-gaap"], companyFacts.facts?.dei]) {
     if (!facts) continue;
     for (const concept of concepts) {
       const entries = facts[concept]?.units?.[unit];
-      if (Array.isArray(entries) && entries.length) return entries;
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        const key = [entry.accn, entry.start, entry.end, entry.fy, entry.fp, entry.form].map((value) => String(value ?? "")).join("|");
+        // Concept order expresses preference; later fallback concepts only fill periods
+        // that the preferred standard concept does not cover.
+        if (!merged.has(key)) merged.set(key, entry);
+      }
     }
   }
-  return [];
+  return [...merged.values()].sort((left, right) => (
+    String(left.end ?? "").localeCompare(String(right.end ?? ""))
+    || String(left.filed ?? "").localeCompare(String(right.filed ?? ""))
+    || String(left.start ?? "").localeCompare(String(right.start ?? ""))
+  ));
 }
 
 function latestFact(companyFacts: SecCompanyFacts, concepts: readonly string[], unit: string): number | null {
@@ -263,7 +286,7 @@ function deriveMetrics(raw: Record<string, number | null>): FinancialMetrics {
     investingCashFlow: raw.investingCashFlow ?? null, financingCashFlow: raw.financingCashFlow ?? null, capex,
     freeCashFlow: operatingCashFlow == null || capex == null ? null : operatingCashFlow - Math.abs(capex),
     researchExpense: raw.researchExpense ?? null, grossMargin: percent(grossProfit, revenue), netMargin: percent(parentNetProfit, revenue),
-    deductMargin: null, cashCoverage: ratio(operatingCashFlow, parentNetProfit), researchExpenseRatio: percent(raw.researchExpense ?? null, revenue), roe: null, roic: null,
+    deductMargin: null, cashCoverage: parentNetProfit != null && parentNetProfit > 0 ? ratio(operatingCashFlow, parentNetProfit) : null, researchExpenseRatio: percent(raw.researchExpense ?? null, revenue), roe: null, roic: null,
   };
 }
 

@@ -52,6 +52,11 @@ export default function GlobalMarketsPage() {
   const [preservedStock, setPreservedStock] = useState("");
   const requestRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    document.title = "全球市场 · TrendSight";
+    return () => { document.title = "TrendSight · 市场研究工作台"; };
+  }, []);
+
   const refresh = useCallback(async (silent = false) => {
     requestRef.current?.abort();
     const controller = new AbortController();
@@ -111,14 +116,22 @@ export default function GlobalMarketsPage() {
     ...quotes.map((quote) => ({ name: quote.name, changePct: quote.changePct })),
     ...usQuotes.flatMap((quote) => quote.cashChangePct == null ? [] : [{ name: quote.name, changePct: quote.cashChangePct }]),
   ];
-  const rising = marketMoves.filter((quote) => quote.changePct > 0).length;
-  const falling = marketMoves.filter((quote) => quote.changePct < 0).length;
+  const openMarketMoves = [
+    ...quotes.filter((quote) => quote.marketStatus === "交易中").map((quote) => ({ name: quote.name, changePct: quote.changePct })),
+    ...usQuotes.flatMap((quote) => quote.phase === "盘中" && quote.phaseChangePct != null ? [{ name: quote.name, changePct: quote.phaseChangePct }] : []),
+  ];
+  const openRising = openMarketMoves.filter((quote) => quote.changePct > 0).length;
+  const openFalling = openMarketMoves.filter((quote) => quote.changePct < 0).length;
+  const snapshotRising = marketMoves.filter((quote) => quote.changePct > 0).length;
+  const snapshotFalling = marketMoves.filter((quote) => quote.changePct < 0).length;
   const openMarkets = quotes.filter((quote) => quote.marketStatus === "交易中").length + (usQuotes[0]?.phase === "盘中" ? 1 : 0);
   const leader = [...marketMoves].sort((left, right) => Math.abs(right.changePct) - Math.abs(left.changePct))[0];
   const shanghaiQuote = quoteById.get("shanghai");
   const usFearGauge = fearGaugeByMarket.get("美股");
-  const breadthTotal = rising + falling;
-  const breadthPct = breadthTotal ? Math.round((rising / breadthTotal) * 100) : 0;
+  const openBreadthTotal = openRising + openFalling;
+  const openBreadthPct = openBreadthTotal ? Math.round((openRising / openBreadthTotal) * 100) : 0;
+  const snapshotBreadthTotal = snapshotRising + snapshotFalling;
+  const snapshotBreadthPct = snapshotBreadthTotal ? Math.round((snapshotRising / snapshotBreadthTotal) * 100) : 0;
   const coveredIndexes = quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length;
   const mappedMarketCount = GLOBAL_INDEXES.filter((item) => item.map).length + US_INDEXES.filter((item) => item.map).length;
 
@@ -150,10 +163,11 @@ export default function GlobalMarketsPage() {
             <em className={`sidebar-status-pill ${openMarkets ? "is-live" : ""}`}><i />{openMarkets ? `${openMarkets} 开盘` : "休市"}</em>
           </header>
           <div className="sidebar-preview-hero" aria-label="全球股指实时汇总">
-            <span>市场广度</span>
-            <strong>{breadthTotal ? `${breadthPct}%` : "—"}</strong>
-            <em className={breadthPct >= 55 ? "is-up" : breadthPct <= 45 ? "is-down" : "is-flat"}>{breadthTotal ? `${rising} 涨 / ${falling} 跌` : "等待行情"}</em>
-            <div className="sidebar-breadth-track" aria-hidden="true"><i style={{ width: `${breadthPct}%` }} /></div>
+            <span>当前开市广度</span>
+            <strong>{openBreadthTotal ? `${openBreadthPct}%` : "—"}</strong>
+            <em className={openBreadthPct >= 55 ? "is-up" : openBreadthPct <= 45 ? "is-down" : "is-flat"}>{openBreadthTotal ? `${openRising} 涨 / ${openFalling} 跌` : "当前无开市样本"}</em>
+            <div className="sidebar-breadth-track" aria-hidden="true"><i style={{ width: `${openBreadthPct}%` }} /></div>
+            <small>跨市场最近快照 {snapshotBreadthTotal ? `${snapshotBreadthPct}% · ${snapshotRising} 涨/${snapshotFalling} 跌` : "等待行情"}</small>
           </div>
           <div className="sidebar-preview-metrics global-sidebar-snapshot">
             <div>
@@ -186,7 +200,29 @@ export default function GlobalMarketsPage() {
           <a href="#europe-indexes"><span>欧洲市场</span><small>Europe</small></a>
           <a href="#asia-indexes"><span>亚太市场</span><small>Asia</small></a>
         </nav>
-        <span className="mobile-nav-hint" aria-hidden="true">滑动 ›</span>
+        <label className="mobile-section-jump">
+          <span>跳转到市场章节</span>
+          <select
+            aria-label="跳转到市场章节"
+            defaultValue=""
+            onChange={(event) => {
+              const target = document.getElementById(event.target.value);
+              target?.scrollIntoView({ behavior: "smooth", block: "start" });
+              window.setTimeout(() => target?.scrollIntoView({ behavior: "auto", block: "start" }), 700);
+              event.currentTarget.value = "";
+            }}
+          >
+            <option value="" disabled>选择章节…</option>
+            <option value="global-overview">市场概览</option>
+            <option value="a-share-indexes">A 股核心</option>
+            <option value="shanghai-index">上证指数</option>
+            <option value="global-map">全球地图</option>
+            <option value="us-indexes">美股指数</option>
+            <option value="americas-indexes">美洲市场</option>
+            <option value="europe-indexes">欧洲市场</option>
+            <option value="asia-indexes">亚太市场</option>
+          </select>
+        </label>
       </aside>
 
       <div className="app-workspace-shell global-main">
@@ -203,7 +239,8 @@ export default function GlobalMarketsPage() {
 
         <section id="global-overview" className="global-summary" aria-label="全球市场概览">
           <article><span>覆盖指数</span><strong>{quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length}</strong><small>美股 · A股 · 美洲 · 欧洲 · 亚太</small></article>
-          <article><span>上涨 / 下跌</span><strong><em className="is-up">{rising}</em><b>/</b><em className="is-down">{falling}</em></strong><small>按最新涨跌幅统计</small></article>
+          <article><span>当前开市广度</span><strong><em className="is-up">{openRising}</em><b>/</b><em className="is-down">{openFalling}</em></strong><small>{openBreadthTotal ? `上涨占比 ${openBreadthPct}% · 仅统计交易中市场` : "当前没有交易中样本"}</small></article>
+          <article><span>跨市场最近快照</span><strong><em className="is-up">{snapshotRising}</em><b>/</b><em className="is-down">{snapshotFalling}</em></strong><small>各市场时点不同，不视为同步收盘比较</small></article>
           <article><span>交易中市场</span><strong>{openMarkets}</strong><small>依据各交易所当地时段</small></article>
           <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
         </section>
@@ -580,6 +617,10 @@ function USMarketPanel({ quotes, fearGauge }: { quotes: USIndexSessionQuote[]; f
       <div className="global-us-index-list">
         {US_INDEXES.map((definition) => {
           const quote = quoteById.get(definition.id);
+          const usesProxy = quote?.phaseIsProxy ?? false;
+          const spotValue = usesProxy ? quote?.closePrice : quote?.phaseValue;
+          const spotChangePct = usesProxy ? quote?.cashChangePct : quote?.phaseChangePct;
+          const spotLabel = usesProxy ? quote?.closeLabel : quote?.phase === "盘中" ? "现货指数" : quote?.closeLabel;
           return (
             <article key={definition.id}>
               <div className="global-us-index-head">
@@ -587,14 +628,17 @@ function USMarketPanel({ quotes, fearGauge }: { quotes: USIndexSessionQuote[]; f
                 <span className={`global-us-phase ${phaseTone(quote?.phase)}`}>{quote?.phase ?? "连接中"}</span>
               </div>
               <div className="global-us-stage-value">
-                <div><small>当前阶段值</small><strong>{quote?.phaseValue == null ? "—" : formatPrice(quote.phaseValue)}</strong></div>
-                <span className={tone(quote?.phaseChangePct ?? undefined)}>{quote?.phaseChangePct == null ? "—" : signedPercent(quote.phaseChangePct)}</span>
+                <div><small>{spotLabel ?? "最近现货指数"}</small><strong>{spotValue == null ? "—" : formatPrice(spotValue)}</strong></div>
+                <span className={tone(spotChangePct ?? undefined)}>{spotChangePct == null ? "—" : signedPercent(spotChangePct)}</span>
               </div>
-              <p>{quote?.phaseInstrument ?? "正在获取现货与扩展时段数据"}</p>
-              <div className="global-us-close-row">
-                <span>{quote?.closeLabel ?? "现货收盘指数"}</span>
-                <strong>{quote?.closePrice == null ? "—" : formatPrice(quote.closePrice)}</strong>
-              </div>
+              <p>{usesProxy ? "现货指数为主口径；延长时段代理只表示方向，不比较绝对价格。" : quote?.phaseInstrument ?? "正在获取现货与扩展时段数据"}</p>
+              {usesProxy ? <div className="global-us-close-row is-proxy">
+                <span>方向代理 · {quote?.phaseInstrument}</span>
+                <strong className={tone(quote?.phaseChangePct ?? undefined)}>{quote?.phaseChangePct == null ? "—" : signedPercent(quote.phaseChangePct)}</strong>
+              </div> : quote?.phase === "盘中" ? <div className="global-us-close-row">
+                <span>{quote.closeLabel}</span>
+                <strong>{quote.closePrice == null ? "—" : formatPrice(quote.closePrice)}</strong>
+              </div> : null}
               <small className="global-us-quote-time">{quote?.phaseUpdatedAt ? `行情时间 ${quote.phaseUpdatedAt}` : "行情时间 —"}</small>
             </article>
           );
@@ -627,11 +671,12 @@ function RegionPanel({ region, definitions, quoteById, fearGauge }: { region: Gl
 }
 
 function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A股" | "美股" }) {
+  const metricName = market === "A股" ? "市场压力温度" : "恐慌指标";
   return (
-    <article className={`global-fear-card ${market === "美股" ? "has-chart" : ""} ${fearTone(gauge?.value)}`} aria-label={`${market}恐慌指标`}>
+    <article className={`global-fear-card ${market === "美股" ? "has-chart" : ""} ${fearTone(gauge?.value)}`} aria-label={`${market}${metricName}`}>
       <div className="global-fear-heading">
-        <span>{gauge?.code ?? (market === "美股" ? "VIX" : "CN-FEAR")}</span>
-        <div><strong>{gauge?.name ?? `${market}恐慌指标`}</strong><small>{gauge?.official ? "官方指数 · 延时行情" : "市场压力代理 · 非交易所官方指数"}</small></div>
+        <span>{gauge?.code ?? (market === "美股" ? "VIX" : "CN-PRESSURE")}</span>
+        <div><strong>{gauge?.name ?? `${market}${metricName}`}</strong><small>{gauge?.official ? "官方指数 · 延时行情" : "市场压力代理 · 非交易所官方指数"}</small></div>
       </div>
       <div className="global-fear-value">
         <strong>{gauge ? gauge.value.toFixed(1) : "—"}</strong>
@@ -641,10 +686,17 @@ function FearGaugeCard({ gauge, market }: { gauge?: FearGaugeQuote; market: "A�
       <p>{gauge?.description ?? "正在获取并计算最新市场压力数据。"}</p>
       <small>{gauge ? `${gauge.source} · ${gauge.updatedAt}` : "行情时间 —"}</small>
       {market === "A股" && gauge ? (
-        <div className="global-fear-scale" aria-label={`A股恐慌指数 ${gauge.value.toFixed(1)} 分，满分 100`}>
+        <div className="global-fear-scale" aria-label={`A股市场压力温度 ${gauge.value.toFixed(1)} 分，满分 100`}>
           <div><i style={{ width: `${Math.max(0, Math.min(100, gauge.value))}%` }} /></div>
-          <span>0 平静</span><b>{gauge.value.toFixed(1)} / 100</b><span>100 恐慌</span>
+          <span>0 压力低</span><b>{gauge.value.toFixed(1)} / 100</b><span>100 压力高</span>
         </div>
+      ) : null}
+      {gauge ? (
+        <dl className="global-pressure-components">
+          <div><dt>计算公式</dt><dd>{gauge.formula}</dd></div>
+          {gauge.components.map((component) => <div key={component.label}><dt>{component.label}</dt><dd>{component.value}</dd></div>)}
+          <div><dt>历史分位</dt><dd>{gauge.historyPercentile == null ? "历史序列不足，暂不展示" : `${Math.round(gauge.historyPercentile * 100)}%`}</dd></div>
+        </dl>
       ) : null}
       {market === "美股" ? <FearKlineChart key={`vix-${gauge?.history.length ?? 0}`} candles={gauge?.history ?? []} /> : null}
     </article>

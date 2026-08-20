@@ -176,6 +176,10 @@ function parseRecentStocks(value: unknown): RecentStock[] {
   }).slice(0, maxRecentStocks);
 }
 
+function benchmarkMatchesMarket(code: string, market: StockMarket): boolean {
+  return market === "US" ? isUSStockSymbol(code) : cnStockCodePattern.test(code);
+}
+
 export default function Home() {
   const [analysisCode, setAnalysisCode] = useState<string | null>(null);
 
@@ -393,7 +397,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           const cloudAnnotations = parseAnnotations(state.annotations);
           if (cloudAnnotations.length) setAnnotations(cloudAnnotations);
           if (state.viewMode === "basic" || state.viewMode === "pro") setViewMode(state.viewMode);
-          if (typeof state.benchmarkCode === "string" && (cnStockCodePattern.test(state.benchmarkCode) || isUSStockSymbol(state.benchmarkCode))) setBenchmarkCode(state.benchmarkCode);
+          if (typeof state.benchmarkCode === "string" && benchmarkMatchesMarket(state.benchmarkCode, selectedMarket)) setBenchmarkCode(state.benchmarkCode);
           if (state.workspace && typeof state.workspace === "object") {
             const workspace = state.workspace as SavedWorkspace;
             if (workspace.version === 1) { setSavedWorkspace(workspace); setHasSavedView(true); }
@@ -407,7 +411,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     };
     void loadCloudState();
     return () => controller.abort();
-  }, [storageHydrated]);
+  }, [selectedMarket, storageHydrated]);
 
   useEffect(() => {
     if (!storageHydrated || !cloudLoadedRef.current || cloudStatus !== "synced") return;
@@ -512,6 +516,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   );
   const latest = candles[candles.length - 1];
   const selectedName = dataset.stockNames[selectedCode] ?? "";
+  useEffect(() => {
+    document.title = `${selectedName ? `${selectedName} ` : ""}${selectedCode} · TrendSight`;
+    return () => { document.title = "TrendSight · 市场研究工作台"; };
+  }, [selectedCode, selectedName]);
   const liveQuote = realtimeSnapshot?.code === selectedCode ? realtimeSnapshot : null;
   const currentPrice = liveQuote?.price ?? latest?.close ?? null;
   const selectedIdentity = useMemo(() => ({ code: selectedCode, market: selectedMarket, currency: selectedMarket === "US" ? "USD" as const : "CNY" as const }), [selectedCode, selectedMarket]);
@@ -925,7 +933,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     const applySharedState = async () => {
       if (sharedCode && parseStockRoute(sharedCode)) await fetchStockData(sharedCode);
       if (sharedMode === "basic" || sharedMode === "pro") setViewMode(sharedMode);
-      if (sharedBenchmark && (cnStockCodePattern.test(sharedBenchmark) || isUSStockSymbol(sharedBenchmark))) setBenchmarkCode(sharedBenchmark);
+      const sharedMarket = parseStockRoute(sharedCode)?.market ?? selectedMarket;
+      if (sharedBenchmark && benchmarkMatchesMarket(sharedBenchmark, sharedMarket)) setBenchmarkCode(sharedBenchmark);
       if (timeframes.some((item) => item.key === sharedTimeframe)) setTimeframe(sharedTimeframe as Timeframe);
       if (lowerIndicators.includes(sharedLower as LowerIndicator)) setLowerIndicator(sharedLower as LowerIndicator);
       if (sharedOverlays.length) {
@@ -937,7 +946,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       if (sharedCode) setWorkspaceNotice("已从分享链接恢复股票与图表视图。");
     };
     void applySharedState();
-  }, [fetchStockData]);
+  }, [fetchStockData, selectedMarket]);
 
   const currentWorkspace = (): SavedWorkspace => ({
     version: 1,
@@ -1128,7 +1137,33 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <a href="#stock-financials"><span>财务数据</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻舆情</span><small>News</small></a>
         </nav>
-        {viewMode === "pro" ? <span className="mobile-nav-hint" aria-hidden="true">滑动 ›</span> : null}
+        <label className="mobile-section-jump">
+          <span>跳转到研究章节</span>
+          <select
+            aria-label="跳转到研究章节"
+            defaultValue=""
+            onChange={(event) => {
+              const target = document.getElementById(event.target.value);
+              target?.scrollIntoView({ behavior: "smooth", block: "start" });
+              window.setTimeout(() => target?.scrollIntoView({ behavior: "auto", block: "start" }), 700);
+              event.currentTarget.value = "";
+            }}
+          >
+            <option value="" disabled>选择章节…</option>
+            <option value="stock-score">综合评分</option>
+            <option value="stock-market">价格行情</option>
+            {viewMode === "pro" ? <>
+              <option value="realtime-trading">实时盘口</option>
+              <option value="kline-analysis">K 线研判</option>
+              <option value="next-day-prediction">隔日预测</option>
+              <option value="signal-backtest">信号回测</option>
+              <option value="advanced-research">风险因子</option>
+              <option value="research-tools">研究工具</option>
+            </> : null}
+            <option value="stock-financials">财务数据</option>
+            <option value="stock-news">新闻舆情</option>
+          </select>
+        </label>
       </aside>
 
       <div className="app-workspace-shell">
@@ -1234,7 +1269,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
 
       <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
 
-      <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} />
+      {viewMode === "pro" ? <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} /> : null}
 
       <section className="workspace-grid" id="stock-market">
         <div className={`chart-card ${fetchingStock ? "is-stale" : ""}`}>
@@ -1246,7 +1281,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                 <small>{timeframes.find((item) => item.key === timeframe)?.label} · {selectedMarket === "US" ? "美元日K" : "前复权"} · {benchmarkCandles.length ? `对比${selectedMarket === "US" ? benchmarkCode : "沪深300"}` : "等待基准"}</small>
               </div>
             </div>
-            <div className="segmented" aria-label="K线周期">
+            {viewMode === "pro" ? <div className="segmented" aria-label="K线周期">
               {timeframes.map(({ key, label }) => (
                 <button
                   key={key}
@@ -1264,14 +1299,15 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                   {label}
                 </button>
               ))}
-            </div>
-            <div className="toolbar-divider" />
-            <label className="benchmark-select">基准
+            </div> : <span className="basic-chart-badge">日 K · 近 120 个交易日</span>}
+            {viewMode === "pro" ? <>
+              <div className="toolbar-divider" />
+              <label className="benchmark-select">基准
               <select value={benchmarkCode} onChange={(event) => setBenchmarkCode(event.target.value)} aria-label="相对表现比较基准">
                 {selectedMarket === "US" ? <><option value="SPY">标普500 ETF（SPY）</option><option value="QQQ">纳斯达克100 ETF（QQQ）</option><option value="DIA">道琼斯 ETF（DIA）</option></> : <><option value="000300">沪深300</option><option value="000001">上证指数</option><option value="399001">深证成指</option><option value="399006">创业板指</option></>}
               </select>
-            </label>
-            <div className="indicator-toggles" aria-label="主图指标">
+              </label>
+              <div className="indicator-toggles" aria-label="主图指标">
               <Toggle active={overlays.ma5} label="MA5" color="gold" onClick={() => setOverlays((value) => ({ ...value, ma5: !value.ma5 }))} />
               <Toggle active={overlays.ma10} label="MA10" color="blue" onClick={() => setOverlays((value) => ({ ...value, ma10: !value.ma10 }))} />
               <Toggle active={overlays.ma20} label="MA20" color="purple" onClick={() => setOverlays((value) => ({ ...value, ma20: !value.ma20 }))} />
@@ -1280,14 +1316,11 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <Toggle active={overlays.vwap} label="VWAP" color="pink" onClick={() => setOverlays((value) => ({ ...value, vwap: !value.vwap }))} />
               <Toggle active={overlays.nineTurn} label="九转" color="cyan" onClick={() => setOverlays((value) => ({ ...value, nineTurn: !value.nineTurn }))} />
               <Toggle active={overlays.guides} label="B/S指引" color="red" onClick={() => setOverlays((value) => ({ ...value, guides: !value.guides }))} />
-            </div>
-            {chartEvents.length ? <span className="event-count" title="N 新闻 · F 财报 · D 分红">事件 {chartEvents.length}</span> : null}
-            <button className="icon-button" type="button" onClick={exportCandles} title="导出当前周期K线" aria-label="导出当前周期K线">
-              ⇩
-            </button>
-            <button className="icon-button" type="button" onClick={() => document.getElementById("stock-market")?.requestFullscreen?.()} title="全屏研究图表" aria-label="全屏研究图表">
-              ⛶
-            </button>
+              </div>
+              {chartEvents.length ? <span className="event-count" title="N 新闻 · F 财报 · D 分红">事件 {chartEvents.length}</span> : null}
+              <button className="icon-button" type="button" onClick={exportCandles} title="导出当前周期K线" aria-label="导出当前周期K线">⇩</button>
+              <button className="icon-button" type="button" onClick={() => document.getElementById("stock-market")?.requestFullscreen?.()} title="全屏研究图表" aria-label="全屏研究图表">⛶</button>
+            </> : null}
           </div>
 
           <div className="ohlc-ribbon" aria-live="polite">
@@ -1315,7 +1348,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             onHover={setHoverIndex}
           />
 
-          <div className="chart-footer-controls">
+          {viewMode === "pro" ? <div className="chart-footer-controls">
             <div className="segmented compact" aria-label="副图指标">
               {lowerIndicators.map((indicator) => (
                 <button key={indicator} type="button" className={lowerIndicator === indicator ? "active" : ""} aria-pressed={lowerIndicator === indicator} onClick={() => setLowerIndicator(indicator)}>
@@ -1353,7 +1386,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               {[20, 60, 120, 250].map((periods) => <button key={periods} type="button" onClick={() => setRange({ from: Math.max(0, candles.length - periods), to: Math.max(0, candles.length - 1) })}>{periods >= 250 ? "1年" : `${periods}日`}</button>)}
               <button type="button" onClick={() => setRange({ from: 0, to: Math.max(0, candles.length - 1) })}>全部</button>
             </div>
-          </div>
+          </div> : null}
           <details className="chart-data-alternative">
             <summary>图表文字摘要与可访问数据</summary>
             <p id="chart-accessible-summary">{klineConclusion?.summary ?? "当前样本不足。"} 区间收益 {riskMetrics.totalReturn == null ? "—" : `${riskMetrics.totalReturn.toFixed(2)}%`}，最大回撤 {riskMetrics.maxDrawdown == null ? "—" : `${riskMetrics.maxDrawdown.toFixed(2)}%`}。</p>
@@ -1398,6 +1431,15 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               </>
             ) : <p className="empty-note">当前周期暂无足够 K 线用于研判。</p>}
           </section>
+
+          {viewMode === "basic" ? (
+            <section className="rail-card basic-next-step-card" aria-label="专业分析提示">
+              <p className="eyebrow">OPTIONAL DEPTH</p>
+              <h3>需要更多证据？</h3>
+              <p>专业视图会增加实时盘口、资金行为代理、回测、隔日统计与研究工具。</p>
+              <button type="button" onClick={() => setViewMode("pro")}>切换到专业视图</button>
+            </section>
+          ) : null}
 
           <section className="rail-card data-card">
             <div className="rail-heading">
@@ -1555,7 +1597,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       /> : null}
 
       <FinancialDashboard dataset={financialDataset} load={financialLoad} currency={selectedIdentity.currency} />
-      {selectedMarket === "CN" ? <details className="legacy-financial-summary">
+      {selectedMarket === "CN" && viewMode === "pro" ? <details className="legacy-financial-summary">
         <summary>查看原始报告摘要、估值与分红明细</summary>
         <FundamentalsPanel dataset={financialDataset} load={financialLoad} />
         <FinancialReports dataset={financialDataset} load={financialLoad} />
@@ -1565,7 +1607,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
       </div> : null}
 
-      <ResearchDock
+      {viewMode === "pro" ? <ResearchDock
         key={selectedCode}
         code={selectedCode}
         name={selectedName}
@@ -1585,7 +1627,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         onPrint={() => window.print()}
         onAddAnnotation={addAnnotation}
         onRemoveAnnotation={removeAnnotation}
-      />
+      /> : null}
 
       <section className="news-card" id="stock-news">
         <div className="section-heading news-heading">
@@ -1624,9 +1666,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <p>新闻来自公开检索入口，相关性与情绪分数用于排序和初筛。请打开原文核验事实、发布时间及上下文。</p>
             </aside>
             <div className="news-feed" aria-live="polite">
-              {visibleNews.length > 0 ? visibleNews.map((item) => (
+              {visibleNews.length > 0 ? (viewMode === "basic" ? visibleNews.slice(0, 3) : visibleNews).map((item) => (
                 <NewsArticle key={`${item.url}-${item.publishedAt}`} item={item} />
               )) : <p className="news-empty-filter">当前筛选条件下没有新闻。</p>}
+              {viewMode === "basic" && visibleNews.length > 3 ? <button className="basic-news-more" type="button" onClick={() => setViewMode("pro")}>在专业视图查看全部 {visibleNews.length} 条</button> : null}
             </div>
           </div>
         ) : (
@@ -1970,6 +2013,9 @@ function NewsArticle({ item }: { item: NewsItem }) {
     <article className="news-item">
       <div className="news-item-meta">
         <span className={`sentiment-chip ${sentimentClass(item.sentiment)}`}>{item.sentiment} {item.sentimentScore >= 0 ? "+" : ""}{item.sentimentScore.toFixed(3)}</span>
+        {item.eventType ? <span>{item.eventType}</span> : null}
+        {item.sourceQuality ? <span title={item.sourceQualityReason}>来源质量 {item.sourceQuality}</span> : null}
+        {(item.duplicateCount ?? 1) > 1 ? <span>同事件 {item.duplicateCount} 篇已合并</span> : null}
         <span>{item.publishedAt || "时间未知"}</span>
         <span>{item.media || item.portal || "来源未知"}</span>
         {item.relevance > 0 ? <span>相关性 {Math.round(item.relevance * 100)}%</span> : null}

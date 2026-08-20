@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChartAnnotation } from "../lib/research";
 
 type Props = {
@@ -23,6 +23,22 @@ type Props = {
   onAddAnnotation: (text: string) => void;
   onRemoveAnnotation: (id: string) => void;
 };
+
+type InvestmentMemo = {
+  thesis: string;
+  counterEvidence: string;
+  invalidation: string;
+  reviewDate: string;
+  checks: Record<string, boolean>;
+};
+
+const investmentMemoStoragePrefix = "ticklens.investment-memo.v1";
+const investorChecks = [
+  ["source", "已核对原始公告 / SEC 申报"],
+  ["valuation", "已与同业估值和盈利质量比较"],
+  ["downside", "已定义最大可承受损失"],
+  ["catalyst", "已写明催化剂与失效日期"],
+] as const;
 
 export default function ResearchDock(props: Props) {
   const [annotation, setAnnotation] = useState("");
@@ -68,6 +84,8 @@ export default function ResearchDock(props: Props) {
           </div>
         </section>
 
+        <InvestmentMemoPanel key={props.code} code={props.code} />
+
         <section className="research-panel freshness-panel">
           <header><strong>当前股票数据状态</strong><span>{props.isDemo ? "演示数据" : props.name || props.code}</span></header>
           <dl>
@@ -76,18 +94,63 @@ export default function ResearchDock(props: Props) {
             <div><dt>新闻更新</dt><dd>{formatTime(props.freshness.news)}</dd></div>
           </dl>
           <dl className="provenance-list">
-            <div><dt>页面数据可用度</dt><dd>{dataReadiness}/100</dd></div>
+            <div><dt>页面加载就绪度</dt><dd>{dataReadiness}/100</dd></div>
             <div><dt>行情粒度</dt><dd>{props.dataProfile.level}</dd></div>
             <div><dt>价格口径</dt><dd>{props.dataProfile.priceBasis || "原始价格"}</dd></div>
             <div><dt>成交额口径</dt><dd>{props.dataProfile.amountBasis}</dd></div>
             <div><dt>时间精度</dt><dd>{props.dataProfile.timePrecision}</dd></div>
             <div><dt>质量提示</dt><dd>{props.dataProfile.qualityWarnings} 条</dd></div>
           </dl>
-          <p>可用度只反映三类数据是否成功更新及页面质量警告，不代表内容准确率。行情最多覆盖约 5 年日 K；财报、估值和新闻独立更新，失败时保留最后一次成功结果。</p>
+          <p>页面加载就绪度只反映三类数据是否成功更新及质量警告，不代表评分覆盖率、模型一致度或内容准确率。行情最多覆盖约 5 年日 K；财报、估值和新闻独立更新，失败时保留最后一次成功结果。</p>
         </section>
       </div>
     </section>
   );
+}
+
+function InvestmentMemoPanel({ code }: { code: string }) {
+  const [investmentMemo, setInvestmentMemo] = useState<InvestmentMemo>(() => emptyInvestmentMemo());
+  const [memoReady, setMemoReady] = useState(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setInvestmentMemo(loadInvestmentMemo(code));
+      setMemoReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [code]);
+
+  useEffect(() => {
+    if (!code || !memoReady) return;
+    try { localStorage.setItem(`${investmentMemoStoragePrefix}:${code}`, JSON.stringify(investmentMemo)); } catch { /* The draft remains available for this page. */ }
+  }, [code, investmentMemo, memoReady]);
+
+  return (
+    <section className="research-panel investment-memo-panel">
+      <header><strong>投资论点与反证</strong><span>按股票自动保存</span></header>
+      <label><span>核心论点</span><textarea maxLength={500} value={investmentMemo.thesis} placeholder="为什么值得继续研究？关键价值驱动是什么？" onChange={(event) => setInvestmentMemo((current) => ({ ...current, thesis: event.target.value }))} /></label>
+      <label><span>反方证据</span><textarea maxLength={500} value={investmentMemo.counterEvidence} placeholder="哪些事实支持相反结论？" onChange={(event) => setInvestmentMemo((current) => ({ ...current, counterEvidence: event.target.value }))} /></label>
+      <label><span>失效条件</span><textarea maxLength={360} value={investmentMemo.invalidation} placeholder="出现什么数据或事件时，当前论点失效？" onChange={(event) => setInvestmentMemo((current) => ({ ...current, invalidation: event.target.value }))} /></label>
+      <label className="memo-review-date"><span>下次复核日期</span><input type="date" value={investmentMemo.reviewDate} onChange={(event) => setInvestmentMemo((current) => ({ ...current, reviewDate: event.target.value }))} /></label>
+      <fieldset><legend>决策前检查清单</legend>{investorChecks.map(([key, label]) => <label key={key}><input type="checkbox" checked={Boolean(investmentMemo.checks[key])} onChange={(event) => setInvestmentMemo((current) => ({ ...current, checks: { ...current.checks, [key]: event.target.checked } }))} /><span>{label}</span></label>)}</fieldset>
+      <p>日期是本机复核提示，不会自动下单或发送外部通知。</p>
+    </section>
+  );
+}
+
+function loadInvestmentMemo(code: string): InvestmentMemo {
+  const fallback = emptyInvestmentMemo();
+  if (typeof window === "undefined" || !code) return fallback;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`${investmentMemoStoragePrefix}:${code}`) ?? "null") as Partial<InvestmentMemo> | null;
+    return parsed ? { ...fallback, ...parsed, checks: { ...fallback.checks, ...(parsed.checks ?? {}) } } : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function emptyInvestmentMemo(): InvestmentMemo {
+  return { thesis: "", counterEvidence: "", invalidation: "", reviewDate: "", checks: Object.fromEntries(investorChecks.map(([key]) => [key, false])) };
 }
 
 function formatTime(value: string): string {

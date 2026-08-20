@@ -94,6 +94,34 @@ test("parses Tencent quote and Eastmoney minute fallback payloads", () => {
   });
 });
 
+test("keeps Tencent STAR Market quote volume in shares while order-book sizes remain lots", () => {
+  const fields = Array(80).fill("");
+  Object.assign(fields, {
+    1: "寒武纪",
+    2: "688256",
+    3: "1050.49",
+    4: "1162.50",
+    5: "1130.56",
+    6: "15746396",
+    9: "1050.00",
+    10: "14",
+    19: "1050.49",
+    20: "4",
+    30: "20260819153458",
+    33: "1138.00",
+    34: "1038.39",
+    35: "1050.49/15746396/17003021919",
+    38: "2.51",
+    72: "628292969",
+  });
+
+  const quote = parseTencentQuoteResponse(`v_sh688256="${fields.join("~")}";`);
+
+  assert.equal(quote.volume, 15_746_396);
+  assert.deepEqual(quote.bids[0], { level: 1, price: 1050, volume: 1_400 });
+  assert.deepEqual(quote.asks[0], { level: 1, price: 1050.49, volume: 400 });
+});
+
 test("falls back after Sina returns 403 and coalesces concurrent refreshes", async () => {
   const originalFetch = globalThis.fetch;
   const fields = Array(40).fill("");

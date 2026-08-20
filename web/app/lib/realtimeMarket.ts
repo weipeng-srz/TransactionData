@@ -211,11 +211,30 @@ export function parseTencentQuoteResponse(body: string): QuoteData {
     low: positiveNumber(fields[34]) || current,
     change: current - previousClose,
     changePct: ((current / previousClose) - 1) * 100,
-    volume: nonNegativeNumber(fields[6]) * 100,
+    volume: tencentQuoteVolumeShares(fields),
     amount,
     bids,
     asks,
   };
+}
+
+function tencentQuoteVolumeShares(fields: string[]): number {
+  const rawVolume = nonNegativeNumber(fields[6]);
+  if (!rawVolume) return 0;
+
+  const listedAShares = positiveNumber(fields[72]) || positiveNumber(fields[76]);
+  const quotedTurnoverPct = positiveNumber(fields[38]);
+  if (listedAShares && quotedTurnoverPct) {
+    const candidates = [rawVolume, rawVolume * 100];
+    return candidates.reduce((best, candidate) => {
+      const error = Math.abs((candidate / listedAShares) * 100 - quotedTurnoverPct);
+      const bestError = Math.abs((best / listedAShares) * 100 - quotedTurnoverPct);
+      return error < bestError ? candidate : best;
+    });
+  }
+
+  const code = String(fields[2] ?? "").trim();
+  return /^68[89]/.test(code) ? rawVolume : rawVolume * 100;
 }
 
 export function parseMinuteKlineResponse(body: string): RealtimeMinuteCandle[] {

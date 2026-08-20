@@ -90,6 +90,12 @@ type RemovedStock = {
   index: number;
 };
 
+type FxPreference = {
+  enabled: boolean;
+  usdCny: string;
+  updatedAt: string;
+};
+
 type GlobalFeedState = {
   status: "loading" | "ready" | "error";
   data: GlobalIndexFeed | null;
@@ -99,6 +105,7 @@ type GlobalFeedState = {
 const watchlistStorageKey = "ticklens.watchlist.v1";
 const holdingsStorageKey = "ticklens.holdings.v1";
 const appearanceStorageKey = "ticklens.appearance.v1";
+const fxPreferenceStorageKey = "ticklens.fx-preference.v1";
 const portfolioBenchmarkRequests = new Map<StockMarket, { expiresAt: number; request: Promise<PortfolioBenchmark> }>();
 const dialogFocusableSelector = [
   "a[href]",
@@ -176,6 +183,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const [sortBy, setSortBy] = useState<PortfolioSortKey>("custom");
   const [lastRealtimeRefresh, setLastRealtimeRefresh] = useState("");
   const [globalFeed, setGlobalFeed] = useState<GlobalFeedState>({ status: "loading", data: null, error: "" });
+  const [fxPreference, setFxPreference] = useState<FxPreference>({ enabled: false, usdCny: "7.20", updatedAt: "" });
   const realtimeRequestRef = useRef<AbortController | null>(null);
   const globalRequestRef = useRef<AbortController | null>(null);
   const holdingsFileRef = useRef<HTMLInputElement | null>(null);
@@ -188,6 +196,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     let storedWatchlist: WatchlistStock[] = [];
     let storedHoldings: StockHoldings = {};
     let storedAppearance: Appearance = "light";
+    let storedFxPreference: FxPreference = { enabled: false, usdCny: "7.20", updatedAt: "" };
     try {
       storedWatchlist = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
     } catch {
@@ -203,11 +212,25 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     } catch {
       storedAppearance = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
+    try {
+      const parsed = JSON.parse(localStorage.getItem(fxPreferenceStorageKey) ?? "null") as Partial<FxPreference> | null;
+      const rate = Number(parsed?.usdCny);
+      if (parsed && Number.isFinite(rate) && rate > 0 && rate < 20) {
+        storedFxPreference = {
+          enabled: parsed.enabled === true,
+          usdCny: String(parsed.usdCny),
+          updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
+        };
+      }
+    } catch {
+      localStorage.removeItem(fxPreferenceStorageKey);
+    }
     document.documentElement.dataset.appearance = storedAppearance;
     const frame = window.requestAnimationFrame(() => {
       setWatchlist(storedWatchlist);
       setHoldings(storedHoldings);
       setAppearance(storedAppearance);
+      setFxPreference(storedFxPreference);
       setHydrated(true);
     });
     return () => window.cancelAnimationFrame(frame);
@@ -230,6 +253,15 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       // The in-memory holdings remain usable when browser storage is restricted.
     }
   }, [holdings, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(fxPreferenceStorageKey, JSON.stringify(fxPreference));
+    } catch {
+      // The explicit conversion remains usable for the current session.
+    }
+  }, [fxPreference, hydrated]);
 
   const loadQuote = useCallback(async (stock: WatchlistStock, signal: AbortSignal) => {
     const key = stockStorageKey(stock);
@@ -689,6 +721,12 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           </article>
         </section>
 
+        <FxConversionPanel
+          totals={totals.byCurrency}
+          preference={fxPreference}
+          onChange={setFxPreference}
+        />
+
         <PortfolioDecisionBrief summary={portfolioInsights} />
 
         <GlobalMarketPulse feed={globalFeed} onRetry={() => void loadGlobalFeed()} />
@@ -820,6 +858,63 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   );
 }
 
+function FxConversionPanel({
+  totals,
+  preference,
+  onChange,
+}: {
+  totals: ReturnType<typeof calculatePortfolioTotals>["byCurrency"];
+  preference: FxPreference;
+  onChange: (value: FxPreference) => void;
+}) {
+  const rate = Number(preference.usdCny);
+  const validRate = Number.isFinite(rate) && rate > 0 && rate < 20;
+  const converted = (key: "marketValue" | "costValue" | "profit" | "dayProfit") => validRate
+    ? totals.CNY[key] + totals.USD[key] * rate
+    : null;
+  const updateTime = preference.updatedAt && !Number.isNaN(Date.parse(preference.updatedAt))
+    ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(preference.updatedAt))
+    : "尚未确认";
+
+  return (
+    <section className={`${styles.fxPanel} ${preference.enabled ? styles.fxPanelEnabled : ""}`} aria-label="可选汇率折算">
+      <div>
+        <p>OPTIONAL FX VIEW</p>
+        <strong>人民币折算视图</strong>
+        <small>默认仍按人民币与美元分别统计；折算值只用于组合观察，不改写原始持仓和收益。</small>
+      </div>
+      <label className={styles.fxToggle}>
+        <input
+          type="checkbox"
+          checked={preference.enabled}
+          onChange={(event) => onChange({ ...preference, enabled: event.target.checked, updatedAt: new Date().toISOString() })}
+        />
+        <span>{preference.enabled ? "已开启" : "保持分币种"}</span>
+      </label>
+      {preference.enabled ? (
+        <>
+          <label className={styles.fxRateField}>
+            <span>USD/CNY</span>
+            <input
+              inputMode="decimal"
+              aria-label="美元兑人民币汇率"
+              value={preference.usdCny}
+              onChange={(event) => onChange({ ...preference, usdCny: event.target.value, updatedAt: new Date().toISOString() })}
+            />
+            <small>{validRate ? `来源：用户输入 · 更新 ${updateTime}` : "请输入 0–20 之间的有效汇率"}</small>
+          </label>
+          <div className={styles.fxConvertedValues}>
+            <span><small>折算市值</small><strong>{converted("marketValue") == null ? "—" : formatCurrency(converted("marketValue")!, "CNY")}</strong></span>
+            <span><small>折算成本</small><strong>{converted("costValue") == null ? "—" : formatCurrency(converted("costValue")!, "CNY")}</strong></span>
+            <span><small>折算累计收益</small><strong>{converted("profit") == null ? "—" : formatCurrency(converted("profit")!, "CNY")}</strong></span>
+            <span><small>折算今日盈亏</small><strong>{converted("dayProfit") == null ? "—" : formatCurrency(converted("dayProfit")!, "CNY")}</strong></span>
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function PortfolioDecisionBrief({ summary }: { summary: PortfolioInsightSummary }) {
   const dataHeadline = summary.tracked ? `${summary.completionPct}% 行情就绪` : "等待建立自选";
   const performanceHeadline = summary.bestHolding
@@ -912,8 +1007,8 @@ function GlobalMarketPulse({ feed, onRetry }: { feed: GlobalFeedState; onRetry: 
     },
     {
       id: "a-share-fear",
-      name: "A股恐慌指数",
-      code: aShareFear?.code ?? "CN-FEAR",
+      name: "A股市场压力温度",
+      code: aShareFear?.code ?? "CN-PRESSURE",
       value: aShareFear?.value ?? null,
       changePct: aShareFear?.changePct ?? null,
       meta: aShareFear?.level ?? "市场压力代理",

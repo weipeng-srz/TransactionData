@@ -4277,6 +4277,23 @@ select:disabled {
   gap: 14px;
 }
 
+/* The analysis grid has an odd number of summary panels after the full-width
+   context card. Let the distribution use the whole final row and group its
+   negative and positive ranges into separate columns instead of leaving an
+   empty grid cell beside it. */
+@media (min-width: 901px) {
+  .next-day-distribution {
+    grid-column: 1 / -1;
+  }
+
+  .next-day-distribution .distribution-bars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, auto);
+    grid-auto-flow: column;
+    column-gap: 32px;
+  }
+}
+
 .next-day-panel > header,
 .next-day-similar-table > header,
 .next-day-method > div {
@@ -4779,6 +4796,150 @@ summary:active,
 
   .finance-detail-preview em { display: none; }
   .next-day-evidence-toggle i { min-width: 64px; }
+}
+
+/* Progressive disclosure: the default workspace is a concise reading path. */
+.mobile-section-jump { display: none; }
+
+.basic-chart-badge {
+  min-height: 30px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--apple-border);
+  border-radius: 999px;
+  color: var(--apple-secondary);
+  background: var(--apple-surface-soft);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.basic-next-step-card { gap: 8px; }
+.basic-next-step-card h3 { margin: 0; font-size: 16px; }
+.basic-next-step-card > p:not(.eyebrow) { margin: 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.65; }
+.basic-next-step-card button,
+.basic-news-more {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--apple-accent) 28%, var(--apple-border));
+  border-radius: 11px;
+  color: var(--apple-accent);
+  background: color-mix(in srgb, var(--apple-accent) 7%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.view-basic .sentiment-card,
+.view-basic .focus-card,
+.view-basic .holding-card,
+.view-basic .ownership-card,
+.view-basic .mobile-analysis-toggle { display: none; }
+
+/* The desktop rail normally uses 12 tracks for the denser professional view.
+   Give the two-card basic view its own composition so the optional prompt does
+   not auto-place into a single track and leave the rest of the row empty. */
+@media (min-width: 1181px) {
+  .view-basic .analysis-rail {
+    grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  }
+
+  .view-basic .analysis-rail > .conclusion-card {
+    grid-column: auto !important;
+  }
+
+  .view-basic .analysis-rail > .basic-next-step-card {
+    min-width: 0;
+    grid-column: auto;
+    grid-row: 1;
+  }
+}
+
+.view-basic .finance-filter-bar,
+.view-basic .finance-chart-grid,
+.view-basic .finance-signal-card,
+.view-basic .finance-detail-card { display: none; }
+
+.view-basic .finance-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.view-basic .finance-kpi-grid > :nth-child(n + 5) { display: none; }
+.view-basic .finance-dashboard { contain-intrinsic-size: auto 720px; }
+.view-basic .news-layout { grid-template-columns: minmax(0, 1fr); }
+.view-basic .news-summary-panel { display: none; }
+.view-basic .basic-news-more { width: 100%; margin-top: 4px; }
+
+/* Important explanatory copy should remain readable at dense desktop widths. */
+.next-day-trust-summary {
+  margin: 14px 20px 0;
+  padding: 13px 15px;
+  display: grid;
+  grid-template-columns: auto auto minmax(240px, 1fr);
+  align-items: center;
+  gap: 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--apple-accent) 18%, var(--apple-border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--apple-accent) 5%, var(--apple-surface-soft));
+}
+.next-day-trust-summary > span { color: var(--apple-tertiary); font-size: 11px; font-weight: 650; }
+.next-day-trust-summary > strong { color: var(--apple-text); font-size: 15px; }
+.next-day-trust-summary > small { color: var(--apple-secondary); font-size: 11px; line-height: 1.55; }
+.next-day-controls label,
+.grade-orbit span,
+.grade-orbit small,
+.next-day-grade > div:last-child > span,
+.next-day-core-metrics span,
+.next-day-range > span,
+.next-day-range dt,
+.model-metrics span,
+.distribution-bars span { font-size: max(11px, 0.6875rem); }
+.next-day-grade p,
+.next-day-panel > p,
+.next-day-scenario p,
+.next-day-scenario li,
+.next-day-method li,
+.method-note,
+.finance-source-note { font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 820px) {
+  .app-sidebar .workspace-nav,
+  .global-navigation-sidebar .global-workspace-nav,
+  .mobile-nav-hint { display: none !important; }
+
+  .app-sidebar .mobile-section-jump,
+  .global-navigation-sidebar .mobile-section-jump {
+    width: 100%;
+    height: 56px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px 6px 12px;
+    border-radius: 16px;
+    background: var(--apple-surface-soft);
+  }
+
+  .mobile-section-jump > span {
+    color: var(--apple-tertiary);
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .mobile-section-jump select {
+    min-width: 0;
+    height: 44px;
+    padding: 0 34px 0 12px;
+    border: 1px solid var(--apple-border);
+    border-radius: 12px;
+    color: var(--apple-text);
+    background: var(--apple-surface);
+    font: 650 13px var(--apple-font);
+  }
+
+  .view-basic .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  .view-basic .analysis-rail { display: grid; }
+  .view-basic .finance-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .next-day-trust-summary { grid-template-columns: 1fr; margin: 12px; }
 }
 
 @media print {

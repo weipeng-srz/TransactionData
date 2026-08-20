@@ -362,9 +362,38 @@
 }
 
 .summaryGrid article:last-child { border-right: 0; }
-.summaryGrid span { color: var(--portfolio-secondary); font-size: 10px; font-weight: 560; }
+.summaryGrid span { color: var(--portfolio-secondary); font-size: 11px; font-weight: 560; }
 .summaryGrid strong { min-width: 0; font-size: clamp(22px, 2.1vw, 32px); font-weight: 650; line-height: 1.12; letter-spacing: -0.04em; overflow-wrap: anywhere; }
-.summaryGrid small { min-width: 0; color: var(--portfolio-tertiary); font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }
+.summaryGrid small { min-width: 0; color: var(--portfolio-tertiary); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+
+.fxPanel {
+  margin-top: 12px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) auto;
+  align-items: center;
+  gap: 12px 18px;
+  border: 1px solid var(--portfolio-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--portfolio-surface) 88%, transparent);
+}
+
+.fxPanelEnabled { grid-template-columns: minmax(220px, .9fr) auto minmax(180px, .55fr) minmax(360px, 1.25fr); }
+.fxPanel p { margin: 0; color: var(--portfolio-blue); font-size: 10px; font-weight: 720; letter-spacing: .1em; }
+.fxPanel > div:first-child > strong { margin-top: 4px; display: block; font-size: 14px; }
+.fxPanel > div:first-child > small { margin-top: 4px; display: block; color: var(--portfolio-tertiary); font-size: 10px; line-height: 1.45; }
+
+.fxToggle { min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--portfolio-border); border-radius: 999px; color: var(--portfolio-secondary); font-size: 11px; cursor: pointer; }
+.fxToggle input { accent-color: var(--portfolio-blue); }
+.fxRateField { display: grid; grid-template-columns: auto minmax(70px, 1fr); align-items: center; gap: 4px 8px; }
+.fxRateField > span { color: var(--portfolio-secondary); font: 650 10px var(--mono); }
+.fxRateField input { width: 86px; height: 32px; padding: 0 8px; border: 1px solid var(--portfolio-border); border-radius: 8px; background: var(--portfolio-muted-surface); color: var(--portfolio-text); font: 650 12px var(--mono); }
+.fxRateField small { grid-column: 1 / -1; color: var(--portfolio-tertiary); font-size: 9px; }
+
+.fxConvertedValues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.fxConvertedValues > span { min-width: 0; padding: 8px 9px; border-radius: 9px; background: var(--portfolio-muted-surface); }
+.fxConvertedValues small { display: block; color: var(--portfolio-tertiary); font-size: 9px; }
+.fxConvertedValues strong { margin-top: 4px; display: block; overflow: hidden; font: 650 11px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 
 .decisionBrief {
   margin-top: 18px;
@@ -384,9 +413,9 @@
   gap: 20px;
 }
 
-.decisionBrief > header p { margin: 0; color: var(--portfolio-blue); font-size: 9px; font-weight: 720; letter-spacing: .13em; }
+.decisionBrief > header p { margin: 0; color: var(--portfolio-blue); font-size: 11px; font-weight: 720; letter-spacing: .11em; }
 .decisionBrief > header h2 { margin: 5px 0 0; font-size: 17px; font-weight: 660; letter-spacing: -.03em; }
-.decisionBrief > header > span { color: var(--portfolio-tertiary); font-size: 9px; }
+.decisionBrief > header > span { color: var(--portfolio-tertiary); font-size: 11px; }
 
 .decisionGrid {
   display: grid;
@@ -406,9 +435,9 @@
   background: color-mix(in srgb, var(--portfolio-muted-surface) 76%, transparent);
 }
 
-.decisionGrid span { color: var(--portfolio-blue); font-size: 8px; font-weight: 680; letter-spacing: .04em; }
+.decisionGrid span { color: var(--portfolio-blue); font-size: 11px; font-weight: 680; letter-spacing: .03em; }
 .decisionGrid strong { min-width: 0; font-size: 15px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
-.decisionGrid small { color: var(--portfolio-tertiary); font-size: 8px; line-height: 1.55; }
+.decisionGrid small { color: var(--portfolio-tertiary); font-size: 11px; line-height: 1.55; }
 
 .exposureStrip {
   margin-top: 9px;
@@ -420,13 +449,13 @@
   background: color-mix(in srgb, var(--portfolio-blue) 4.5%, var(--portfolio-muted-surface));
 }
 
-.exposureStrip > span { flex: none; color: var(--portfolio-secondary); font-size: 8px; font-weight: 650; }
+.exposureStrip > span { flex: none; color: var(--portfolio-secondary); font-size: 11px; font-weight: 650; }
 .exposureStrip > div { min-width: 0; padding-left: 10px; display: flex; align-items: baseline; gap: 7px; border-left: 1px solid var(--portfolio-border); }
-.exposureStrip strong { color: var(--portfolio-text); font-size: 9px; }
-.exposureStrip b { font-size: 10px; font-weight: 650; }
+.exposureStrip strong { color: var(--portfolio-text); font-size: 12px; }
+.exposureStrip b { font-size: 12px; font-weight: 650; }
 .exposureStrip small,
-.exposureStrip p { margin: 0; color: var(--portfolio-tertiary); font-size: 8px; }
-.exposureStrip em { margin-left: auto; flex: none; color: var(--portfolio-tertiary); font-size: 8px; font-style: normal; }
+.exposureStrip p { margin: 0; color: var(--portfolio-tertiary); font-size: 11px; }
+.exposureStrip em { margin-left: auto; flex: none; color: var(--portfolio-tertiary); font-size: 11px; font-style: normal; }
 
 .globalMarketCard {
   margin-top: 18px;
@@ -1399,6 +1428,8 @@
   .summaryGrid article:nth-child(2) { border-right: 0; }
   .summaryGrid article:nth-child(-n + 2) { border-bottom: 1px solid var(--portfolio-border); }
   .summaryGrid strong { font-size: 27px; }
+  .fxPanelEnabled { grid-template-columns: 1fr auto minmax(180px, .7fr); }
+  .fxConvertedValues { grid-column: 1 / -1; }
   .decisionGrid { grid-template-columns: 1fr 1fr; }
   .decisionGrid article:last-child { grid-column: 1 / -1; min-height: 92px; }
   .exposureStrip { flex-wrap: wrap; }
@@ -1422,6 +1453,11 @@
   .summaryGrid { margin-top: 0; border-radius: 18px; }
   .summaryGrid article { min-height: 112px; padding: 18px; }
   .summaryGrid strong { font-size: 22px; }
+  .fxPanel,
+  .fxPanelEnabled { margin-top: 10px; padding: 14px; grid-template-columns: 1fr auto; border-radius: 15px; }
+  .fxRateField,
+  .fxConvertedValues { grid-column: 1 / -1; }
+  .fxConvertedValues { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .decisionBrief { margin-top: 12px; padding: 16px 12px 13px; border-radius: 18px; }
   .decisionBrief > header { padding: 0 3px 13px; align-items: center; }
   .decisionBrief > header > span { display: none; }
@@ -1509,7 +1545,7 @@
   .searchField > button[type="submit"] { padding: 0 12px; font-size: 10px; }
   .summaryGrid article { min-height: 104px; padding: 15px; }
   .summaryGrid strong { font-size: 19px; }
-  .summaryGrid small { font-size: 8px; }
+  .summaryGrid small { font-size: 11px; }
   .globalMarketHeader h2 { font-size: 16px; }
   .globalMarketHeader > div:last-child > a { font-size: 9px; }
   .globalMarketGrid { grid-template-columns: repeat(5, 158px); }

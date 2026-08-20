@@ -2,6 +2,7 @@ import { lookupStock } from "./stockLookup.ts";
 
 const sinaKlineEndpoint = "https://quotes.sina.cn/cn/api/jsonp_v2.php/ticklens=/CN_MarketDataService.getKLineData";
 const sinaFactorBase = "https://finance.sina.com.cn/realstock/company";
+const tencentQuoteEndpoint = "https://qt.gtimg.cn/q=";
 const maxResponseBytes = 4 * 1024 * 1024;
 
 export type RemoteMarketRequest = {
@@ -20,6 +21,7 @@ type KlineRow = {
 };
 
 type FactorEvent = { date: string; factor: number };
+type MarketProfile = { date: string; listedAShares: number };
 
 export function normalizeRemoteMarketRequest(value: unknown): RemoteMarketRequest {
   if (!value || typeof value !== "object") throw new Error("请求内容无效");
@@ -34,14 +36,16 @@ export function normalizeRemoteMarketRequest(value: unknown): RemoteMarketReques
 
 export async function fetchRemoteMarketCsv(request: RemoteMarketRequest): Promise<string> {
   const symbol = toSinaSymbol(request.code, request.kind);
-  const [rows, name, factors] = await Promise.all([
+  const [rows, name, factors, marketProfile] = await Promise.all([
     fetchKlines(symbol, request.days),
     resolveName(request.code, request.kind),
     request.kind === "stock" ? fetchFactors(symbol).catch(() => [] as FactorEvent[]) : Promise.resolve([] as FactorEvent[]),
+    request.kind === "stock" ? fetchMarketProfile(symbol, request.code).catch(() => null) : Promise.resolve(null),
   ]);
   if (!rows.length) throw new Error("行情服务没有返回可用的历史数据");
   const fetchedAt = new Date().toISOString();
-  const lines: string[][] = [[
+  const applicableProfile = marketProfile && rows.some((row) => row.date === marketProfile.date) ? marketProfile : null;
+  const metadata = [
     "#META",
     `股票代码=${request.code}`,
     `股票名称=${name}`,
@@ -52,10 +56,24 @@ export async function fetchRemoteMarketCsv(request: RemoteMarketRequest): Promis
     "成交金额口径=典型价格×成交量代理",
     "数据来源=新浪公开K线",
     `采集时间=${fetchedAt}`,
-  ]];
+  ];
+  if (applicableProfile) {
+    metadata.push(
+      `换手率口径=${applicableProfile.date}成交量(股)÷腾讯实时行情流通A股本`,
+      `流通股本观察日=${applicableProfile.date}`,
+    );
+  }
+  const lines: string[][] = [metadata];
   for (const row of rows) {
     const factor = factorForDate(factors, row.date);
-    lines.push(["#DAY", `交易日期=${row.date}`, `前复权因子=${factor.toFixed(10)}`, "", "", "", "", "", "", ""]);
+    const dailyContext = ["#DAY", `交易日期=${row.date}`, `前复权因子=${factor.toFixed(10)}`];
+    if (applicableProfile?.date === row.date) {
+      dailyContext.push(
+        `流通A股本(股)=${applicableProfile.listedAShares}`,
+        `流通股本观察日=${applicableProfile.date}`,
+      );
+    }
+    lines.push(dailyContext);
   }
   lines.push([
     "交易日期", "成交时间", "数据序号", "股票代码", "股票名称", "原始成交价格(元)", "前复权成交价格(元)",
@@ -137,6 +155,21 @@ async function fetchFactors(symbol: string): Promise<FactorEvent[]> {
     const factor = finiteNumber(item.f);
     return /^\d{4}-\d{2}-\d{2}$/.test(date) && factor != null && factor > 0 ? [{ date, factor }] : [];
   }).sort((left, right) => right.date.localeCompare(left.date));
+}
+
+async function fetchMarketProfile(symbol: string, expectedCode: string): Promise<MarketProfile | null> {
+  const body = await safeFetchText(`${tencentQuoteEndpoint}${symbol}`, "https://gu.qq.com/");
+  const match = body.match(/="([\s\S]*)";?\s*$/);
+  if (!match) return null;
+  const fields = match[1].split("~");
+  if (String(fields[2] ?? "").trim() !== expectedCode) return null;
+  const timestamp = String(fields[30] ?? "").trim().match(/^(\d{4})(\d{2})(\d{2})/);
+  const listedAShares = finiteNumber(fields[72]) ?? finiteNumber(fields[76]);
+  if (!timestamp || listedAShares == null || listedAShares <= 0) return null;
+  return {
+    date: `${timestamp[1]}-${timestamp[2]}-${timestamp[3]}`,
+    listedAShares: Math.round(listedAShares),
+  };
 }
 
 async function resolveName(code: string, kind: "stock" | "index"): Promise<string> {

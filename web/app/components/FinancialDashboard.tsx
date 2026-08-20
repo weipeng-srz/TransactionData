@@ -46,7 +46,7 @@ const tableRows: TableRow[] = [
   { key: "financingCashFlow", label: "筹资活动现金流净额", group: "现金流", source: "flow", format: "amount", formula: "现金流量表筹资活动现金流量净额" },
   { key: "capex", label: "资本性支出", group: "现金流", source: "flow", format: "amount", formula: "购建固定资产、无形资产和其他长期资产支付的现金" },
   { key: "freeCashFlow", label: "自由现金流", group: "现金流", source: "flow", format: "amount", formula: "经营活动现金流净额 - 资本性支出" },
-  { key: "cashCoverage", label: "经营现金流／净利润", group: "现金流", source: "flow", format: "ratio", formula: "经营活动现金流净额 ÷ 归母净利润" },
+  { key: "cashCoverage", label: "经营现金流／净利润", group: "现金流", source: "flow", format: "ratio", formula: "经营活动现金流净额 ÷ 归母净利润；仅在归母净利润为正时解释该倍数" },
   { key: "accountsReceivable", label: "应收账款", group: "资产质量", source: "balance", format: "amount", formula: "资产负债表期末应收账款" },
   { key: "receivableDays", label: "应收账款周转天数", group: "资产质量", source: "balance", format: "days", formula: "公开财务指标中的应收账款周转天数" },
   { key: "inventory", label: "存货", group: "资产质量", source: "balance", format: "amount", formula: "资产负债表期末存货" },
@@ -71,6 +71,9 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
   const [displayMode, setDisplayMode] = useState<DisplayMode>("absolute");
   const [expandedMetric, setExpandedMetric] = useState<MetricKey | null>(null);
   const [detailExpanded, setDetailExpanded] = useState(false);
+  const [peerCode, setPeerCode] = useState("");
+  const [peerDataset, setPeerDataset] = useState<FinancialDataset | null>(null);
+  const [peerLoad, setPeerLoad] = useState<LoadState>({ phase: "idle", detail: "" });
   const hasAnalysis = dataset.analysis.periods.length > 0;
 
   const visiblePeriods = useMemo(() => {
@@ -89,6 +92,37 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
   const selectedProfitLabel = profitKey === "parentNetProfit" ? "归母净利润" : "扣非净利润";
   const advancedQuality = latest ? calculateAdvancedQuality(latest, priorPeriod, dataset) : null;
   const amountUnit = currency === "USD" ? "USD" : "元";
+
+  const loadPeer = async () => {
+    const code = peerCode.trim().toUpperCase();
+    const valid = currency === "USD" ? /^[A-Z][A-Z0-9.-]{0,9}$/.test(code) : /^\d{6}$/.test(code);
+    if (!valid) {
+      setPeerLoad({ phase: "error", detail: currency === "USD" ? "请输入同一市场的美股代码，例如 MSFT" : "请输入 6 位 A 股代码，例如 600519" });
+      return;
+    }
+    if (code === dataset.code.toUpperCase()) {
+      setPeerLoad({ phase: "error", detail: "对比对象不能与当前股票相同" });
+      return;
+    }
+    setPeerLoad({ phase: "loading", detail: "正在统一同业财报口径" });
+    setPeerDataset(null);
+    try {
+      const response = await fetch(currency === "USD" ? "/api/us-stock-financials" : "/api/local-stock-financials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const body = await response.json() as FinancialDataset | { error?: unknown };
+      if (!response.ok) throw new Error(String((body as { error?: unknown }).error || "同业财报加载失败"));
+      const peer = body as FinancialDataset;
+      if (!peer.analysis.periods.length) throw new Error("该股票没有可比较的标准化财报期");
+      setPeerDataset(peer);
+      setPeerLoad({ phase: "success", detail: `${peer.name || peer.code} 已就绪` });
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "同业财报加载失败";
+      setPeerLoad({ phase: "error", detail: /abort|timeout/i.test(message) ? "同业财报请求超时，请稍后重试" : message });
+    }
+  };
 
   const metricValues = (key: keyof FinancialMetrics) => visiblePeriods.map((period) => displayValue(period, effectiveMode, displayMode, key));
   const absoluteValues = (key: keyof FinancialMetrics) => visiblePeriods.map((period) => period[effectiveMode][key]);
@@ -168,8 +202,8 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             <FinanceKpi label="扣非净利润" value={latest[effectiveMode].deductNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").deductNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").deductNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].deductNetProfit)} note={`与归母差额 ${formatAmount(latest[effectiveMode].nonRecurringProfit, currency)}`} />
             <FinanceKpi label="毛利率" value={latest[effectiveMode].grossMargin} format="percent" yoy={comparisonFor(latest, effectiveMode, "yoy").grossMargin} qoq={comparisonFor(latest, effectiveMode, "qoq").grossMargin} trend={visiblePeriods.map((period) => period[effectiveMode].grossMargin)} deltaUnit="个百分点" />
             <FinanceKpi label="经营现金流" value={latest[effectiveMode].operatingCashFlow} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").operatingCashFlow} qoq={comparisonFor(latest, effectiveMode, "qoq").operatingCashFlow} trend={visiblePeriods.map((period) => period[effectiveMode].operatingCashFlow)} />
-            <FinanceKpi label="现金含量" value={latest[effectiveMode].cashCoverage} format="ratio" yoy={comparisonFor(latest, effectiveMode, "yoy").cashCoverage} qoq={comparisonFor(latest, effectiveMode, "qoq").cashCoverage} trend={visiblePeriods.map((period) => period[effectiveMode].cashCoverage)} note={cashCoverageNote(latest[effectiveMode].cashCoverage)} deltaUnit="" />
-            <FinanceKpi label="ROE TTM" value={latest.ttm.roe} format="percent" yoy={latest.ttmYoY.roe} qoq={latest.ttmQoQ.roe} trend={visiblePeriods.map((period) => period.ttm.roe)} deltaUnit="个百分点" />
+            <FinanceKpi label="现金含量（净利>0）" value={latest[effectiveMode].cashCoverage} format="ratio" yoy={comparisonFor(latest, effectiveMode, "yoy").cashCoverage} qoq={comparisonFor(latest, effectiveMode, "qoq").cashCoverage} trend={visiblePeriods.map((period) => period[effectiveMode].cashCoverage)} note={cashCoverageNote(latest[effectiveMode].cashCoverage, latest[effectiveMode].parentNetProfit)} deltaUnit="" />
+            <FinanceKpi label="ROE TTM" value={latest.ttm.roe} format="percent" yoy={latest.ttmYoY.roe} qoq={latest.ttmQoQ.roe} trend={visiblePeriods.map((period) => period.ttm.roe)} note={roeQualityNote(latest)} deltaUnit="个百分点" />
             <FinanceKpi label="资产负债率" value={latest.balance.debtAssetRatio} format="percent" yoy={latest.balanceYoY.debtAssetRatio} qoq={latest.balanceQoQ.debtAssetRatio} trend={visiblePeriods.map((period) => period.balance.debtAssetRatio)} deltaUnit="个百分点" />
           </div>
 
@@ -191,6 +225,19 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             <ValuationMetric label="应计利润率" value={formatPercent(advancedQuality?.accrualRatio ?? null, false)} tone={advancedQuality?.accrualRatio == null ? null : -advancedQuality.accrualRatio} />
             <ValuationMetric label="杜邦ROE" value={formatPercent(advancedQuality?.dupontRoe ?? null, false)} tone={advancedQuality?.dupontRoe ?? null} />
           </div>
+
+          <PeerComparisonPanel
+            dataset={dataset}
+            peer={peerDataset}
+            peerCode={peerCode}
+            peerLoad={peerLoad}
+            currency={currency}
+            onPeerCodeChange={(value) => {
+              setPeerCode(value);
+              if (peerLoad.phase !== "idle") setPeerLoad({ phase: "idle", detail: "" });
+            }}
+            onLoad={() => void loadPeer()}
+          />
 
           <div className="finance-chart-grid">
             <FinanceChartCard id="finance-income" title="收入趋势" subtitle={`${rangeLabel(range)} · ${modeLabel(effectiveMode)} · 柱为规模，线为同比`}>
@@ -254,11 +301,11 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
                 ) : null}
                 <div className="finance-table-wrap">
                   <table className="finance-table">
-                    <thead><tr><th>指标</th>{visiblePeriods.map((period) => <th key={period.reportDate}>{shortPeriodLabel(period)}</th>)}</tr></thead>
+                    <thead><tr><th>指标</th>{visiblePeriods.map((period) => <th key={period.reportDate} title={`${period.periodLabel} · 截至 ${period.reportDate}`}>{shortPeriodLabel(period)}</th>)}</tr></thead>
                     <tbody>{renderTableRows(tableRows, visiblePeriods, effectiveMode, displayMode, expandedMetric, setExpandedMetric, currency)}</tbody>
                   </table>
                 </div>
-                <p className="finance-table-note">流量指标的单季度值由同一会计年度累计值差分；Q4 = 年报 - 三季报。TTM 为最近四个单季度之和；资产负债指标始终使用期末值。</p>
+                <p className="finance-table-note">流量指标的单季度值由同一会计年度累计值差分；Q4 = 年报 - 三季报。TTM 为最近四个单季度之和；资产负债指标始终使用期末值。美股按公司财政年度 FY 标注，表头悬停可查看实际截止日。</p>
               </div>
             ) : (
               <button className="finance-detail-preview" type="button" aria-expanded="false" aria-controls="finance-detail-content" onClick={() => setDetailExpanded(true)}>
@@ -277,7 +324,7 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
               ))}
             </div>
           </section>
-          <p className="finance-source-note">财报截至 {dataset.analysis.latestReportDate}，估值截至 {dataset.snapshot.asOfDate || "—"}。来源：{dataset.source}；页面按公开合并报表计算，公告修订后数值可能变化。</p>
+          <p className="finance-source-note">财报截至 {dataset.analysis.latestReportDate}，估值截至 {dataset.snapshot.asOfDate || "—"}。来源：{dataset.source}；页面按公开合并报表计算，公告修订后数值可能变化。{currency === "USD" ? "美股季度均按公司财政年度 FY，而非自然季度标注。" : "A 股单季度流量值由同一会计年度累计披露差分，资产负债项目使用期末值。"}</p>
         </>
       ) : null}
     </section>
@@ -286,9 +333,84 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
 
 export default memo(FinancialDashboard);
 
+function PeerComparisonPanel({
+  dataset,
+  peer,
+  peerCode,
+  peerLoad,
+  currency,
+  onPeerCodeChange,
+  onLoad,
+}: {
+  dataset: FinancialDataset;
+  peer: FinancialDataset | null;
+  peerCode: string;
+  peerLoad: LoadState;
+  currency: StockCurrency;
+  onPeerCodeChange: (value: string) => void;
+  onLoad: () => void;
+}) {
+  const latest = dataset.analysis.periods[0];
+  const peerLatest = peer?.analysis.periods[0];
+  const rows = latest && peerLatest ? [
+    { label: "单季营收同比", left: latest.singleYoY.revenue, right: peerLatest.singleYoY.revenue, kind: "percent" as const },
+    { label: "TTM 利润同比", left: latest.ttmYoY.parentNetProfit, right: peerLatest.ttmYoY.parentNetProfit, kind: "percent" as const },
+    { label: "TTM 净利率", left: latest.ttm.netMargin, right: peerLatest.ttm.netMargin, kind: "percent" as const },
+    { label: "ROE TTM", left: latest.ttm.roe, right: peerLatest.ttm.roe, kind: "percent" as const },
+    { label: "资产负债率", left: latest.balance.debtAssetRatio, right: peerLatest.balance.debtAssetRatio, kind: "percent" as const },
+    { label: "经营现金流／净利", left: latest.ttm.cashCoverage, right: peerLatest.ttm.cashCoverage, kind: "ratio" as const },
+    { label: "PE TTM", left: dataset.snapshot.peTtm, right: peer.snapshot.peTtm, kind: "ratio" as const },
+    { label: "PB MRQ", left: dataset.snapshot.pb, right: peer.snapshot.pb, kind: "ratio" as const },
+  ] : [];
+  const recentFilings = dataset.reports.slice(0, 4);
+
+  return (
+    <section className="finance-peer-card" id="finance-peer">
+      <header>
+        <div><p className="eyebrow">PEER &amp; FILING CHECK</p><h4>同业横比与披露时间线</h4></div>
+        <div className="finance-peer-search">
+          <input
+            aria-label="同业股票代码"
+            value={peerCode}
+            onChange={(event) => onPeerCodeChange(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") onLoad(); }}
+            placeholder={currency === "USD" ? "美股代码，如 MSFT" : "A股代码，如 600519"}
+          />
+          <button type="button" disabled={peerLoad.phase === "loading"} onClick={onLoad}>{peerLoad.phase === "loading" ? "加载中" : "加入对比"}</button>
+        </div>
+      </header>
+      {peerLoad.detail ? <p className={`finance-peer-status is-${peerLoad.phase}`}>{peerLoad.detail}</p> : null}
+      {peer && peerLatest ? (
+        <div className="finance-peer-table-wrap">
+          <table className="finance-peer-table">
+            <thead><tr><th>标准化指标</th><th>{dataset.name || dataset.code}<small>{latest.periodLabel}</small></th><th>{peer.name || peer.code}<small>{peerLatest.periodLabel}</small></th><th>本股 - 同业</th></tr></thead>
+            <tbody>{rows.map((row) => <tr key={row.label}><th>{row.label}</th><td>{formatPeerValue(row.left, row.kind)}</td><td>{formatPeerValue(row.right, row.kind)}</td><td>{formatPeerDelta(row.left, row.right, row.kind)}</td></tr>)}</tbody>
+          </table>
+          <p>仅比较同一市场的增长率、利润率、资本结构与估值倍数；不比较跨币种绝对金额，也不自动给出“更值得买”的结论。</p>
+        </div>
+      ) : (
+        <div className="finance-filing-timeline">
+          <div><strong>最近披露</strong>{recentFilings.length ? recentFilings.map((report) => <span key={report.reportDate}>{report.periodLabel}<small>{report.noticeDate || report.reportDate}</small></span>) : <span>当前数据源未返回独立公告日期</span>}</div>
+          <p>下一次正式披露日与分析师一致预期修正，当前公开数据源未稳定覆盖；页面明确留空，不把缺失数据解释为“预期不变”。可在投资备忘录设置下次复核日期。</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function formatPeerValue(value: number | null, kind: "percent" | "ratio"): string {
+  return kind === "percent" ? formatPercent(value, false) : formatRatio(value);
+}
+
+function formatPeerDelta(left: number | null, right: number | null, kind: "percent" | "ratio"): string {
+  if (left == null || right == null) return "—";
+  return formatDelta(left - right, kind === "percent" ? "个百分点" : "倍");
+}
+
 function calculateAdvancedQuality(latest: FinancialAnalysisPeriod, previous: FinancialAnalysisPeriod | undefined, dataset: FinancialDataset) {
   const averageAssets = averageAvailable(latest.balance.totalAssets, previous?.balance.totalAssets ?? null);
-  const averageEquity = averageAvailable(latest.balance.parentEquity, previous?.balance.parentEquity ?? null);
+  const rawAverageEquity = averageAvailable(latest.balance.parentEquity, previous?.balance.parentEquity ?? null);
+  const averageEquity = rawAverageEquity != null && rawAverageEquity > 0 ? rawAverageEquity : null;
   const revenue = latest.ttm.revenue;
   const profit = latest.ttm.parentNetProfit;
   const cashFlow = latest.ttm.operatingCashFlow;
@@ -402,6 +524,7 @@ function formatTableValue(row: TableRow, period: FinancialAnalysisPeriod, mode: 
 
 function formatComparison(period: FinancialAnalysisPeriod, mode: FinancialViewMode, key: keyof FinancialMetrics, comparison: "yoy" | "qoq") {
   const value = comparisonFor(period, mode, comparison)[key];
+  if (key === "cashCoverage") return formatDelta(value, "倍");
   return ["grossMargin", "netMargin", "deductMargin", "researchExpenseRatio", "roe", "roic"].includes(key) ? formatDelta(value, "个百分点") : formatPercent(value);
 }
 
@@ -418,6 +541,13 @@ function buildSignals(periods: FinancialAnalysisPeriod[]) {
   const previous2 = periods[2];
   if (!latest) return [];
   const signals: Array<{ title: string; evidence: string; tone: "risk" | "watch" | "positive" }> = [];
+  for (const flag of latest.qualityFlags) {
+    signals.push({
+      title: flag.key.startsWith("roe-") ? "ROE 可比性提示" : "现金含量口径提示",
+      evidence: flag.message,
+      tone: flag.tone === "risk" ? "risk" : "watch",
+    });
+  }
   const revenueGrowth = latest.singleYoY.revenue;
   const deductGrowth = latest.singleYoY.deductNetProfit;
   if ((revenueGrowth ?? 0) > 0 && (deductGrowth ?? 0) < 0) signals.push({ title: "增收不增利", evidence: `营收同比 ${formatPercent(revenueGrowth)}，扣非净利润同比 ${formatPercent(deductGrowth)}。`, tone: "risk" });
@@ -448,7 +578,7 @@ function buildConclusions(latest: FinancialAnalysisPeriod, dataset: FinancialDat
   const profitStreak = positiveGrowthStreak(dataset.analysis.periods, "deductNetProfit");
   return [
     { title: "业绩表现", target: "finance-income", body: `${latest.periodLabel} 单季度营收同比 ${formatPercent(revenueGrowth)}，扣非净利润同比 ${formatPercent(profitGrowth)}；${relativeGrowthText(revenueGrowth, profitGrowth)}。营收/扣非利润已连续 ${revenueStreak}/${profitStreak} 个可比季度同比增长。` },
-    { title: "盈利质量", target: "finance-cash", body: `毛利率同比 ${formatDelta(grossMarginChange, "个百分点")}；经营现金流／归母净利润为 ${formatRatio(coverage)}，${cashCoverageNote(coverage)}。` },
+    { title: "盈利质量", target: "finance-cash", body: `毛利率同比 ${formatDelta(grossMarginChange, "个百分点")}；经营现金流／归母净利润为 ${formatRatio(coverage)}，${cashCoverageNote(coverage, latest.single.parentNetProfit)}。` },
     { title: "资产变化", target: "finance-assets", body: `应收账款同比 ${formatPercent(receivableGrowth)}，合同负债同比 ${formatPercent(contractGrowth)}；结合存货与周转天数判断回款和订单兑现。` },
     { title: "估值与后续关注", target: "finance-valuation", body: `${valuationVerdict(latest, dataset)} 后续重点跟踪经营现金流、扣非利润和资产周转能否延续。` },
   ];
@@ -482,11 +612,12 @@ function exportFinancialCsv(name: string, periods: FinancialAnalysisPeriod[], mo
 }
 
 function csvCell(value: string): string { return `"${value.replaceAll('"', '""')}"`; }
-function shortPeriodLabel(period: FinancialAnalysisPeriod): string { return `${String(period.fiscalYear).slice(-2)}Q${period.quarter}`; }
+function shortPeriodLabel(period: FinancialAnalysisPeriod): string { return /10-[QK]/.test(period.reportType) ? `FY${String(period.fiscalYear).slice(-2)} Q${period.quarter}` : `${String(period.fiscalYear).slice(-2)}Q${period.quarter}`; }
 function rangeLabel(range: RangeKey): string { return ({ "8q": "最近8季度", "12q": "最近12季度", "5y": "近5年", "10y": "近10年" })[range]; }
 function modeLabel(mode: FinancialViewMode): string { return ({ single: "单季度", cumulative: "累计", ttm: "TTM" })[mode]; }
 function displayLabel(mode: DisplayMode, metric: string): string { return ({ absolute: metric, yoy: `${metric}同比`, qoq: `${metric}环比`, ratio: `${metric}占营收` })[mode]; }
-function cashCoverageNote(value: number | null): string { return value == null ? "现金含量暂不可比" : value >= 1 ? "利润现金支撑较好" : value < 0.5 ? "现金支撑偏弱，需要关注" : "现金支撑一般"; }
+function cashCoverageNote(value: number | null, profit: number | null): string { return profit != null && profit <= 0 ? "净利润不为正，不解释现金含量倍数" : value == null ? "现金含量暂不可比" : value >= 1 ? "利润现金支撑较好" : value < 0.5 ? "现金支撑偏弱，需要关注" : "现金支撑一般"; }
+function roeQualityNote(period: FinancialAnalysisPeriod): string | undefined { return period.qualityFlags.find((flag) => flag.key === "roe-thin-equity" || flag.key === "roe-nonpositive-equity")?.message; }
 function relativeGrowthText(revenue: number | null, profit: number | null): string { if (revenue == null || profit == null) return "同比口径暂不完整"; return profit > revenue ? "利润增速高于收入增速" : profit < revenue ? "利润增速低于收入增速" : "利润与收入增速接近"; }
 function falling(values: Array<number | null>): boolean { return values.every((value): value is number => value != null) && values[0] > values[1] && values[1] > values[2]; }
 function ratio(left: number | null, right: number | null): number | null { return left == null || right == null || right === 0 ? null : left / right; }

@@ -18,7 +18,7 @@ function StockScoreCard({ report, stockName }: { report: StockScoreReport; stock
           <span>基于本页已加载的行情、技术、资金、财务、估值、舆情、回测与风险数据</span>
         </div>
         <div className="stock-score-meta">
-          <span>数据覆盖度 <strong>{report.coverage}%</strong></span>
+          <span>评分证据覆盖 <strong>{report.coverage}%</strong></span>
           <small>缺失项按中性处理 · 自动随 {stockName || "当前股票"} 数据更新</small>
         </div>
       </header>
@@ -40,7 +40,7 @@ function StockScoreCard({ report, stockName }: { report: StockScoreReport; stock
           </div>
           <p className="stock-score-disclaimer">评分用于比较证据强弱，不预测收益；低覆盖维度会向 50 分收缩。交易前请核对数据时效、估值口径与自身风险承受能力。</p>
           <dl className="stock-score-guardrails" aria-label="交易前检查">
-            <div><dt>数据覆盖</dt><dd>{report.coverage}%</dd></div>
+            <div><dt>评分证据覆盖</dt><dd>{report.coverage}%</dd></div>
             <div><dt>主要短板</dt><dd>{weakestDimension?.label ?? "待识别"} {weakestDimension?.score ?? "—"}</dd></div>
             <div><dt>风险韧性</dt><dd>{riskDimension?.score ?? "—"}/100</dd></div>
           </dl>

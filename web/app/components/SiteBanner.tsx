@@ -127,11 +127,15 @@ export default function SiteBanner({
 
   const globalHref = currentStockCode ? `/global-markets?stock=${encodeURIComponent(stockRouteKey({ code: currentStockCode, market: currentStockMarket }))}` : "/global-markets";
   const busy = phase !== "idle";
+  const openPortfolioClick = activePage === "stock" && onOpenPortfolio ? (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    onOpenPortfolio();
+  } : undefined;
 
   return (
     <>
     <header className={styles.banner} data-site-banner>
-      <Link className={styles.brand} href="/" aria-label="TrendSight 自选股首页">
+      <Link className={styles.brand} href="/" aria-label="TrendSight 自选股首页" onClick={openPortfolioClick}>
         <span className={styles.brandMark} aria-hidden="true" />
         <span><strong>TrendSight</strong><small>市场研究工作台</small></span>
       </Link>
@@ -141,10 +145,7 @@ export default function SiteBanner({
           className={activePage === "portfolio" ? styles.activeNav : ""}
           href="/"
           aria-current={activePage === "portfolio" ? "page" : undefined}
-          onClick={activePage === "stock" && onOpenPortfolio ? (event) => {
-            event.preventDefault();
-            onOpenPortfolio();
-          } : undefined}
+          onClick={openPortfolioClick}
         >自选</Link>
         <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球</Link>
       </nav>

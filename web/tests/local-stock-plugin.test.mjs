@@ -1,30 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { normalizeRemoteMarketRequest } from "../app/lib/remoteMarket.ts";
+import { normalizeRemoteNewsRequest } from "../app/lib/remoteNews.ts";
 import {
-  normalizeNewsRequest,
   normalizeStockLookupRequest,
-  normalizeStockRequest,
   parseStockLookupResponse,
   pickStockLookupResult,
-} from "../build/local-stock-data-plugin.ts";
+} from "../app/lib/stockLookup.ts";
 
 test("normalizes supported local stock requests", () => {
-  assert.deepEqual(normalizeStockRequest({ code: " 002747 ", days: 90 }), { code: "002747", days: 90 });
-  assert.deepEqual(normalizeStockRequest({ code: "sh600000" }), { code: "sh600000", days: 90 });
-  assert.deepEqual(normalizeStockRequest({ code: "000001.SZ", days: 1 }), { code: "000001.SZ", days: 1 });
+  assert.deepEqual(normalizeRemoteMarketRequest({ code: " 002747 ", days: 90 }), { code: "002747", days: 90, kind: "stock" });
+  assert.deepEqual(normalizeRemoteMarketRequest({ code: "sh600000" }), { code: "600000", days: 250, kind: "stock" });
+  assert.deepEqual(normalizeRemoteMarketRequest({ code: "000001.SZ", days: 20, kind: "index" }), { code: "000001", days: 20, kind: "index" });
 });
 
 test("rejects invalid codes and unsafe arguments", () => {
-  assert.throws(() => normalizeStockRequest({ code: "002747;rm -rf /" }), /6位沪深股票代码/);
-  assert.throws(() => normalizeStockRequest({ code: "12345" }), /6位沪深股票代码/);
-  assert.throws(() => normalizeStockRequest({ code: "002747", days: 251 }), /1到250/);
+  assert.throws(() => normalizeRemoteMarketRequest({ code: "002747;rm -rf /" }), /6 位沪深代码/);
+  assert.throws(() => normalizeRemoteMarketRequest({ code: "12345" }), /6 位沪深代码/);
+  assert.throws(() => normalizeRemoteMarketRequest({ code: "002747", days: 19 }), /20 到 1250/);
 });
 
 test("normalizes stock news requests", () => {
-  assert.deepEqual(normalizeNewsRequest({ code: " 600000 ", limit: 30 }), { code: "600000", limit: 30 });
-  assert.deepEqual(normalizeNewsRequest({ code: "000001.SZ" }), { code: "000001.SZ", limit: 30 });
-  assert.throws(() => normalizeNewsRequest({ code: "600000", limit: 101 }), /1到100/);
+  assert.deepEqual(normalizeRemoteNewsRequest({ code: " 600000 ", limit: 30 }), { code: "600000", limit: 30 });
+  assert.deepEqual(normalizeRemoteNewsRequest({ code: "000001.SZ" }), { code: "000001", limit: 30 });
+  assert.throws(() => normalizeRemoteNewsRequest({ code: "600000", limit: 101 }), /1 到 100/);
 });
 
 test("normalizes stock name lookup requests", () => {

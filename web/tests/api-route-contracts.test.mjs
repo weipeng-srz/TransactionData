@@ -13,6 +13,7 @@ import * as usStockLookupRoute from "../app/api/us-stock-lookup/route.ts";
 import * as usStockNewsRoute from "../app/api/us-stock-news/route.ts";
 import * as usStockRealtimeRoute from "../app/api/us-stock-realtime/route.ts";
 import { GLOBAL_INDEXES } from "../app/lib/globalIndexes.ts";
+import { aggregateCandles, parseMarketCsv } from "../app/lib/market.ts";
 import { US_INDEXES } from "../app/lib/usMarketIndexes.ts";
 
 const offlineFetch = async () => { throw new TypeError("fixture network offline"); };
@@ -149,6 +150,11 @@ test("local stock data route enforces input bounds and returns cacheable CSV", a
     if (url.includes("CN_MarketDataService.getKLineData")) {
       return new Response('ticklens=([{"day":"2026-08-18","open":"10","high":"11","low":"9.5","close":"10.5","volume":"10000"}]);');
     }
+    if (url.includes("qt.gtimg.cn")) {
+      const fields = Array(80).fill("");
+      Object.assign(fields, { 2: "000001", 30: "20260818150000", 72: "2000000" });
+      return new Response(`v_sz000001="${fields.join("~")}";`);
+    }
     return new Response("unavailable", { status: 503 });
   }, () => localStockDataRoute.POST(post("local-stock-data", JSON.stringify({ code: "000001", days: 20 }))));
 
@@ -156,7 +162,13 @@ test("local stock data route enforces input bounds and returns cacheable CSV", a
   assert.equal(response.headers.get("Content-Type"), "text/csv; charset=utf-8");
   assert.match(response.headers.get("Cache-Control") ?? "", /^public, max-age=60/);
   assert.equal(response.headers.get("X-TickLens-Source"), "sina-https-kline");
-  assert.match(await response.text(), /交易日期/);
+  const csv = await response.text();
+  assert.match(csv, /流通A股本\(股\)=2000000/);
+  assert.match(csv, /换手率口径=2026-08-18成交量\(股\)÷腾讯实时行情流通A股本/);
+  const dataset = parseMarketCsv(csv);
+  const latest = aggregateCandles(dataset.rows, "000001", "1d").at(-1);
+  assert.equal(latest?.volume, 10_000);
+  assert.equal(latest?.turnoverPct, 0.5);
 
   await withFetch(offlineFetch, async () => {
     await assertUpstreamError(await localStockDataRoute.POST(post("local-stock-data", JSON.stringify({ code: "000001", days: 20 }))));
@@ -307,7 +319,7 @@ test("US financials route distinguishes invalid input from SEC service failure",
 
   const payload = await assertJson(response, 200);
   assert.equal(payload.code, "AAPL");
-  assert.equal(payload.reports[0].periodLabel, "2026Q1");
+  assert.equal(payload.reports[0].periodLabel, "FY2026 Q1");
   assert.match(response.headers.get("Cache-Control") ?? "", /^public, max-age=300/);
   assert.equal(response.headers.get("X-TrendSight-Source"), "sec-company-facts");
 

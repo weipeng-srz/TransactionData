@@ -22,6 +22,7 @@ test("uses one shared banner for portfolio, stock and global pages", () => {
   assert.match(bannerSource, /aria-label="添加自选股"/);
   assert.match(bannerSource, /切换个股/);
   assert.match(bannerSource, /activePage === "stock" && onOpenPortfolio/);
+  assert.match(bannerSource, /aria-label="TrendSight 自选股首页"[\s\S]*?onClick=\{openPortfolioClick\}/);
   assert.match(stockSource, /onOpenPortfolio=\{onBackHome\}/);
 });
 

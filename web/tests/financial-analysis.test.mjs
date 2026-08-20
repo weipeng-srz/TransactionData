@@ -97,3 +97,35 @@ test("keeps balance-sheet metrics as period-end values and compares them year ov
   assert.equal(latest.balanceYoY.accountsReceivable, 80);
   assert.equal(latest.balanceYoY.debtAssetRatio, 0);
 });
+
+test("does not present a positive cash-coverage multiple when net profit is negative", () => {
+  const lossIncome = structuredClone(income);
+  lossIncome.result.data[4].PARENT_NETPROFIT = -20;
+  const lossCashflow = structuredClone(cashflow);
+  lossCashflow.result.data[4].NETCASH_OPERATE = -25;
+  const analysis = buildFinancialAnalysis({ income: lossIncome, balance, cashflow: lossCashflow, indicators });
+  assert.equal(analysis.periods[0].single.cashCoverage, null);
+  assert.ok(analysis.periods[0].qualityFlags.some((flag) => flag.key === "cash-coverage-loss"));
+});
+
+test("flags ROE that is mathematically valid but distorted by a thin equity base", () => {
+  const thinBalance = structuredClone(balance);
+  thinBalance.result.data[0].TOTAL_PARENT_EQUITY = 2;
+  thinBalance.result.data[4].TOTAL_PARENT_EQUITY = 2;
+  const analysis = buildFinancialAnalysis({ income, balance: thinBalance, cashflow, indicators });
+  assert.ok(analysis.periods[0].qualityFlags.some((flag) => flag.key === "roe-thin-equity"));
+});
+
+test("accepts the operating-income field used by insurer statements", () => {
+  const insurerIncome = structuredClone(income);
+  for (const row of insurerIncome.result.data) {
+    row.OPERATE_INCOME = row.TOTAL_OPERATE_INCOME;
+    delete row.TOTAL_OPERATE_INCOME;
+  }
+  const insurerIndicators = structuredClone(indicators);
+  for (const row of insurerIndicators.result.data) row.ORG_TYPE = "保险";
+  const analysis = buildFinancialAnalysis({ income: insurerIncome, balance, cashflow, indicators: insurerIndicators });
+  assert.equal(analysis.periods[0].cumulative.revenue, 150);
+  assert.equal(analysis.periods[0].single.cashCoverage, null);
+  assert.ok(analysis.periods[0].qualityFlags.some((flag) => flag.key === "cash-coverage-financial"));
+});

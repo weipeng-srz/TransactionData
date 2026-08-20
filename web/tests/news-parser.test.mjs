@@ -24,6 +24,21 @@ test("parses news CSV and builds a sentiment summary", () => {
   assert.equal(dataset.summary.portals, 3);
   assert.deepEqual(dataset.stockNames, { "600000": "浦发银行" });
   assert.equal(dataset.items[0].summary, "认购踊跃, 发行成功");
+  assert.equal(dataset.items[0].eventType, "融资与资本动作");
+  assert.equal(dataset.items[0].sourceQuality, "高");
+});
+
+test("groups syndicated copies of the same event instead of counting each as a vote", () => {
+  const csv = [
+    header,
+    "600000,浦发银行,新浪搜索,财经,市场资讯,2026-07-17 09:00:00,1,正面,0.8,增长,,浦发银行发布2026年业绩预告,净利润增长,https://example.com/a,2026-07-17 10:00:00",
+    "600000,浦发银行,东方财富,财经,上海证券报,2026-07-17 09:05:00,1,正面,0.8,增长,,浦发银行：发布2026年业绩预告,净利润增长,https://example.com/b,2026-07-17 10:00:00",
+  ].join("\n");
+  const dataset = parseNewsCsv(csv);
+  assert.equal(dataset.items.length, 1);
+  assert.equal(dataset.items[0].duplicateCount, 2);
+  assert.equal(dataset.items[0].eventType, "财报与业绩");
+  assert.equal(dataset.items[0].sourceQuality, "高");
 });
 
 test("skips unsafe or malformed news rows", () => {

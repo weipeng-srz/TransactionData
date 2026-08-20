@@ -6,9 +6,10 @@ import { exportHoldingsCsv, parseHoldings, parseHoldingsCsv } from "../app/lib/h
 import { parseWatchlist } from "../app/lib/watchlist.ts";
 import { parseStockRoute, stockStorageKey } from "../app/lib/security.ts";
 import { parseUSDailyResponse, fetchUSMarketCsv, normalizeUSMarketRequest } from "../app/lib/usStockMarket.ts";
-import { parseUSQuoteResponse } from "../app/lib/usStockRealtime.ts";
+import { parseUSQuoteResponse, usMarketStatus } from "../app/lib/usStockRealtime.ts";
 import { parseUSStockSuggestions } from "../app/lib/usStockLookup.ts";
 import { buildUSFinancialPeriods } from "../app/lib/usStockFinancials.ts";
+import { POST as lookupUSStockRoute } from "../app/api/us-stock-lookup/route.ts";
 
 test("keeps US routes and storage keys separate from legacy A-share codes", () => {
   assert.deepEqual(parseStockRoute("US:aapl"), { code: "AAPL", market: "US", currency: "USD" });
@@ -31,6 +32,34 @@ test("parses Sina US lookup, daily and quote payloads", () => {
   assert.equal(quote.code, "AAPL");
   assert.equal(quote.price, 224);
   assert.deepEqual(quote.bids, []);
+});
+
+test("keeps an unknown ticker-shaped search inline instead of accepting a synthetic identity", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(new TextEncoder().encode('var trendsight="";'));
+  try {
+    const response = await lookupUSStockRoute(new Request("http://localhost/api/us-stock-lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "ZZZZZZZZ" }),
+    }));
+    assert.equal(response.status, 404);
+    assert.match((await response.json()).error, /没有找到匹配/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("normalizes Sina's Beijing server clock to the New York exchange clock", () => {
+  const fields = ["苹果", "224", "1.5", "2026-08-19 18:33:08", "3.3", "221", "225", "219", "250", "170", "1000", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "", "", "220", "0", "0", "0", "224000"];
+  const now = new Date("2026-08-19T10:33:08.000Z");
+  const quote = parseUSQuoteResponse(`var hq_str_gb_aapl="${fields.join(",")}";`, "AAPL", now);
+  assert.equal(quote.date, "2026-08-19");
+  assert.equal(quote.time, "06:33:08");
+  assert.equal(quote.marketStatus, "盘前");
+  assert.match(quote.source, /美东时间/);
+  assert.equal(usMarketStatus(now), "盘前");
+  assert.equal(usMarketStatus(new Date("2026-08-19T14:00:00.000Z")), "交易中");
 });
 
 test("generates a US market CSV compatible with the existing chart parser", async () => {
@@ -87,8 +116,43 @@ test("converts SEC cumulative filings into isolated quarters and TTM values", ()
   ];
   const companyFacts = { facts: { "us-gaap": { RevenueFromContractWithCustomerExcludingAssessedTax: usd(revenue), NetIncomeLoss: usd(revenue.map((item) => ({ ...item, val: item.val / 10 }))) } } };
   const periods = buildUSFinancialPeriods(companyFacts);
-  assert.equal(periods[0].periodLabel, "2026Q1");
-  assert.equal(periods.find((item) => item.periodLabel === "2025Q2").single.revenue, 12);
-  assert.equal(periods.find((item) => item.periodLabel === "2025Q4").single.revenue, 20);
+  assert.equal(periods[0].periodLabel, "FY2026 Q1");
+  assert.equal(periods.find((item) => item.periodLabel === "FY2025 Q2").single.revenue, 12);
+  assert.equal(periods.find((item) => item.periodLabel === "FY2025 Q4").single.revenue, 20);
   assert.equal(periods[0].ttm.revenue, 61);
+});
+
+test("uses fiscal-year labels and treats loss-period cash coverage as not meaningful", () => {
+  const usd = (values) => ({ units: { USD: values } });
+  const flows = [
+    { start: "2025-07-01", end: "2025-09-30", val: 10, accn: "q1", fy: 2026, fp: "Q1", form: "10-Q", filed: "2025-11-01" },
+    { start: "2025-07-01", end: "2025-12-31", val: 18, accn: "q2", fy: 2026, fp: "Q2", form: "10-Q", filed: "2026-02-01" },
+  ];
+  const companyFacts = { facts: { "us-gaap": {
+    RevenueFromContractWithCustomerExcludingAssessedTax: usd(flows),
+    NetIncomeLoss: usd(flows.map((item) => ({ ...item, val: -item.val / 10 }))),
+    NetCashProvidedByUsedInOperatingActivities: usd(flows.map((item) => ({ ...item, val: -item.val / 2 }))),
+  } } };
+  const periods = buildUSFinancialPeriods(companyFacts);
+  assert.equal(periods[0].periodLabel, "FY2026 Q2");
+  assert.equal(periods[0].single.cashCoverage, null);
+  assert.ok(periods[0].qualityFlags.some((flag) => flag.key === "cash-coverage-loss"));
+});
+
+test("continues the SEC history when a company changes revenue concepts", () => {
+  const usd = (values) => ({ units: { USD: values } });
+  const oldConcept = [{ start: "2021-02-01", end: "2022-01-30", val: 26, accn: "old", fy: 2022, fp: "FY", form: "10-K", filed: "2022-03-18" }];
+  const currentConcept = [
+    { start: "2025-01-27", end: "2025-04-27", val: 44, accn: "new-q1", fy: 2026, fp: "Q1", form: "10-Q", filed: "2025-05-30" },
+    { start: "2025-01-27", end: "2025-07-27", val: 91, accn: "new-q2", fy: 2026, fp: "Q2", form: "10-Q", filed: "2025-08-29" },
+  ];
+  const companyFacts = { facts: { "us-gaap": {
+    RevenueFromContractWithCustomerExcludingAssessedTax: usd(oldConcept),
+    Revenues: usd(currentConcept),
+    NetIncomeLoss: usd([...oldConcept, ...currentConcept].map((item) => ({ ...item, val: item.val / 2 }))),
+  } } };
+  const periods = buildUSFinancialPeriods(companyFacts);
+  assert.equal(periods[0].periodLabel, "FY2026 Q2");
+  assert.equal(periods[0].reportDate, "2025-07-27");
+  assert.equal(periods[0].single.revenue, 47);
 });

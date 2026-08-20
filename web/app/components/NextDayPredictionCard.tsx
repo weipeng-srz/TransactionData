@@ -107,17 +107,23 @@ function NextDayPredictionCard({
         <i>{report.target.isPartialSession ? `盘中样本 · 交易进度约 ${percent(report.target.sessionProgress)}` : report.target.usesCurrentSession ? "完整当日样本" : "严格收盘切片"}</i>
       </div>
 
+      <div className="next-day-trust-summary" aria-label="上涨概率的可靠性与样本语境">
+        <span>方向概率与可靠性</span>
+        <strong>{report.target.label}上涨 {percent(report.prediction.upProbability)}</strong>
+        <small>模型可靠性 {report.signal.reliability} · 决策可信度 {report.signal.decisionConfidence}% · {report.trainingSamples} 个带标签样本 · 自然上涨率 {percent(report.modelValidation.baselineUpRate)} · 相似日胜率 95% 区间 {percent(report.similarDays.upRateInterval95[0])}～{percent(report.similarDays.upRateInterval95[1])}</small>
+      </div>
+
       <div className="next-day-hero">
-        <section className="next-day-grade" aria-label={`隔日信号 ${report.signal.grade} 级，评分 ${report.signal.score}`}>
+        <section className="next-day-grade" aria-label={`模型强度 ${report.signal.score} 分，可靠性 ${report.signal.reliability}`}>
           <div className="grade-orbit" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={report.signal.score} style={{ "--prediction-score": `${report.signal.score * 3.6}deg` } as CSSProperties}>
-            <span>信号等级</span>
-            <strong>{report.signal.grade}</strong>
-            <small>{report.signal.score}/100</small>
+            <span>模型强度</span>
+            <strong>{report.signal.score}</strong>
+            <small>/100</small>
           </div>
           <div>
-            <span>当前状态</span>
-            <strong>{report.signal.state}</strong>
-            <p>{report.trainingSamples} 个带标签样本 · 决策可信度 {report.signal.decisionConfidence}%（{report.signal.reliability}）</p>
+            <span>模型可靠性</span>
+            <strong>{report.signal.reliability}</strong>
+            <p>{report.signal.state} · 评分反映当前证据一致性，不是 B/S 买卖规则等级。</p>
           </div>
         </section>
 
@@ -144,17 +150,17 @@ function NextDayPredictionCard({
         </section>
       </div>
 
-      <section className={`next-day-decision is-${report.decisionSupport.tone}`} aria-label="止盈止损决策辅助">
+      <section className={`next-day-decision is-${report.decisionSupport.tone}`} aria-label="隔日研究倾向与统计观察带">
         <header>
-          <div><p className="eyebrow">POSITION DECISION</p><h3>仓位与退出纪律</h3></div>
-          <strong>{report.decisionSupport.action}</strong>
+          <div><p className="eyebrow">RESEARCH POSTURE</p><h3>研究倾向与统计观察带</h3></div>
+          <strong>{researchPosture(report.decisionSupport.action)}</strong>
         </header>
-        <p>{report.decisionSupport.summary}</p>
+        <p>{researchSummary(report.decisionSupport.action)}</p>
         <div className="next-day-decision-metrics">
           <div><span>当前涨跌</span><strong className={(report.decisionSupport.currentReturn ?? 0) >= 0 ? "is-up" : "is-down"}>{report.decisionSupport.currentReturn == null ? "—" : signedPercent(report.decisionSupport.currentReturn)}</strong></div>
           <div><span>统计期望价</span><strong>{formatPrice(report.decisionSupport.expectedPrice)}</strong></div>
-          <div><span>止盈观察位</span><strong>{formatPrice(report.decisionSupport.takeProfitReference)}</strong></div>
-          <div><span>风险观察位</span><strong>{formatPrice(report.decisionSupport.riskReference)}</strong></div>
+          <div><span>统计上沿观察位</span><strong>{formatPrice(report.decisionSupport.takeProfitReference)}</strong></div>
+          <div><span>统计下沿观察位</span><strong>{formatPrice(report.decisionSupport.riskReference)}</strong></div>
           <div><span>统计风险收益比</span><strong>{report.decisionSupport.riskRewardRatio == null ? "—" : `${report.decisionSupport.riskRewardRatio.toFixed(2)} : 1`}</strong></div>
           <div><span>模型一致度</span><strong>{percent(report.signal.ensembleAgreement)}</strong></div>
         </div>
@@ -336,6 +342,26 @@ function NextDayPredictionCard({
 
 function predictionSliceKey(snapshot: RealtimeSnapshot | null): string {
   return snapshot ? `${snapshot.code}:${snapshot.date}:${snapshot.time.slice(0, 5)}:${snapshot.marketStatus}` : "";
+}
+
+function researchPosture(action: string): string {
+  return ({
+    "持有观察": "方向证据偏正向",
+    "等待确认": "方向证据待确认",
+    "分批止盈": "涨幅进入偏乐观区间",
+    "收紧止损": "跌幅进入弱势尾部",
+    "降低仓位": "风险证据偏高",
+  } as Record<string, string>)[action] ?? "方向证据待确认";
+}
+
+function researchSummary(action: string): string {
+  return ({
+    "持有观察": "方向、收益期望与风险收益比暂时同向，仍需等待新的价格与量能证据验证。",
+    "等待确认": "多模型尚未形成足够优势，当前更适合观察价格、量能或大盘方向是否继续确认。",
+    "分批止盈": "当前涨幅已进入历史偏乐观区间，但延续概率与风险证据尚未同步确认。",
+    "收紧止损": "当前跌幅落入历史弱势尾部，且统计修复概率偏低，下行证据需要优先核查。",
+    "降低仓位": "个股风险项或系统性压力偏高，当前方向结论的可靠性受到限制。",
+  } as Record<string, string>)[action] ?? "当前证据尚不足以形成稳定方向，需要继续观察。";
 }
 
 function nextDayPropsEqual(previous: Props, next: Props): boolean {

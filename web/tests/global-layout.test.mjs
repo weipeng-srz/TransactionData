@@ -56,3 +56,31 @@ test("keeps a touch-sized manual refresh action reachable on mobile", () => {
   assert.match(globalStyles, /\.global-mobile-refresh \{ display: none; \}/);
   assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-mobile-refresh \{[\s\S]*?min-height: 44px;[\s\S]*?width: max-content;[\s\S]*?display: flex;/);
 });
+
+test("separates current-open breadth from the asynchronous cross-market snapshot", () => {
+  assert.match(pageSource, /当前开市广度/);
+  assert.match(pageSource, /跨市场最近快照/);
+  assert.match(pageSource, /openMarketMoves/);
+  assert.match(pageSource, /snapshotBreadthPct/);
+});
+
+test("labels the A-share gauge as a transparent pressure proxy", () => {
+  assert.match(pageSource, /市场压力温度/);
+  assert.match(pageSource, /计算公式/);
+  assert.match(pageSource, /历史分位/);
+  assert.doesNotMatch(pageSource, /A股恐慌指数/);
+});
+
+test("keeps the spot index primary and reduces extended-hours proxies to direction", () => {
+  assert.match(pageSource, /现货指数为主口径/);
+  assert.match(pageSource, /方向代理 · \{quote\?\.phaseInstrument\}/);
+  assert.match(pageSource, /const spotValue = usesProxy \? quote\?\.closePrice : quote\?\.phaseValue/);
+  assert.doesNotMatch(pageSource, /<small>当前阶段值<\/small>/);
+  assert.match(globalStyles, /\.global-us-close-row\.is-proxy/);
+});
+
+test("uses a mobile section picker and a route-specific document title", () => {
+  assert.match(pageSource, /document\.title = "全球市场 · TrendSight"/);
+  assert.match(pageSource, /aria-label="跳转到市场章节"/);
+  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-navigation-sidebar \.global-workspace-nav \{ display: none !important; \}/);
+});

@@ -60,6 +60,9 @@ export type FearGaugeQuote = {
   source: string;
   official: boolean;
   history: FearGaugeCandle[];
+  formula: string;
+  components: Array<{ label: string; value: string }>;
+  historyPercentile: number | null;
 };
 
 export type FearGaugeCandle = {
@@ -152,6 +155,9 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
         source: "CBOE VIX · 延时行情",
         official: true,
         history: vixHistory.slice(-160),
+        formula: "CBOE 基于标普 500 期权报价计算的 30 天预期波动率指数",
+        components: [{ label: "当日涨跌", value: changePct == null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` }],
+        historyPercentile: historyPercentile(vixHistory.map((candle) => candle.close), value),
       });
     }
   }
@@ -167,21 +173,33 @@ export function parseFearGaugeQuotes(body: string, quotes: GlobalIndexQuote[], n
     gauges.unshift({
       id: "a-share-fear",
       market: "A股",
-      code: "CN-FEAR",
-      name: "A股恐慌指数（代理）",
+      code: "CN-PRESSURE",
+      name: "A股市场压力温度",
       value,
       change: null,
       changePct: null,
       level: aShareFearLevel(value),
-      description: `综合 ${aShareQuotes.length} 个核心指数：上涨 ${advancingCount}、下跌 ${decliningCount}，平均涨跌 ${averageChangePct >= 0 ? "+" : ""}${averageChangePct.toFixed(2)}%。数值越高代表市场压力越大。`,
+      description: `综合 ${aShareQuotes.length} 个核心指数：上涨 ${advancingCount}、下跌 ${decliningCount}，平均涨跌 ${averageChangePct >= 0 ? "+" : ""}${averageChangePct.toFixed(2)}%。仅描述当前横截面压力，不与 VIX 比较。`,
       updatedAt: `${latest.date} ${latest.time}`,
       source: "TrendSight 市场压力代理模型",
       official: false,
       history: [],
+      formula: "15 + 核心指数下跌占比 × 55 + max(0, -核心指数平均涨跌幅%) × 10，结果截断至 0–100",
+      components: [
+        { label: "核心指数下跌占比", value: `${(decliningRatio * 100).toFixed(1)}%（${decliningCount}/${aShareQuotes.length}）` },
+        { label: "核心指数平均涨跌", value: `${averageChangePct >= 0 ? "+" : ""}${averageChangePct.toFixed(2)}%` },
+      ],
+      historyPercentile: null,
     });
   }
 
   return gauges;
+}
+
+function historyPercentile(values: number[], current: number): number | null {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (valid.length < 20) return null;
+  return valid.filter((value) => value <= current).length / valid.length;
 }
 
 export function parseVixHistoryCsv(value: string): FearGaugeCandle[] {
@@ -392,12 +410,12 @@ function fearLevel(value: number): string {
 }
 
 function aShareFearLevel(value: number): string {
-  if (value < 20) return "极度平静";
-  if (value < 35) return "平静";
-  if (value < 50) return "中性";
-  if (value < 65) return "警惕";
-  if (value < 80) return "恐慌";
-  return "极度恐慌";
+  if (value < 20) return "压力很低";
+  if (value < 35) return "压力较低";
+  if (value < 50) return "压力中性";
+  if (value < 65) return "压力升温";
+  if (value < 80) return "压力较高";
+  return "压力极高";
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

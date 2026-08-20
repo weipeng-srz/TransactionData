@@ -167,6 +167,45 @@ test("integrates same-market history and only news available at the prediction c
   assert.equal(tomorrow.modelValidation.version, "ensemble-v2.2-regime");
 });
 
+test("does not append a duplicated US premarket quote as a new daily candle", () => {
+  const candles = syntheticCandles();
+  const latest = candles.at(-1);
+  const previous = candles.at(-2);
+  const realtimeSnapshot = {
+    code: "AAPL", name: "Apple", date: "2025-12-14", time: "06:33:00", marketStatus: "盘前",
+    price: latest.close, previousClose: previous.close, open: latest.open, high: latest.high, low: latest.low,
+    change: latest.close - previous.close, changePct: (latest.close / previous.close - 1) * 100,
+    volume: latest.volume, amount: latest.amount, bids: [], asks: [], minuteCandles: [], source: "test", fetchedAt: "2025-12-14T11:33:00.000Z",
+  };
+  const report = buildNextDayPrediction(candles, { mode: "tomorrow", realtimeSnapshot, market: "US" });
+  assert.ok(report);
+  assert.equal(report.asOf, latest.date);
+  assert.equal(report.target.usesCurrentSession, false);
+  assert.equal(report.decisionSupport.referencePrice, latest.close);
+  assert.ok(Math.abs(report.decisionSupport.expectedPrice - latest.close * (1 + report.prediction.expectedCloseReturn)) < 1e-9);
+  assert.ok(report.decisionSupport.riskReference < report.decisionSupport.referencePrice);
+  assert.ok(report.decisionSupport.takeProfitReference > report.decisionSupport.referencePrice);
+});
+
+test("uses the raw realtime price as the decision anchor during a valid US session", () => {
+  const candles = syntheticCandles();
+  const latest = candles.at(-1);
+  const price = latest.close * 1.01;
+  const realtimeSnapshot = {
+    code: "AAPL", name: "Apple", date: "2025-12-14", time: "10:30:00", marketStatus: "交易中",
+    price, previousClose: latest.close, open: latest.close * 1.002, high: price * 1.005, low: latest.close * 0.997,
+    change: price - latest.close, changePct: 1, volume: latest.volume / 2, amount: latest.amount / 2,
+    bids: [], asks: [], minuteCandles: [], source: "test", fetchedAt: "2025-12-14T15:30:00.000Z",
+  };
+  const report = buildNextDayPrediction(candles, { mode: "tomorrow", realtimeSnapshot, market: "US" });
+  assert.ok(report);
+  assert.equal(report.asOf, realtimeSnapshot.date);
+  assert.equal(report.target.usesCurrentSession, true);
+  assert.equal(report.target.isPartialSession, true);
+  assert.equal(report.decisionSupport.referencePrice, price);
+  assert.ok(Math.abs(report.decisionSupport.expectedPrice - price * (1 + report.prediction.expectedCloseReturn)) < 1e-9);
+});
+
 test("returns no prediction when daily history cannot support labels and indicators", () => {
   assert.equal(buildNextDayPrediction(syntheticCandles(28)), null);
 });
@@ -207,7 +246,12 @@ test("describes prediction quality without presenting heuristic sufficiency as c
   assert.match(cardSource, /预测今日/);
   assert.match(cardSource, /预测明日/);
   assert.match(cardSource, /大盘与消息面验证/);
-  assert.match(cardSource, /仓位与退出纪律/);
+  assert.match(cardSource, /方向概率与可靠性/);
+  assert.match(cardSource, /自然上涨率/);
+  assert.match(cardSource, /研究倾向与统计观察带/);
+  assert.match(cardSource, /统计上沿观察位/);
+  assert.match(cardSource, /统计下沿观察位/);
+  assert.doesNotMatch(cardSource, /信号等级|仓位与退出纪律/);
   assert.doesNotMatch(cardSource, /分析置信度|AI 隔日交易概率分析/);
 });
 

@@ -417,39 +417,43 @@ export async function fetchFinancials(code: string): Promise<FinancialDataset> {
   const isBank = Array.isArray(financialRows) && financialRows.some((row) => (
     Boolean(row && typeof row === "object" && String((row as EastMoneyFinancialRow).ORG_TYPE ?? "").includes("银行"))
   ));
-  if (isBank && (incomeData == null || balanceData == null || cashflowData == null)) {
-    const bankStatements = await Promise.allSettled([
+  const isInsurer = Array.isArray(financialRows) && financialRows.some((row) => (
+    Boolean(row && typeof row === "object" && String((row as EastMoneyFinancialRow).ORG_TYPE ?? "").includes("保险"))
+  ));
+  const specializedFamily = isBank ? { code: "B", label: "银行" } : isInsurer ? { code: "I", label: "保险" } : null;
+  if (specializedFamily && (incomeData == null || balanceData == null || cashflowData == null)) {
+    const specializedStatements = await Promise.allSettled([
       incomeData == null
         ? fetchEastMoneyReport({
-          reportName: "RPT_F10_FINANCE_BINCOME",
+          reportName: `RPT_F10_FINANCE_${specializedFamily.code}INCOME`,
           filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
           pageSize: 50,
           sortColumns: "REPORT_DATE",
-          label: "银行利润表",
+          label: `${specializedFamily.label}利润表`,
         })
         : Promise.resolve(incomeData),
       balanceData == null
         ? fetchEastMoneyReport({
-          reportName: "RPT_F10_FINANCE_BBALANCE",
+          reportName: `RPT_F10_FINANCE_${specializedFamily.code}BALANCE`,
           filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
           pageSize: 50,
           sortColumns: "REPORT_DATE",
-          label: "银行资产负债表",
+          label: `${specializedFamily.label}资产负债表`,
         })
         : Promise.resolve(balanceData),
       cashflowData == null
         ? fetchEastMoneyReport({
-          reportName: "RPT_F10_FINANCE_BCASHFLOW",
+          reportName: `RPT_F10_FINANCE_${specializedFamily.code}CASHFLOW`,
           filter: `(SECUCODE=\"${toSecuCode(normalizedCode)}\")`,
           pageSize: 50,
           sortColumns: "REPORT_DATE",
-          label: "银行现金流量表",
+          label: `${specializedFamily.label}现金流量表`,
         })
         : Promise.resolve(cashflowData),
     ]);
-    if (bankStatements[0].status === "fulfilled") incomeData = bankStatements[0].value;
-    if (bankStatements[1].status === "fulfilled") balanceData = bankStatements[1].value;
-    if (bankStatements[2].status === "fulfilled") cashflowData = bankStatements[2].value;
+    if (specializedStatements[0].status === "fulfilled") incomeData = specializedStatements[0].value;
+    if (specializedStatements[1].status === "fulfilled") balanceData = specializedStatements[1].value;
+    if (specializedStatements[2].status === "fulfilled") cashflowData = specializedStatements[2].value;
   }
 
   let snapshot = valuationResult.status === "fulfilled"
