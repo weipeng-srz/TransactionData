@@ -7,7 +7,7 @@ import { isUSStockSymbol, marketLabel, marketOf, normalizeUSSymbol, stockRouteKe
 import { publicStockLookupError } from "../lib/stockLookupError";
 import styles from "./SiteBanner.module.css";
 
-type BannerPage = "portfolio" | "stock" | "global";
+type BannerPage = "portfolio" | "stock" | "global" | "screener";
 type Appearance = "light" | "dark";
 type SearchPhase = "idle" | "opening" | "adding";
 
@@ -147,6 +147,7 @@ export default function SiteBanner({
           aria-current={activePage === "portfolio" ? "page" : undefined}
           onClick={openPortfolioClick}
         >自选</Link>
+        <Link className={activePage === "screener" ? styles.activeNav : ""} href="/screener" aria-current={activePage === "screener" ? "page" : undefined}>选股</Link>
         <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球</Link>
       </nav>
 
