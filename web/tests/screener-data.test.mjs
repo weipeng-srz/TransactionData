@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildStrategyEvidence,
   normalizeScreenerMarket,
   parseCNDailyResponse,
   parseCNListResponse,
@@ -41,11 +42,39 @@ test("screener scoring is derived from daily prices and exposes transparent fact
     market: "CN", symbol: "600000", name: "测试股份", exchange: "沪市", price: 13.3, change: 3.1,
     previousClose: 12.9, open: 13, high: 13.4, low: 12.95, volume: 2_000_000, amount: 26_600_000,
     marketCap: 10_000_000_000, turnover: 3.2, sector: "测试板块", themes: ["测试板块"], streak: 0,
-    wasYesterdayLimit: false, isCurrentLimit: false,
+    securityType: "股票", qualityTier: "standard", wasYesterdayLimit: false, isCurrentLimit: false,
   }, rows);
   assert.ok(opportunity.score >= 0 && opportunity.score <= 100);
   assert.ok(opportunity.risk >= 0 && opportunity.risk <= 100);
   assert.ok(opportunity.confidence >= 35 && opportunity.confidence <= 82);
   assert.deepEqual(opportunity.factorScores.map((item) => item.label), ["强度", "趋势", "量价", "动量"]);
   assert.match(opportunity.plan.stop, /^¥/);
+  assert.ok(opportunity.plan.stopDistancePercent > 0);
+  assert.ok(opportunity.plan.suggestedPositionPercent > 0 && opportunity.plan.suggestedPositionPercent <= 20);
+  assert.equal(opportunity.chart.prices.length, 30);
+  assert.equal(opportunity.audit.modelVersion, "rules-2026.08.2");
+  assert.equal(opportunity.securityType, "股票");
+});
+
+test("screener builds disclosed rolling evidence from real daily rows without inventing probability", () => {
+  const rows = Array.from({ length: 90 }, (_, index) => ({
+    date: `2026-${String(Math.floor(index / 28) + 1).padStart(2, "0")}-${String(index % 28 + 1).padStart(2, "0")}`,
+    open: 10 + index * .08,
+    high: 10.3 + index * .08,
+    low: 9.8 + index * .08,
+    close: 10.2 + index * .08,
+    volume: index % 7 === 0 ? 2_200_000 : 1_000_000,
+    amount: 20_000_000,
+  }));
+  const evidence = buildStrategyEvidence("CN", [rows]);
+  const breakout = evidence.find((item) => item.strategy === "趋势突破");
+  assert.ok(breakout);
+  assert.ok(breakout.sampleSize > 10);
+  assert.match(breakout.methodology, /不等同全市场回测/);
+});
+
+test("screener feed diagnostics disclose the rule prefilter stage", async () => {
+  const source = await import("node:fs").then(({ readFileSync }) => readFileSync(new URL("../app/lib/screenerData.ts", import.meta.url), "utf8"));
+  assert.match(source, /prefilterCount: selectedCodes\.length/);
+  assert.match(source, /prefilterCount: selected\.length/);
 });

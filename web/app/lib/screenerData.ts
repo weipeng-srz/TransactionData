@@ -5,7 +5,9 @@ import type {
   ScreenerMarket,
   ScreenerOpportunity,
   ScreenerRecommendation,
+  ScreenerSecurityType,
   ScreenerSnapshot,
+  ScreenerStrategyEvidence,
   ScreenerStructure,
   ScreenerTheme,
 } from "./screenerTypes.ts";
@@ -17,6 +19,9 @@ const usListEndpoint = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/
 const eastmoneyEndpoint = "https://push2ex.eastmoney.com";
 const maxResponseBytes = 2 * 1024 * 1024;
 const cacheTtlMs: Record<ScreenerMarket, number> = { CN: 90_000, US: 120_000 };
+const screenerModelVersion = "rules-2026.08.2";
+const historyWindowDays = 90;
+const defaultRiskPerTradePercent = .5;
 const cache = new Map<ScreenerMarket, { value: ScreenerFeed; expiresAt: number }>();
 const pending = new Map<ScreenerMarket, Promise<ScreenerFeed>>();
 
@@ -103,6 +108,9 @@ type AnalysisSeed = {
   streak: number;
   firstLimit?: string;
   sealStrength?: number;
+  limitDetail?: ScreenerOpportunity["limitDetail"];
+  securityType: ScreenerSecurityType;
+  qualityTier: "standard" | "expanded";
   wasYesterdayLimit: boolean;
   isCurrentLimit: boolean;
 };
@@ -220,7 +228,7 @@ export function parseCNDailyResponse(body: string): DailyRow[] {
   });
 }
 
-export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[]): ScreenerOpportunity {
+export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[], benchmarkReturn20 = 0): ScreenerOpportunity {
   if (rows.length < 20) throw new Error(`${seed.symbol} 日线样本不足`);
   const closes = rows.map((row) => row.close);
   const latest = rows.at(-1)!;
@@ -265,6 +273,15 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[]): 
   const watchLow = risk >= 60 ? Math.max(stop + unitRisk * .35, price - atr) : Math.max(stop + unitRisk * .5, Math.min(price, ma5) * .99);
   const watchHigh = risk >= 60 ? price - atr * .25 : price * 1.005;
   const breakout = Math.max(seed.high, previous20High) * 1.003;
+  const normalizedWatchHigh = Math.max(watchLow, watchHigh);
+  const plannedEntry = average([watchLow, normalizedWatchHigh]);
+  const plannedRisk = Math.max(plannedEntry - stop, price * .01);
+  const targetPrices = [price + unitRisk * 1.5, price + unitRisk * 2.5];
+  const stopDistancePercent = plannedEntry > 0 ? plannedRisk / plannedEntry * 100 : 0;
+  const rewardRisk = plannedRisk > 0 ? (targetPrices[0] - plannedEntry) / plannedRisk : 0;
+  const rawPositionPercent = stopDistancePercent > 0 ? defaultRiskPerTradePercent / stopDistancePercent * 100 : 0;
+  const positionCap = risk >= 68 ? 8 : risk >= 50 ? 12 : 20;
+  const chartRows = rows.slice(-32);
 
   return {
     market: seed.market,
@@ -286,9 +303,17 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[]): 
     volumeRatio: round(volumeRatio, 2),
     turnover: round(seed.turnover, 2),
     amount: formatAmount(seed.amount, seed.market),
+    amountValue: seed.amount,
+    marketCap: seed.marketCap,
     closePosition: round(clamp(closePosition, 0, 100), 1),
+    return20: round(return20, 2),
+    benchmarkReturn20: round(benchmarkReturn20, 2),
+    relativeStrength20: round(return20 - benchmarkReturn20, 2),
+    securityType: seed.securityType,
+    qualityTier: seed.qualityTier,
     firstLimit: seed.firstLimit,
     sealStrength: seed.sealStrength,
+    limitDetail: seed.limitDetail,
     reasons,
     risks,
     factorScores: [
@@ -298,10 +323,32 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[]): 
       { label: "动量", value: Math.round(momentumScore) },
     ],
     plan: {
-      watch: risk >= 68 ? `等待回落至 ${formatPrice(watchLow)} – ${formatPrice(Math.max(watchLow, watchHigh))}` : `${formatPrice(watchLow)} – ${formatPrice(Math.max(watchLow, watchHigh))}`,
+      watch: risk >= 68 ? `等待回落至 ${formatPrice(watchLow)} – ${formatPrice(normalizedWatchHigh)}` : `${formatPrice(watchLow)} – ${formatPrice(normalizedWatchHigh)}`,
       breakout: formatPrice(breakout),
       stop: formatPrice(stop),
-      targets: `${formatPrice(price + unitRisk * 1.5)} / ${formatPrice(price + unitRisk * 2.5)}`,
+      targets: `${formatPrice(targetPrices[0])} / ${formatPrice(targetPrices[1])}`,
+      watchLow: round(watchLow, 4),
+      watchHigh: round(normalizedWatchHigh, 4),
+      breakoutPrice: round(breakout, 4),
+      stopPrice: round(stop, 4),
+      targetPrices: targetPrices.map((value) => round(value, 4)),
+      atr: round(atr, 4),
+      atrPercent: round(atrPct, 2),
+      stopDistancePercent: round(stopDistancePercent, 2),
+      rewardRisk: round(rewardRisk, 2),
+      riskPerTradePercent: defaultRiskPerTradePercent,
+      suggestedPositionPercent: round(clamp(rawPositionPercent, 1, positionCap), 1),
+    },
+    chart: {
+      dates: chartRows.map((row) => row.date),
+      prices: chartRows.map((row) => round(row.close, 4)),
+      volumes: chartRows.map((row) => Math.round(row.volume)),
+    },
+    audit: {
+      lastBarDate: latest.date,
+      barCount: rows.length,
+      modelVersion: screenerModelVersion,
+      completeness: Math.round(clamp(rows.length / historyWindowDays * 100, 0, 100)),
     },
   };
 }
@@ -309,12 +356,13 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[]): 
 async function buildCNFeed(): Promise<ScreenerFeed> {
   const now = new Date();
   const dateKey = zonedDate(now, "Asia/Shanghai").replaceAll("-", "");
-  const [quotes, limitPool, yesterdayPool, downPool, indexes] = await Promise.all([
+  const [quotes, limitPool, yesterdayPool, downPool, indexes, benchmarkRows] = await Promise.all([
     fetchCNUniverse(),
     fetchLimitPool("getTopicZTPool", dateKey).catch(() => emptyPool()),
     fetchLimitPool("getYesterdayZTPool", dateKey).catch(() => emptyPool()),
     fetchLimitPool("getTopicDTPool", dateKey).catch(() => emptyPool()),
     fetchGlobalIndexFeed().catch(() => null),
+    fetchCNDailyRows("sh000300").catch(() => [] as DailyRow[]),
   ]);
   if (quotes.length < 100) throw new Error("A股全市场行情返回数量不足");
 
@@ -327,15 +375,17 @@ async function buildCNFeed(): Promise<ScreenerFeed> {
     ...quotes.filter(isCNQualityQuote).sort((left, right) => cnPreScore(right) - cnPreScore(left)).map((quote) => quote.code).slice(0, 16),
   ]).filter((code) => quoteByCode.has(code)).slice(0, 24);
 
+  const benchmarkReturn20 = historicalReturn(benchmarkRows, 20);
   const analyzed = await mapLimited(selectedCodes, 6, async (code) => {
     const quote = quoteByCode.get(code)!;
     const currentLimit = currentByCode.get(code);
     const yesterdayLimit = yesterdayByCode.get(code);
     const seed = cnSeed(quote, currentLimit, yesterdayLimit);
     const rows = await fetchCNDailyRows(quote.symbol);
-    return scoreScreenerOpportunity(seed, rows);
+    return { opportunity: scoreScreenerOpportunity(seed, rows, benchmarkReturn20), rows };
   });
-  const opportunities = analyzed.flatMap((result) => result.ok ? [result.value] : []).sort((left, right) => right.score - left.score);
+  const analyzedItems = analyzed.flatMap((result) => result.ok ? [result.value] : []);
+  const opportunities = analyzedItems.map((item) => item.opportunity).sort((left, right) => right.score - left.score);
   opportunities.slice(0, 12).forEach((item) => item.strategies.unshift("今日精选"));
   const failedHistoryCount = analyzed.filter((result) => !result.ok).length;
   const tradeDate = limitPool.tradeDate || yesterdayPool.tradeDate || latestOpportunityDate(opportunities, now, "Asia/Shanghai");
@@ -360,18 +410,37 @@ async function buildCNFeed(): Promise<ScreenerFeed> {
     opportunities,
     themes,
     structure: buildCNStructure(limitPool, yesterdayPool),
-    diagnostics: { universeCount: quotes.length, analyzedCount: opportunities.length, failedHistoryCount, delayed: true },
+    strategyEvidence: buildStrategyEvidence("CN", analyzedItems.map((item) => item.rows)),
+    diagnostics: {
+      universeCount: quotes.length,
+      scannedCount: quotes.length,
+      qualityCount: quotes.filter(isCNQualityQuote).length,
+      expandedQualityCount: quotes.filter(isCNQualityQuote).length,
+      prefilterCount: selectedCodes.length,
+      analyzedCount: opportunities.length,
+      failedHistoryCount,
+      historyWindowDays,
+      modelVersion: screenerModelVersion,
+      delayed: true,
+    },
   };
 }
 
 async function buildUSFeed(): Promise<ScreenerFeed> {
   const now = new Date();
-  const [marketList, indexes] = await Promise.all([
+  const [marketList, indexes, benchmarkRows] = await Promise.all([
     fetchUSTopMovers(14),
     fetchGlobalIndexFeed().catch(() => null),
+    fetchUSDailyRows("SPY", historyWindowDays).catch(() => [] as DailyRow[]),
   ]);
-  const qualityQuotes = marketList.quotes.filter(isUSQualityQuote);
-  const selected = qualityQuotes.sort((left, right) => usPreScore(right) - usPreScore(left)).slice(0, 22);
+  const qualityQuotes = marketList.quotes.filter((quote) => isUSQualityQuote(quote, "standard"));
+  const expandedQuotes = marketList.quotes.filter((quote) => isUSQualityQuote(quote, "expanded"));
+  const standardSymbols = new Set(qualityQuotes.map((quote) => quote.symbol));
+  const selected = [...new Map([
+    ...qualityQuotes.sort((left, right) => usPreScore(right) - usPreScore(left)).slice(0, 22),
+    ...expandedQuotes.filter((quote) => !standardSymbols.has(quote.symbol)).sort((left, right) => usPreScore(right) - usPreScore(left)).slice(0, 10),
+  ].map((quote) => [quote.symbol, quote])).values()];
+  const benchmarkReturn20 = historicalReturn(benchmarkRows, 20);
   const analyzed = await mapLimited(selected, 6, async (quote) => {
     const rows = await fetchUSDailyRows(quote.symbol, 100);
     const latest = rows.at(-1);
@@ -386,9 +455,13 @@ async function buildUSFeed(): Promise<ScreenerFeed> {
       volume: latest.volume,
       amount: latest.amount || latest.close * latest.volume,
     } : quote;
-    return scoreScreenerOpportunity(usSeed(effective), rows);
+    return {
+      opportunity: scoreScreenerOpportunity(usSeed(effective, standardSymbols.has(quote.symbol) ? "standard" : "expanded"), rows, benchmarkReturn20),
+      rows,
+    };
   });
-  const opportunities = analyzed.flatMap((result) => result.ok ? [result.value] : []).sort((left, right) => right.score - left.score);
+  const analyzedItems = analyzed.flatMap((result) => result.ok ? [result.value] : []);
+  const opportunities = analyzedItems.map((item) => item.opportunity).sort((left, right) => right.score - left.score);
   opportunities.slice(0, 12).forEach((item) => item.strategies.unshift("今日精选"));
   const tradeDate = await inferUSLatestDate(selected[0]?.symbol).catch(() => zonedDate(now, "America/New_York"));
   const snapshot = buildUSSnapshot(marketList.quotes, qualityQuotes.length, opportunities, indexes);
@@ -405,12 +478,22 @@ async function buildUSFeed(): Promise<ScreenerFeed> {
     snapshot,
     brief: usBrief(snapshot),
     opportunities,
-    themes: buildThemes(marketList.quotes.map((quote) => ({ name: quote.category || quote.exchange, change: quote.change })), opportunities),
-    structure: buildUSStructure(marketList.quotes.length, qualityQuotes, opportunities),
+    themes: buildThemes(marketList.quotes.flatMap((quote) => {
+      const industry = industryForUSQuote(quote);
+      return industry === "其他行业" ? [] : [{ name: industry, change: quote.change }];
+    }), opportunities),
+    structure: buildUSStructure(marketList.quotes.length, qualityQuotes, expandedQuotes, opportunities),
+    strategyEvidence: buildStrategyEvidence("US", analyzedItems.map((item) => item.rows)),
     diagnostics: {
       universeCount: marketList.count,
+      scannedCount: marketList.quotes.length,
+      qualityCount: qualityQuotes.length,
+      expandedQualityCount: expandedQuotes.length,
+      prefilterCount: selected.length,
       analyzedCount: opportunities.length,
       failedHistoryCount: analyzed.filter((result) => !result.ok).length,
+      historyWindowDays,
+      modelVersion: screenerModelVersion,
       delayed: true,
     },
   };
@@ -514,6 +597,7 @@ async function fetchLimitPool(method: string, dateKey: string): Promise<LimitPoo
 
 function cnSeed(quote: CNQuote, current: LimitPoolItem | undefined, yesterday: LimitPoolItem | undefined): AnalysisSeed {
   const pool = current ?? yesterday;
+  const strength = pool ? sealStrength(pool) : undefined;
   return {
     market: "CN",
     symbol: quote.code,
@@ -533,14 +617,26 @@ function cnSeed(quote: CNQuote, current: LimitPoolItem | undefined, yesterday: L
     themes: pool?.sector ? [pool.sector] : ["沪深A股"],
     streak: current?.streak ?? yesterday?.streak ?? 0,
     firstLimit: pool?.firstLimit ? formatLimitTime(pool.firstLimit) : undefined,
-    sealStrength: current ? sealStrength(current) : undefined,
+    sealStrength: strength,
+    limitDetail: pool ? {
+      first: pool.firstLimit ? formatLimitTime(pool.firstLimit) : "—",
+      last: pool.lastLimit ? formatLimitTime(pool.lastLimit) : "—",
+      burstCount: pool.burstCount,
+      sealFund: formatAmount(pool.sealFund, "CN"),
+      sealFundRatio: round(pool.floatMarketCap > 0 ? pool.sealFund / pool.floatMarketCap * 100 : 0, 2),
+      shape: limitShape(quote, pool, Boolean(current)),
+      strength: strength ?? 0,
+    } : undefined,
+    securityType: "股票",
+    qualityTier: "standard",
     wasYesterdayLimit: Boolean(yesterday),
     isCurrentLimit: Boolean(current),
   };
 }
 
-function usSeed(quote: USQuote): AnalysisSeed {
+function usSeed(quote: USQuote, qualityTier: "standard" | "expanded" = "standard"): AnalysisSeed {
   const shares = quote.price > 0 ? quote.marketCap / quote.price : 0;
+  const industry = industryForUSQuote(quote);
   return {
     market: "US",
     symbol: quote.symbol,
@@ -556,12 +652,22 @@ function usSeed(quote: USQuote): AnalysisSeed {
     amount: quote.amount,
     marketCap: quote.marketCap,
     turnover: shares > 0 ? quote.volume / shares * 100 : 0,
-    sector: quote.category || quote.exchange,
-    themes: [quote.category || quote.exchange],
+    sector: industry,
+    themes: [industry],
     streak: 0,
+    securityType: classifyUSSecurity(quote),
+    qualityTier,
     wasYesterdayLimit: false,
     isCurrentLimit: false,
   };
+}
+
+function limitShape(quote: CNQuote, item: LimitPoolItem, isCurrent: boolean): string {
+  if (!isCurrent) return item.burstCount > 0 ? "昨日回封" : "昨日封板";
+  const limitPrice = item.limitPrice || item.price;
+  if (limitPrice > 0 && quote.open >= limitPrice * .998 && quote.low >= limitPrice * .998) return "一字板";
+  if (limitPrice > 0 && quote.open >= limitPrice * .998 && quote.low < limitPrice * .998) return "T字板";
+  return item.burstCount > 0 ? "换手回封" : "换手板";
 }
 
 function buildCNSnapshot(quotes: CNQuote[], limitUp: number, limitDown: number, indexes: GlobalIndexFeed | null): ScreenerSnapshot {
@@ -576,6 +682,7 @@ function buildCNSnapshot(quotes: CNQuote[], limitUp: number, limitDown: number, 
     moodScore,
     primary: indexLabel(shanghai?.name ?? "上证指数", shanghai?.changePct),
     secondary: indexLabel(chinext?.name ?? "创业板指", chinext?.changePct),
+    breadthLabel: "全市场广度",
     breadthValue: `${formatInteger(up)} / ${formatInteger(down)}`,
     breadthCaption: "上涨 / 下跌",
     event: `涨停 ${formatInteger(limitUp)} · 跌停 ${formatInteger(limitDown)}`,
@@ -597,6 +704,7 @@ function buildUSSnapshot(scanned: USQuote[], qualityCount: number, opportunities
     moodScore,
     primary: indexLabel("S&P 500", sp500?.phaseChangePct),
     secondary: indexLabel("NASDAQ", nasdaq?.phaseChangePct),
+    breadthLabel: "涨幅榜样本漏斗",
     breadthValue: `${scanned.length} / ${qualityCount}`,
     breadthCaption: "涨幅榜扫描 / 质量通过",
     event: `突破信号 ${breakoutCount}`,
@@ -632,7 +740,7 @@ function buildCNStructure(current: LimitPool, yesterday: LimitPool): ScreenerStr
   };
 }
 
-function buildUSStructure(scannedCount: number, qualityQuotes: USQuote[], opportunities: ScreenerOpportunity[]): ScreenerStructure {
+function buildUSStructure(scannedCount: number, qualityQuotes: USQuote[], expandedQuotes: USQuote[], opportunities: ScreenerOpportunity[]): ScreenerStructure {
   return {
     title: "默认质量过滤",
     badge: "已开启",
@@ -645,6 +753,7 @@ function buildUSStructure(scannedCount: number, qualityQuotes: USQuote[], opport
     stats: [
       { label: "扫描", value: String(scannedCount) },
       { label: "通过", value: String(qualityQuotes.length) },
+      { label: "扩展", value: String(expandedQuotes.length) },
       { label: "突破", value: String(opportunities.filter((item) => item.strategies.includes("突破新高")).length) },
     ],
     note: "先对新浪美股涨幅榜执行流动性和市值过滤，再以日K计算趋势与动量，避免低流动性高涨幅样本进入推荐池。",
@@ -755,13 +864,86 @@ function buildRisks(seed: AnalysisSeed, state: { ma5Distance: number; return5: n
   return values.slice(0, 4);
 }
 
+export function buildStrategyEvidence(market: ScreenerMarket, histories: DailyRow[][]): ScreenerStrategyEvidence[] {
+  type Sample = { return1: number; return3: number; mfe3: number; mae3: number };
+  const samples = new Map<string, Sample[]>();
+  const push = (strategy: string, sample: Sample) => samples.set(strategy, [...(samples.get(strategy) ?? []), sample]);
+
+  for (const rows of histories) {
+    for (let index = 20; index < rows.length - 3; index += 1) {
+      const current = rows[index];
+      const previous = rows[index - 1];
+      const next = rows[index + 1];
+      const forward = rows.slice(index + 1, index + 4);
+      const previous5 = rows.slice(index - 5, index);
+      const previous20 = rows.slice(index - 20, index);
+      const previous60 = rows.slice(Math.max(0, index - 60), index);
+      const volumeBase = average(previous5.map((row) => row.volume));
+      const volumeRatio = volumeBase > 0 ? current.volume / volumeBase : 1;
+      const change = percentChange(current.close, previous.close);
+      const gap = percentChange(current.open, previous.close);
+      const return20 = percentChange(current.close, rows[index - 20].close);
+      const ma20 = average(previous20.map((row) => row.close));
+      const breakout20 = current.close >= Math.max(...previous20.map((row) => row.high)) * .998;
+      const breakout60 = previous60.length >= 40 && current.close >= Math.max(...previous60.map((row) => row.high)) * .998;
+      const strategies = market === "CN"
+        ? [breakout20 ? "趋势突破" : "", volumeRatio >= 1.3 && change > 0 ? "放量上涨" : ""]
+        : [change >= 3 ? "强势股" : "", gap >= 3 ? "Gap Up" : "", breakout60 ? "突破新高" : "", volumeRatio >= 1.3 && change > 0 ? "放量上涨" : "", return20 > 4 && current.close > ma20 ? "Momentum" : ""];
+      const sample = {
+        return1: clamp(percentChange(next.close, current.close), -50, 50),
+        return3: clamp(percentChange(forward.at(-1)?.close ?? next.close, current.close), -50, 50),
+        mfe3: clamp(Math.max(0, percentChange(Math.max(...forward.map((row) => row.high)), current.close)), 0, 50),
+        mae3: clamp(Math.min(0, percentChange(Math.min(...forward.map((row) => row.low)), current.close)), -50, 0),
+      };
+      for (const strategy of unique(strategies.filter(Boolean))) push(strategy, sample);
+    }
+  }
+
+  const order = market === "CN" ? ["趋势突破", "放量上涨"] : ["Momentum", "突破新高", "Gap Up", "放量上涨", "强势股"];
+  return order.flatMap((strategy) => {
+    const values = samples.get(strategy) ?? [];
+    if (!values.length) return [];
+    return [{
+      strategy,
+      sampleSize: values.length,
+      winRate1D: round(values.filter((item) => item.return1 > 0).length / values.length * 100, 1),
+      medianReturn1D: round(median(values.map((item) => item.return1)), 2),
+      averageReturn3D: round(average(values.map((item) => item.return3)), 2),
+      averageMfe3D: round(average(values.map((item) => item.mfe3)), 2),
+      averageMae3D: round(average(values.map((item) => item.mae3)), 2),
+      window: `本次候选证券近 ${historyWindowDays} 个交易日`,
+      methodology: "滚动识别同一规则信号，统计触发后的未扣费收益，单样本按正负50%缩尾；属于当前候选样本验证，不等同全市场回测。",
+    }];
+  });
+}
+
 function isCNQualityQuote(quote: CNQuote): boolean {
   return quote.price > 2 && quote.amount >= 50_000_000 && quote.change > 0 && !/(?:^|\*)ST|退$|^N/.test(quote.name);
 }
 
-function isUSQualityQuote(quote: USQuote): boolean {
+function isUSQualityQuote(quote: USQuote, tier: "standard" | "expanded" = "standard"): boolean {
   const suspicious = /(?:WARRANT|RIGHT|UNIT|权证)/i.test(quote.name) || /W$|WS$|WT$|R$|U$/.test(quote.symbol);
-  return quote.price >= 5 && quote.marketCap >= 500_000_000 && quote.amount >= 10_000_000 && quote.change > 0 && !suspicious;
+  if (suspicious || quote.change <= 0) return false;
+  if (tier === "expanded") return quote.price >= 2 && quote.marketCap >= 100_000_000 && quote.amount >= 3_000_000;
+  return quote.price >= 5
+    && quote.marketCap >= 500_000_000
+    && quote.amount >= 10_000_000
+    && classifyUSSecurity(quote) !== "杠杆ETF";
+}
+
+function classifyUSSecurity(quote: USQuote): ScreenerSecurityType {
+  const label = `${quote.name} ${quote.category}`.toUpperCase();
+  if (/(?:2X|3X|ULTRA|DAILY TARGET|LEVERAGED)/.test(label) && /ETF|FUND/.test(label)) return "杠杆ETF";
+  if (/ETF|EXCHANGE.TRADED FUND|FUND/.test(label)) return "ETF";
+  if (/TRUST/.test(label)) return "信托";
+  return "股票";
+}
+
+function industryForUSQuote(quote: USQuote): string {
+  const value = quote.category.trim();
+  if (value && !/^(?:NASDAQ|NYSE|AMEX|US)$/i.test(value)) return value;
+  const type = classifyUSSecurity(quote);
+  return type === "股票" ? "其他行业" : type;
 }
 
 function cnPreScore(quote: CNQuote): number {
@@ -895,7 +1077,14 @@ function zonedTime(now: Date, timeZone: string): string {
 function signed(value: number): string { return `${value >= 0 ? "+" : ""}${round(value, 2)}`; }
 function formatInteger(value: number): string { return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value); }
 function percentChange(value: number, anchor: number): number { return anchor > 0 ? (value / anchor - 1) * 100 : 0; }
+function historicalReturn(rows: DailyRow[], days: number): number { return rows.length > days ? percentChange(rows.at(-1)!.close, rows.at(-(days + 1))!.close) : 0; }
 function average(values: number[]): number { return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; }
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : average([sorted[middle - 1], sorted[middle]]);
+}
 function round(value: number, digits: number): number { const factor = 10 ** digits; return Math.round(value * factor) / factor; }
 function clamp(value: number, minimum: number, maximum: number): number { return Math.min(maximum, Math.max(minimum, value)); }
 function finiteNumber(value: unknown): number { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }

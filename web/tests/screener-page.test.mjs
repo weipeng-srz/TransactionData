@@ -13,9 +13,47 @@ test("screener exposes the requested A-share and US strategy surfaces", () => {
 });
 
 test("screener keeps scores explainable and risk-aware", () => {
-  for (const label of ["因子拆解", "为什么进入候选池", "主要风险", "风险失效", "不建议当前位置追高", "模型置信度"]) {
+  for (const label of ["因子拆解", "为什么进入候选池", "主要风险", "风险失效", "不建议当前位置追高", "信号一致性"]) {
     assert.match(pageSource, new RegExp(label));
   }
+});
+
+test("screener exposes professional evidence, coverage, sizing, filters, chart and research pool", () => {
+  for (const label of ["策略历史表现", "数据覆盖与模型审计", "最高风险", "最低成交额", "最低盈亏比", "建议仓位上限", "相对强弱与交易参数", "研究观察池", "价格结构", "涨停质量"]) {
+    assert.match(pageSource, new RegExp(label));
+  }
+  assert.match(pageSource, /qualityTier === "standard"/);
+  assert.match(pageSource, /setMinimumAmount\(0\)/);
+  assert.match(pageSource, /expandedQualityCount/);
+  assert.match(styleSource, /\.coveragePanel/);
+  assert.match(styleSource, /\.evidenceGrid/);
+  assert.match(styleSource, /\.miniChart/);
+});
+
+test("screener prioritizes candidates and exposes complete professional UX workflows", () => {
+  for (const label of [
+    "先看候选，再看证据",
+    "简洁模式",
+    "专业模式",
+    "当前条件",
+    "清空条件",
+    "更新/重命名",
+    "扩展池 · 含高风险证券",
+    "候选横向比较",
+    "一键放宽条件",
+    "事件次数不是独立证券数",
+    "证据与风险",
+    "交易计划",
+    "撤销",
+  ]) assert.match(pageSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(pageSource, /aria-pressed=\{professionalMode\}/);
+  assert.match(pageSource, /aria-label=\{`查看\$\{stock\.name\}机会详情`\}/);
+  assert.match(pageSource, /prefilterCount/);
+  assert.match(styleSource, /\.decisionSticky \{[\s\S]*position: sticky/);
+  assert.match(styleSource, /\.mobileOpportunityList/);
+  assert.match(styleSource, /\.drawerTabs/);
+  assert.match(styleSource, /\.methodDialog/);
+  assert.match(styleSource, /--screener-risk-high/);
 });
 
 test("screener loads same-origin real market data and labels model-derived values", () => {
@@ -40,7 +78,7 @@ test("screener follows the shared segmented controls, data cards, and touch feed
   assert.match(styleSource, /\.strategyTabs \.activeTab \{[\s\S]*box-shadow:/);
   assert.match(styleSource, /\.marketStrip \{[\s\S]*border-radius: var\(--apple-radius-lg\)/);
   assert.match(styleSource, /\.cardMetrics > span \{[\s\S]*background: var\(--screener-raised\)/);
-  assert.match(styleSource, /\.page :where\(button, a, select\):focus-visible/);
+  assert.match(styleSource, /\.page :where\(button, a, select, input\):focus-visible/);
   assert.match(styleSource, /\.page button:not\(:disabled\):active/);
   assert.match(styleSource, /@media \(max-width: 760px\)[\s\S]*\.rowAction \{ width: 44px; height: 44px; \}/);
 });

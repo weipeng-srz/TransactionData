@@ -1,5 +1,18 @@
 export type ScreenerMarket = "CN" | "US";
 export type ScreenerRecommendation = "强烈关注" | "值得关注" | "观察" | "谨慎";
+export type ScreenerSecurityType = "股票" | "ETF" | "杠杆ETF" | "信托";
+
+export type ScreenerStrategyEvidence = {
+  strategy: string;
+  sampleSize: number;
+  winRate1D: number;
+  medianReturn1D: number;
+  averageReturn3D: number;
+  averageMfe3D: number;
+  averageMae3D: number;
+  window: string;
+  methodology: string;
+};
 
 export type ScreenerOpportunity = {
   market: ScreenerMarket;
@@ -21,13 +34,56 @@ export type ScreenerOpportunity = {
   volumeRatio: number;
   turnover: number;
   amount: string;
+  amountValue: number;
+  marketCap: number;
   closePosition: number;
+  return20: number;
+  benchmarkReturn20: number;
+  relativeStrength20: number;
+  securityType: ScreenerSecurityType;
+  qualityTier: "standard" | "expanded";
   firstLimit?: string;
   sealStrength?: number;
+  limitDetail?: {
+    first: string;
+    last: string;
+    burstCount: number;
+    sealFund: string;
+    sealFundRatio: number;
+    shape: string;
+    strength: number;
+  };
   reasons: string[];
   risks: string[];
   factorScores: Array<{ label: string; value: number }>;
-  plan: { watch: string; breakout: string; stop: string; targets: string };
+  plan: {
+    watch: string;
+    breakout: string;
+    stop: string;
+    targets: string;
+    watchLow: number;
+    watchHigh: number;
+    breakoutPrice: number;
+    stopPrice: number;
+    targetPrices: number[];
+    atr: number;
+    atrPercent: number;
+    stopDistancePercent: number;
+    rewardRisk: number;
+    riskPerTradePercent: number;
+    suggestedPositionPercent: number;
+  };
+  chart: {
+    dates: string[];
+    prices: number[];
+    volumes: number[];
+  };
+  audit: {
+    lastBarDate: string;
+    barCount: number;
+    modelVersion: string;
+    completeness: number;
+  };
 };
 
 export type ScreenerTheme = {
@@ -42,6 +98,7 @@ export type ScreenerSnapshot = {
   moodScore: number;
   primary: string;
   secondary: string;
+  breadthLabel: string;
   breadthValue: string;
   breadthCaption: string;
   event: string;
@@ -75,10 +132,17 @@ export type ScreenerFeed = {
   opportunities: ScreenerOpportunity[];
   themes: ScreenerTheme[];
   structure: ScreenerStructure;
+  strategyEvidence: ScreenerStrategyEvidence[];
   diagnostics: {
     universeCount: number;
+    scannedCount: number;
+    qualityCount: number;
+    expandedQualityCount: number;
+    prefilterCount: number;
     analyzedCount: number;
     failedHistoryCount: number;
+    historyWindowDays: number;
+    modelVersion: string;
     delayed: boolean;
   };
 };
