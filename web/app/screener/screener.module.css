@@ -284,6 +284,13 @@
 .emptyState { min-height: 180px; display: grid; place-items: center; align-content: center; gap: 7px; color: var(--apple-tertiary); }
 .emptyState strong { color: var(--apple-text); font-size: 12px; }
 .emptyState span { font-size: 9px; }
+.dataState { min-height: 270px; padding: 40px 20px; display: grid; place-items: center; align-content: center; gap: 10px; border: 1px solid var(--apple-border); border-top: 0; border-radius: 0 0 22px 22px; color: var(--apple-tertiary); background: var(--apple-surface); text-align: center; }
+.dataState strong { color: var(--apple-text); font-size: 15px; }
+.dataState span { max-width: 460px; font-size: 9px; line-height: 1.7; }
+.spinner { width: 28px; height: 28px; border: 3px solid var(--apple-fill-strong); border-top-color: var(--apple-accent); border-radius: 50%; animation: spin 800ms linear infinite; }
+.errorState { border-top: 1px solid var(--apple-border); border-radius: 20px; }
+.errorState button { min-height: 36px; padding: 0 16px; border: 1px solid var(--apple-accent); border-radius: 10px; color: #fff; background: var(--apple-accent); font-size: 9px; font-weight: 680; cursor: pointer; }
+.downText { color: var(--apple-fall) !important; font-weight: 680; }
 
 .insightRail { min-width: 0; display: grid; gap: 18px; }
 .ladderCard,
@@ -329,6 +336,8 @@
 
 .disclaimer { margin-top: 18px; padding: 13px 16px; display: flex; gap: 10px; border: 1px solid var(--apple-border); border-radius: 14px; color: var(--apple-tertiary); background: color-mix(in srgb, var(--apple-surface) 72%, transparent); font-size: 8px; line-height: 1.6; }
 .disclaimer strong { flex: 0 0 auto; color: var(--apple-secondary); }
+.disclaimer a { color: var(--apple-accent); text-decoration: none; }
+.disclaimer a:hover { text-decoration: underline; }
 
 .drawerBackdrop {
   position: fixed;
@@ -406,6 +415,7 @@
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes slideIn { from { transform: translateX(30px); opacity: .6; } }
 @keyframes toastIn { from { transform: translateY(8px); opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1240px) {
   .shell { width: min(100% - 32px, 1480px); }

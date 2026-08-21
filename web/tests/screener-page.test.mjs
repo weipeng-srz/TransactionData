@@ -13,9 +13,17 @@ test("screener exposes the requested A-share and US strategy surfaces", () => {
 });
 
 test("screener keeps scores explainable and risk-aware", () => {
-  for (const label of ["因子拆解", "为什么进入候选池", "主要风险", "风险失效", "不建议当前位置追高", "产品演示样本"]) {
+  for (const label of ["因子拆解", "为什么进入候选池", "主要风险", "风险失效", "不建议当前位置追高", "模型置信度"]) {
     assert.match(pageSource, new RegExp(label));
   }
+});
+
+test("screener loads same-origin real market data and labels model-derived values", () => {
+  assert.match(pageSource, /fetch\(`\/api\/screener\?market=\$\{market\}`/);
+  assert.match(pageSource, /真实市场行情/);
+  assert.match(pageSource, /公开免费行情可能延时/);
+  assert.doesNotMatch(pageSource, /const opportunities:/);
+  assert.doesNotMatch(pageSource, /产品演示样本|上涨样本概率/);
 });
 
 test("screener is linked from the shared site banner and supports responsive layouts", () => {

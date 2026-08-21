@@ -31,6 +31,8 @@ flowchart LR
 4. 服务端把不同上游响应转换为稳定的 CSV 或 JSON；前端解析模块再统一为图表和研究组件使用的领域模型。
 5. 研究状态和匿名聚合遥测通过 Drizzle 写入 D1。
 
+智能选股页通过同域 `/api/screener?market=CN|US` 获取聚合 JSON。`screenerData.ts` 负责全市场列表、涨停池、日 K、指数、短时缓存和并发合并；`screenerTypes.ts` 是服务端与页面共享的稳定响应契约。浏览器不接触第三方地址，也不保存整批行情。
+
 ## 目录职责
 
 | 目录 | 职责 |
