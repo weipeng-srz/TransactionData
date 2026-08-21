@@ -33,3 +33,14 @@ test("screener is linked from the shared site banner and supports responsive lay
   assert.match(styleSource, /@media \(max-width: 760px\)/);
   assert.match(styleSource, /@media \(max-width: 480px\)/);
 });
+
+test("screener follows the shared segmented controls, data cards, and touch feedback", () => {
+  assert.match(styleSource, /\.marketSwitch \{[\s\S]*background: var\(--apple-fill\)/);
+  assert.match(styleSource, /\.marketSwitch \.active \{[\s\S]*background: var\(--apple-surface\)/);
+  assert.match(styleSource, /\.strategyTabs \.activeTab \{[\s\S]*box-shadow:/);
+  assert.match(styleSource, /\.marketStrip \{[\s\S]*border-radius: var\(--apple-radius-lg\)/);
+  assert.match(styleSource, /\.cardMetrics > span \{[\s\S]*background: var\(--screener-raised\)/);
+  assert.match(styleSource, /\.page :where\(button, a, select\):focus-visible/);
+  assert.match(styleSource, /\.page button:not\(:disabled\):active/);
+  assert.match(styleSource, /@media \(max-width: 760px\)[\s\S]*\.rowAction \{ width: 44px; height: 44px; \}/);
+});
