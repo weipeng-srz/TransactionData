@@ -43,6 +43,7 @@ import {
 } from "../lib/portfolioPresentation";
 import { buildPortfolioPredictionConclusion } from "../lib/portfolioPrediction";
 import SiteBanner from "./SiteBanner";
+import PortfolioWorkbenchSummary from "./PortfolioWorkbenchSummary";
 import styles from "./PortfolioHome.module.css";
 import { currencyOf, marketLabel, marketOf, stockRouteKey, stockStorageKey, type StockCurrency, type StockMarket } from "../lib/security";
 
@@ -51,6 +52,7 @@ type QuoteStatus = "idle" | "loading" | "ready" | "error";
 
 type PortfolioQuote = {
   status: QuoteStatus;
+  partial: boolean;
   candles: Candle[];
   price: number | null;
   previousClose: number | null;
@@ -71,6 +73,16 @@ type PortfolioQuote = {
   intent: IntentAnalysis | null;
   predictionStatus: QuoteStatus;
   prediction: NextDayPredictionReport | null;
+  newsItems: NewsItem[];
+  newsStatus: QuoteStatus;
+  newsError: string;
+  technicalSignal: {
+    side: "B" | "S";
+    date: string;
+    price: number;
+    score: number;
+    reasons: string[];
+  } | null;
 };
 
 type PortfolioBenchmark = {
@@ -123,6 +135,7 @@ const searchExamples = [
 
 const emptyQuote: PortfolioQuote = {
   status: "idle",
+  partial: false,
   candles: [],
   price: null,
   previousClose: null,
@@ -143,6 +156,10 @@ const emptyQuote: PortfolioQuote = {
   intent: null,
   predictionStatus: "idle",
   prediction: null,
+  newsItems: [],
+  newsStatus: "idle",
+  newsError: "",
+  technicalSignal: null,
 };
 
 function loadPortfolioBenchmark(market: StockMarket): Promise<PortfolioBenchmark> {
@@ -263,6 +280,41 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     }
   }, [fxPreference, hydrated]);
 
+  const loadNews = useCallback(async (stock: WatchlistStock, signal: AbortSignal): Promise<NewsItem[]> => {
+    const key = stockStorageKey(stock);
+    const market = marketOf(stock);
+    setQuotes((current) => current[key] ? ({
+      ...current,
+      [key]: { ...current[key], newsStatus: "loading", newsError: "" },
+    }) : current);
+    try {
+      const response = await fetch(market === "US" ? "/api/us-stock-news" : "/api/local-stock-news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: stock.code, limit: 24 }),
+        signal,
+      });
+      const body = await response.text();
+      if (!response.ok) throw new Error("消息面获取失败");
+      const newsItems = parseNewsCsv(body).items;
+      if (!signal.aborted) {
+        setQuotes((current) => current[key] ? ({
+          ...current,
+          [key]: { ...current[key], newsItems, newsStatus: "ready", newsError: "" },
+        }) : current);
+      }
+      return newsItems;
+    } catch (reason) {
+      if (!signal.aborted) {
+        setQuotes((current) => current[key] ? ({
+          ...current,
+          [key]: { ...current[key], newsStatus: "error", newsError: "消息面获取失败" },
+        }) : current);
+      }
+      throw reason;
+    }
+  }, []);
+
   const loadQuote = useCallback(async (stock: WatchlistStock, signal: AbortSignal) => {
     const key = stockStorageKey(stock);
     const market = marketOf(stock);
@@ -274,6 +326,8 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         error: "",
         predictionStatus: "loading",
         prediction: null,
+        newsStatus: "loading",
+        newsError: "",
       },
     }));
     const marketRequest = fetch(market === "US" ? "/api/us-stock-data" : "/api/local-stock-data", {
@@ -295,7 +349,21 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       const indicators = calculateIndicators(candles);
       const latest = candles.at(-1);
       const intent = latest ? analyzeMarketIntent(dataset, code, latest.date) : null;
-      return { candles, indicators, intent, dataQuality: dataset.quality };
+      let technicalSignal: PortfolioQuote["technicalSignal"] = null;
+      for (let index = indicators.guidePoints.length - 1; index >= Math.max(0, indicators.guidePoints.length - 5); index -= 1) {
+        const guide = indicators.guidePoints[index];
+        const candle = candles[index];
+        if (!guide || !candle) continue;
+        technicalSignal = {
+          side: guide.type === "buy" ? "B" : "S",
+          date: candle.date,
+          price: candle.close,
+          score: guide.score,
+          reasons: guide.reasons,
+        };
+        break;
+      }
+      return { candles, indicators, intent, technicalSignal, dataQuality: dataset.quality };
     });
     const realtimeRequest = fetch(market === "US" ? "/api/us-stock-realtime" : "/api/realtime-market", {
       method: "POST",
@@ -308,16 +376,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       if (!response.ok) throw new Error(String((body as { error?: unknown }).error || "实时行情获取失败"));
       return body as RealtimeSnapshot;
     });
-    const newsRequest = fetch(market === "US" ? "/api/us-stock-news" : "/api/local-stock-news", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: stock.code, limit: 24 }),
-      signal,
-    }).then(async (response) => {
-      const body = await response.text();
-      if (!response.ok) throw new Error("消息面获取失败");
-      return parseNewsCsv(body).items;
-    });
+    const newsRequest = loadNews(stock, signal);
     const benchmarkRequest = loadPortfolioBenchmark(market);
     const contextRequest = Promise.allSettled([newsRequest, benchmarkRequest] as const);
 
@@ -331,9 +390,11 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         [key]: {
           ...(current[key] ?? emptyQuote),
           status: "error",
+          partial: false,
           error: `${marketError}；${realtimeError}`,
           predictionStatus: "error",
           prediction: null,
+          technicalSignal: null,
         },
       }));
       return;
@@ -348,6 +409,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     const fallbackChangePct = price != null && previousClose ? ((price / previousClose) - 1) * 100 : latest?.changePct ?? null;
     const quote: PortfolioQuote = {
       status: "ready",
+      partial: marketResult.status === "rejected" || realtimeResult.status === "rejected",
       candles,
       price,
       previousClose,
@@ -368,14 +430,26 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       intent: marketResult.status === "fulfilled" ? marketResult.value.intent : null,
       predictionStatus: marketResult.status === "fulfilled" ? "loading" : "error",
       prediction: null,
+      newsItems: [],
+      newsStatus: "loading",
+      newsError: "",
+      technicalSignal: marketResult.status === "fulfilled" ? marketResult.value.technicalSignal : null,
     };
-    setQuotes((current) => ({ ...current, [key]: quote }));
+    setQuotes((current) => ({
+      ...current,
+      [key]: {
+        ...quote,
+        newsItems: current[key]?.newsItems ?? [],
+        newsStatus: current[key]?.newsStatus ?? "loading",
+        newsError: current[key]?.newsError ?? "",
+      },
+    }));
 
-    if (marketResult.status !== "fulfilled") return;
     const [newsResult, benchmarkResult] = await contextRequest;
     if (signal.aborted) return;
     const newsItems: NewsItem[] = newsResult.status === "fulfilled" ? newsResult.value : [];
     const benchmark = benchmarkResult.status === "fulfilled" ? benchmarkResult.value : null;
+    if (marketResult.status !== "fulfilled") return;
     try {
       const score = buildStockScore({
         candles,
@@ -406,6 +480,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         [key]: {
           ...current[key],
           score,
+          newsItems: newsResult.status === "fulfilled" ? newsItems : current[key].newsItems,
           predictionStatus: prediction ? "ready" : "error",
           prediction,
         },
@@ -416,7 +491,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         [key]: { ...current[key], predictionStatus: "error", prediction: null },
       }) : current);
     }
-  }, []);
+  }, [loadNews]);
 
   const refreshRealtimeQuotes = useCallback(async () => {
     if (!watchlist.length || document.hidden) return;
@@ -450,6 +525,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         next[key] = {
           ...previous,
           status: "ready",
+          partial: previous.candles.length === 0,
           price: realtime.price,
           previousClose: realtime.previousClose,
           change: realtime.change,
@@ -720,6 +796,15 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
             <small>{totals.tracked ? `${Object.values(quotes).filter((quote) => quote.status === "ready").length} 只行情已就绪` : "从上方添加第一只股票"}</small>
           </article>
         </section>
+
+        <PortfolioWorkbenchSummary
+          watchlist={watchlist}
+          holdings={holdings}
+          quotes={quotes}
+          onOpenStock={onOpenStock}
+          onAddStock={addResolvedStock}
+          onRetryNews={async (stock) => { await loadNews(stock, new AbortController().signal); }}
+        />
 
         <FxConversionPanel
           totals={totals.byCurrency}
