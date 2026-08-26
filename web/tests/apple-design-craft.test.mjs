@@ -10,6 +10,14 @@ const bannerStyles = read("../app/components/SiteBanner.module.css");
 const screenerStyles = read("../app/screener/screener.module.css");
 const globalStyles = read("../app/global-markets/global-markets.css");
 const platformStyles = [researchStyles, portfolioStyles, bannerStyles, screenerStyles, globalStyles];
+const completeStyleSet = [
+  read("../app/globals.css"),
+  read("../app/apple.css"),
+  read("../app/components/BeginnerGuideCard.module.css"),
+  read("../app/components/PortfolioWorkbenchSummary.module.css"),
+  read("../app/components/SignalBacktestCard.module.css"),
+  ...platformStyles,
+];
 
 test("uses one optical type, focus, and motion language across the platform", () => {
   assert.match(researchStyles, /--apple-display-font:/);
@@ -37,7 +45,7 @@ test("keeps translucency on structural surfaces and supports reduced transparenc
 });
 
 test("preserves touch accessibility and calm reduced-motion fallbacks", () => {
-  assert.match(researchStyles, /@media \(pointer: coarse\)[\s\S]*?min-height: 44px/);
+  assert.match(researchStyles, /@media \(pointer: coarse\)[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px/);
   assert.match(portfolioStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
   assert.match(screenerStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
@@ -45,5 +53,16 @@ test("preserves touch accessibility and calm reduced-motion fallbacks", () => {
 
   for (const styles of platformStyles) {
     assert.match(styles, /prefers-reduced-motion: reduce/);
+  }
+});
+
+test("keeps captions readable and compact controls reliably clickable", () => {
+  assert.match(researchStyles, /--apple-caption-size: 11px;/);
+  assert.match(researchStyles, /--apple-compact-hit: 32px;/);
+  assert.match(researchStyles, /@media \(pointer: fine\)[\s\S]*?min-height: var\(--apple-compact-hit\)/);
+
+  for (const styles of completeStyleSet) {
+    assert.doesNotMatch(styles, /font-size:\s*(?:7|8|9|10)px/);
+    assert.doesNotMatch(styles, /font:\s*[^;\n]*?(?<!\d)(?:7|8|9|10)px/);
   }
 });

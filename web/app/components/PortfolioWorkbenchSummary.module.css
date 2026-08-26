@@ -196,7 +196,7 @@
   border-bottom: 1px solid var(--portfolio-border);
   background: var(--portfolio-muted-surface);
   color: var(--portfolio-secondary);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 690;
   letter-spacing: .03em;
 }

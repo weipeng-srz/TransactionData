@@ -43,7 +43,7 @@
 
 .header p {
   color: var(--apple-accent);
-  font: 720 10px/1.2 var(--apple-mono);
+  font: 720 11px/1.2 var(--apple-mono);
   letter-spacing: .12em;
 }
 
@@ -85,7 +85,7 @@
 
 .item > span {
   color: var(--apple-tertiary);
-  font: 700 10px/1 var(--apple-mono);
+  font: 700 11px/1 var(--apple-mono);
 }
 
 .item strong {

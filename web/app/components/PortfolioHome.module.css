@@ -55,6 +55,20 @@
   touch-action: manipulation;
 }
 
+@media (pointer: fine) {
+  .page button {
+    min-width: 32px;
+    min-height: 32px;
+  }
+}
+
+@media (pointer: coarse) {
+  .page button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 .page :where(button, a, select, input):focus-visible {
   outline: 2px solid color-mix(in srgb, var(--portfolio-blue) 72%, transparent);
   outline-offset: 2px;
@@ -133,7 +147,7 @@
 
 .brand small {
   color: var(--portfolio-tertiary);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 540;
   letter-spacing: 0.05em;
 }
@@ -181,7 +195,7 @@
   align-items: center;
   gap: 7px;
   color: var(--portfolio-tertiary);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 560;
 }
 
@@ -218,7 +232,7 @@
 .listHeader p {
   margin: 0;
   color: var(--portfolio-blue);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 720;
   letter-spacing: 0.13em;
 }
@@ -274,7 +288,7 @@
   border-radius: 7px;
   background: var(--portfolio-muted-surface);
   color: var(--portfolio-tertiary);
-  font: 550 9px -apple-system, BlinkMacSystemFont, sans-serif;
+  font: 550 11px -apple-system, BlinkMacSystemFont, sans-serif;
   box-shadow: inset 0 -1px rgba(0, 0, 0, 0.04);
 }
 
@@ -285,7 +299,7 @@
   border-radius: 10px;
   background: var(--portfolio-blue);
   color: white;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   cursor: pointer;
   box-shadow: 0 5px 14px color-mix(in srgb, var(--portfolio-blue) 18%, transparent);
@@ -320,7 +334,7 @@
 .suggestion:hover { background: var(--portfolio-muted-surface); }
 .suggestion > span:nth-child(2) { min-width: 0; display: grid; gap: 3px; }
 .suggestion strong { font-size: 13px; }
-.suggestion small { color: var(--portfolio-tertiary); font-size: 10px; }
+.suggestion small { color: var(--portfolio-tertiary); font-size: 11px; }
 .suggestion em { color: var(--portfolio-blue); font-size: 11px; font-style: normal; font-weight: 650; }
 
 .searchError {
@@ -335,7 +349,7 @@
   border-radius: 9px;
   background: var(--portfolio-surface-solid);
   color: var(--portfolio-red);
-  font-size: 9px;
+  font-size: 11px;
   box-shadow: 0 10px 28px rgba(20, 30, 50, 0.12);
 }
 
@@ -379,20 +393,20 @@
 }
 
 .fxPanelEnabled { grid-template-columns: minmax(220px, .9fr) auto minmax(180px, .55fr) minmax(360px, 1.25fr); }
-.fxPanel p { margin: 0; color: var(--portfolio-blue); font-size: 10px; font-weight: 720; letter-spacing: .1em; }
+.fxPanel p { margin: 0; color: var(--portfolio-blue); font-size: 11px; font-weight: 720; letter-spacing: .1em; }
 .fxPanel > div:first-child > strong { margin-top: 4px; display: block; font-size: 14px; }
-.fxPanel > div:first-child > small { margin-top: 4px; display: block; color: var(--portfolio-tertiary); font-size: 10px; line-height: 1.45; }
+.fxPanel > div:first-child > small { margin-top: 4px; display: block; color: var(--portfolio-tertiary); font-size: 11px; line-height: 1.45; }
 
 .fxToggle { min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--portfolio-border); border-radius: 999px; color: var(--portfolio-secondary); font-size: 11px; cursor: pointer; }
 .fxToggle input { accent-color: var(--portfolio-blue); }
 .fxRateField { display: grid; grid-template-columns: auto minmax(70px, 1fr); align-items: center; gap: 4px 8px; }
-.fxRateField > span { color: var(--portfolio-secondary); font: 650 10px var(--mono); }
+.fxRateField > span { color: var(--portfolio-secondary); font: 650 11px var(--mono); }
 .fxRateField input { width: 86px; height: 32px; padding: 0 8px; border: 1px solid var(--portfolio-border); border-radius: 8px; background: var(--portfolio-muted-surface); color: var(--portfolio-text); font: 650 12px var(--mono); }
-.fxRateField small { grid-column: 1 / -1; color: var(--portfolio-tertiary); font-size: 9px; }
+.fxRateField small { grid-column: 1 / -1; color: var(--portfolio-tertiary); font-size: 11px; }
 
 .fxConvertedValues { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
 .fxConvertedValues > span { min-width: 0; padding: 8px 9px; border-radius: 9px; background: var(--portfolio-muted-surface); }
-.fxConvertedValues small { display: block; color: var(--portfolio-tertiary); font-size: 9px; }
+.fxConvertedValues small { display: block; color: var(--portfolio-tertiary); font-size: 11px; }
 .fxConvertedValues strong { margin-top: 4px; display: block; overflow: hidden; font: 650 11px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 
 .decisionBrief {
@@ -458,8 +472,8 @@
   letter-spacing: 0;
 }
 
-.performanceMetrics small { font-size: 9px; line-height: 1.35; }
-.performanceMetrics b { min-width: 0; overflow: hidden; font: 650 10px/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.performanceMetrics small { font-size: 11px; line-height: 1.35; }
+.performanceMetrics b { min-width: 0; overflow: hidden; font: 650 11px/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 
 .verificationLine {
   margin: 0;
@@ -467,11 +481,11 @@
   gap: 3px;
 }
 
-.verificationLine > b { width: fit-content; padding: 3px 7px; border-radius: 999px; font-size: 9px; font-weight: 700; }
-.verificationLine > span { color: var(--portfolio-tertiary); font-size: 9px; font-weight: 520; line-height: 1.45; letter-spacing: 0; overflow-wrap: anywhere; }
+.verificationLine > b { width: fit-content; padding: 3px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.verificationLine > span { color: var(--portfolio-tertiary); font-size: 11px; font-weight: 520; line-height: 1.45; letter-spacing: 0; overflow-wrap: anywhere; }
 .verified { background: color-mix(in srgb, var(--portfolio-green) 12%, transparent); color: var(--portfolio-green); }
 .needsReview { background: color-mix(in srgb, var(--portfolio-red) 10%, transparent); color: var(--portfolio-red); }
-.performanceNote { font-size: 9px !important; line-height: 1.45 !important; }
+.performanceNote { font-size: 11px !important; line-height: 1.45 !important; }
 
 .exposureStrip {
   margin-top: 9px;
@@ -513,7 +527,7 @@
 .globalMarketHeader p {
   margin: 0;
   color: var(--portfolio-blue);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 720;
   letter-spacing: 0.13em;
 }
@@ -530,7 +544,7 @@
   margin-top: 5px;
   display: block;
   color: var(--portfolio-tertiary);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .globalMarketHeader > div:last-child {
@@ -545,7 +559,7 @@
   align-items: center;
   gap: 6px;
   color: var(--portfolio-blue);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 620;
   text-decoration: none;
   border-radius: 8px;
@@ -594,7 +608,7 @@
 .globalMetric header span {
   overflow: hidden;
   color: var(--portfolio-secondary);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 590;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -602,7 +616,7 @@
 
 .globalMetric header em {
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
   font-style: normal;
 }
 
@@ -617,14 +631,14 @@
 
 .globalMetric footer > span {
   flex: none;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 650;
 }
 
 .globalMetric footer small {
   overflow: hidden;
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -637,8 +651,8 @@
   border-top: 1px solid var(--portfolio-border);
 }
 
-.globalProxyNote span { overflow: hidden; color: var(--portfolio-secondary); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
-.globalProxyNote small { color: var(--portfolio-tertiary); font-size: 7px; }
+.globalProxyNote span { overflow: hidden; color: var(--portfolio-secondary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.globalProxyNote small { color: var(--portfolio-tertiary); font-size: 11px; }
 
 .globalSkeleton {
   width: 74%;
@@ -658,7 +672,7 @@
   border: 1px dashed var(--portfolio-border-strong);
   border-radius: 14px;
   color: var(--portfolio-secondary);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .globalError button {
@@ -668,7 +682,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--portfolio-blue) 10%, transparent);
   color: var(--portfolio-blue);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 650;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease, transform 150ms ease;
@@ -679,7 +693,7 @@
 .globalStale {
   margin: 9px 3px 0;
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .watchlistCard {
@@ -713,7 +727,7 @@
   margin-top: 7px;
   display: block;
   color: var(--portfolio-tertiary);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .listActions {
@@ -729,7 +743,7 @@
   border-radius: 8px;
   background: var(--portfolio-surface-solid);
   color: var(--portfolio-secondary);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 580;
 }
 
@@ -747,7 +761,7 @@
   outline: 0;
   background: transparent;
   color: var(--portfolio-text);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -786,7 +800,7 @@
   padding: 0 10px;
   border-right: 1px solid color-mix(in srgb, var(--portfolio-border) 72%, transparent);
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
 }
@@ -870,7 +884,7 @@
 .stockIdentity small,
 .stockIdentity em {
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
   font-style: normal;
 }
 
@@ -894,7 +908,7 @@
 .klineCell small {
   overflow: hidden;
   color: var(--portfolio-tertiary);
-  font-size: 7px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -922,7 +936,7 @@
   border-radius: 8px;
   background: var(--portfolio-muted-surface);
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .priceCell strong,
@@ -941,12 +955,12 @@
 .profitCell > span {
   overflow: hidden;
   color: var(--portfolio-secondary);
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.priceCell small { overflow: hidden; color: #b76b00; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.priceCell small { overflow: hidden; color: #b76b00; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
 .scoreCell {
   min-width: 0;
@@ -991,8 +1005,8 @@
 }
 
 .scoreBadge > span { min-width: 0; display: grid; gap: 3px; text-align: left; }
-.scoreBadge strong { overflow: hidden; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.scoreBadge small { opacity: .7; font-size: 7px; }
+.scoreBadge strong { overflow: hidden; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.scoreBadge small { opacity: .7; font-size: 11px; }
 .scoreBuy { color: var(--portfolio-red); }
 .scoreSell { color: var(--portfolio-green); }
 .scoreHold { color: var(--portfolio-blue); }
@@ -1017,7 +1031,7 @@
   border-radius: 6px;
   background: var(--portfolio-surface-solid);
   color: var(--portfolio-secondary);
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 650;
   cursor: pointer;
   transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 150ms ease;
@@ -1035,7 +1049,7 @@
   border-radius: 9px;
   background: var(--portfolio-muted-surface);
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .predictionUnavailable { border-color: color-mix(in srgb, var(--portfolio-amber) 24%, var(--portfolio-border)); }
@@ -1089,10 +1103,10 @@
 
 .scorePopover header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .scorePopover header > div { min-width: 0; display: grid; gap: 3px; }
-.scorePopover header span { color: var(--portfolio-blue); font-size: 7px; font-weight: 720; letter-spacing: .12em; }
+.scorePopover header span { color: var(--portfolio-blue); font-size: 11px; font-weight: 720; letter-spacing: .12em; }
 .scorePopover header strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .scorePopover header > b { font-size: 30px; font-weight: 720; letter-spacing: -.06em; }
-.scorePopover > p { margin: 0; color: var(--portfolio-tertiary); font-size: 8px; line-height: 1.5; }
+.scorePopover > p { margin: 0; color: var(--portfolio-tertiary); font-size: 11px; line-height: 1.5; }
 .predictionMetrics { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .predictionMetrics > div {
   min-width: 0;
@@ -1103,20 +1117,20 @@
   border-radius: 10px;
   background: var(--portfolio-muted-surface);
 }
-.predictionMetrics span { color: var(--portfolio-tertiary); font-size: 7px; }
+.predictionMetrics span { color: var(--portfolio-tertiary); font-size: 11px; }
 .predictionMetrics strong { font-size: 12px; font-weight: 680; }
 .predictionLevels { padding: 9px 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-radius: 10px; background: color-mix(in srgb, var(--portfolio-blue) 5%, var(--portfolio-muted-surface)); }
-.predictionLevels span { color: var(--portfolio-secondary); font-size: 7px; }
-.predictionLevels strong { margin-left: 3px; color: var(--portfolio-text); font-size: 9px; }
-.predictionChecks { margin: 0; padding: 0 0 0 16px; display: grid; gap: 4px; color: var(--portfolio-secondary); font-size: 7px; line-height: 1.45; }
+.predictionLevels span { color: var(--portfolio-secondary); font-size: 11px; }
+.predictionLevels strong { margin-left: 3px; color: var(--portfolio-text); font-size: 11px; }
+.predictionChecks { margin: 0; padding: 0 0 0 16px; display: grid; gap: 4px; color: var(--portfolio-secondary); font-size: 11px; line-height: 1.45; }
 .scoreDimensions { display: grid; gap: 6px; }
 .scoreDimensions > div { display: grid; grid-template-columns: 35px minmax(0, 1fr) 23px 52px; align-items: center; gap: 7px; }
-.scoreDimensions span { color: var(--portfolio-secondary); font-size: 8px; }
+.scoreDimensions span { color: var(--portfolio-secondary); font-size: 11px; }
 .scoreDimensions i { height: 4px; overflow: hidden; border-radius: 99px; background: var(--portfolio-muted-surface); }
 .scoreDimensions i b { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg, var(--portfolio-blue), #69a8ff); }
-.scoreDimensions strong { font-size: 8px; text-align: right; }
-.scoreDimensions small { color: var(--portfolio-tertiary); font-size: 7px; text-align: right; }
-.scorePopover footer { padding-top: 9px; border-top: 1px solid var(--portfolio-border); color: var(--portfolio-secondary); font-size: 8px; line-height: 1.55; }
+.scoreDimensions strong { font-size: 11px; text-align: right; }
+.scoreDimensions small { color: var(--portfolio-tertiary); font-size: 11px; text-align: right; }
+.scorePopover footer { padding-top: 9px; border-top: 1px solid var(--portfolio-border); color: var(--portfolio-secondary); font-size: 11px; line-height: 1.55; }
 
 .holdingCell button,
 .retryLink {
@@ -1127,7 +1141,7 @@
   border-radius: 7px;
   background: transparent;
   color: var(--portfolio-blue);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 620;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease, transform 150ms ease;
@@ -1139,7 +1153,7 @@
 .holdingCell small {
   overflow: hidden;
   color: var(--portfolio-tertiary);
-  font-size: 7px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1153,7 +1167,7 @@
 
 .capitalCell > span {
   color: var(--portfolio-tertiary);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -1166,7 +1180,7 @@
 .capitalCell small {
   overflow: hidden;
   color: var(--portfolio-tertiary);
-  font-size: 7px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1179,9 +1193,9 @@
 }
 
 .marketCell > div { min-width: 0; display: grid; gap: 4px; }
-.marketCell span { color: var(--portfolio-tertiary); font-size: 7px; }
-.marketCell strong { overflow-wrap: anywhere; font-size: 9px; line-height: 1.25; font-weight: 620; font-variant-numeric: tabular-nums; }
-.marketCell small { grid-column: 1 / -1; font-size: 8px; }
+.marketCell span { color: var(--portfolio-tertiary); font-size: 11px; }
+.marketCell strong { overflow-wrap: anywhere; font-size: 11px; line-height: 1.25; font-weight: 620; font-variant-numeric: tabular-nums; }
+.marketCell small { grid-column: 1 / -1; font-size: 11px; }
 
 .rowActions {
   display: flex;
@@ -1288,8 +1302,8 @@
 
 .exampleStocks button:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--portfolio-blue) 30%, var(--portfolio-border)); }
 .exampleStocks button:focus-visible { border-color: color-mix(in srgb, var(--portfolio-blue) 52%, var(--portfolio-border)); }
-.exampleStocks strong { font-size: 10px; font-weight: 640; }
-.exampleStocks span { grid-column: 1; color: var(--portfolio-tertiary); font-size: 8px; }
+.exampleStocks strong { font-size: 11px; font-weight: 640; }
+.exampleStocks span { grid-column: 1; color: var(--portfolio-tertiary); font-size: 11px; }
 .exampleStocks em { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--portfolio-blue); font-size: 18px; font-style: normal; font-weight: 350; }
 
 .footer {
@@ -1300,7 +1314,7 @@
   justify-content: space-between;
   gap: 20px;
   color: var(--portfolio-tertiary);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .modalBackdrop {
@@ -1340,9 +1354,9 @@
 
 .modalIdentity { display: flex; align-items: center; gap: 13px; }
 .modalIdentity > div { min-width: 0; display: grid; gap: 3px; }
-.modalIdentity p { margin: 0; color: var(--portfolio-blue); font-size: 8px; font-weight: 700; letter-spacing: .08em; }
+.modalIdentity p { margin: 0; color: var(--portfolio-blue); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
 .modalIdentity h2 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.03em; }
-.modalIdentity small { color: var(--portfolio-tertiary); font-size: 9px; }
+.modalIdentity small { color: var(--portfolio-tertiary); font-size: 11px; }
 
 .modalClose {
   width: 40px;
@@ -1371,12 +1385,12 @@
 }
 
 .positionFields label { display: grid; gap: 7px; }
-.positionFields label > span { color: var(--portfolio-secondary); font-size: 9px; font-weight: 580; }
+.positionFields label > span { color: var(--portfolio-secondary); font-size: 11px; font-weight: 580; }
 .positionFields label > div { height: 48px; padding: 0 12px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--portfolio-border-strong); border-radius: 12px; background: var(--portfolio-muted-surface); }
 .positionFields input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--portfolio-text); font-size: 14px; font-weight: 610; }
 .positionFields input::placeholder { color: var(--portfolio-tertiary); font-weight: 450; }
 .positionFields em,
-.positionFields b { color: var(--portfolio-tertiary); font-size: 9px; font-style: normal; font-weight: 560; }
+.positionFields b { color: var(--portfolio-tertiary); font-size: 11px; font-style: normal; font-weight: 560; }
 
 .positionPreview {
   margin: 0 22px;
@@ -1388,11 +1402,11 @@
   background: color-mix(in srgb, var(--portfolio-blue) 7%, var(--portfolio-muted-surface));
 }
 
-.positionPreview span { color: var(--portfolio-secondary); font-size: 9px; }
+.positionPreview span { color: var(--portfolio-secondary); font-size: 11px; }
 .positionPreview strong { min-width: 0; max-width: 220px; grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: 16px; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
-.positionPreview small { color: var(--portfolio-tertiary); font-size: 8px; }
+.positionPreview small { color: var(--portfolio-tertiary); font-size: 11px; }
 
-.modalError { margin: 13px 22px 0; color: var(--portfolio-red); font-size: 9px; }
+.modalError { margin: 13px 22px 0; color: var(--portfolio-red); font-size: 11px; }
 
 .positionModal > footer {
   min-height: 74px;
@@ -1405,7 +1419,7 @@
 }
 
 .positionModal > footer > div { display: flex; gap: 8px; }
-.positionModal > footer button { min-height: 42px; padding: 0 16px; border-radius: 10px; font-size: 10px; font-weight: 620; cursor: pointer; transition: filter 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease; }
+.positionModal > footer button { min-height: 42px; padding: 0 16px; border-radius: 10px; font-size: 11px; font-weight: 620; cursor: pointer; transition: filter 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease; }
 .positionModal > footer button:hover { filter: brightness(1.04); }
 .clearButton { padding-left: 0 !important; border: 0; background: transparent; color: var(--portfolio-red); }
 .cancelButton { border: 1px solid var(--portfolio-border); background: var(--portfolio-surface-solid); color: var(--portfolio-secondary); }
@@ -1426,7 +1440,7 @@
   border-radius: 14px;
   background: color-mix(in srgb, var(--portfolio-surface-solid) 92%, transparent);
   color: var(--portfolio-text);
-  font-size: 10px;
+  font-size: 11px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(24px);
   transform: translateX(-50%);
@@ -1434,7 +1448,7 @@
 }
 
 .toast > span { min-width: 0; flex: 1; }
-.toast button { min-height: 36px; padding: 6px 9px; border: 0; border-radius: 8px; background: var(--portfolio-muted-surface); color: var(--portfolio-blue); font-size: 10px; font-weight: 650; cursor: pointer; transition: background 150ms ease, color 150ms ease, transform 150ms ease; }
+.toast button { min-height: 36px; padding: 6px 9px; border: 0; border-radius: 8px; background: var(--portfolio-muted-surface); color: var(--portfolio-blue); font-size: 11px; font-weight: 650; cursor: pointer; transition: background 150ms ease, color 150ms ease, transform 150ms ease; }
 .toast button:hover { background: color-mix(in srgb, var(--portfolio-blue) 10%, var(--portfolio-muted-surface)); }
 .toast button:last-child { width: 36px; height: 36px; padding: 0; color: var(--portfolio-tertiary); font-size: 16px; }
 
@@ -1548,7 +1562,7 @@
   .priceCell { grid-area: price; justify-items: end; text-align: right; }
   .scoreCell { grid-area: score; }
   .scoreBadge { min-height: 48px; }
-  .signalActions button { min-height: 44px; font-size: 9px; }
+  .signalActions button { min-height: 44px; font-size: 11px; }
   .capitalCell { grid-area: capital; padding: 11px 0 !important; grid-template-columns: auto 1fr auto; align-items: baseline; border-top: 1px solid var(--portfolio-border); border-bottom: 1px solid var(--portfolio-border); }
   .capitalCell strong { justify-self: center; font-size: 14px; }
   .capitalCell small { justify-self: end; }
@@ -1579,12 +1593,12 @@
   .searchIcon { display: none; }
   .searchField { grid-template-columns: minmax(0, 1fr) auto; padding-left: 13px; }
   .search input { font-size: 12px; }
-  .searchField > button[type="submit"] { padding: 0 12px; font-size: 10px; }
+  .searchField > button[type="submit"] { padding: 0 12px; font-size: 11px; }
   .summaryGrid article { min-height: 104px; padding: 15px; }
   .summaryGrid strong { font-size: 19px; }
   .summaryGrid small { font-size: 11px; }
   .globalMarketHeader h2 { font-size: 16px; }
-  .globalMarketHeader > div:last-child > a { font-size: 9px; }
+  .globalMarketHeader > div:last-child > a { font-size: 11px; }
   .globalMarketGrid { grid-template-columns: repeat(5, 158px); }
   .globalMetric > strong { font-size: 20px; }
   .listHeader h2 { font-size: 19px; }

@@ -73,7 +73,7 @@
 
 .brand > span:last-child { display: grid; gap: 1px; }
 .brand strong { font-size: 14px; font-weight: 680; letter-spacing: -.025em; }
-.brand small { color: var(--apple-tertiary); font-size: 9px; font-weight: 540; letter-spacing: .05em; }
+.brand small { color: var(--apple-tertiary); font-size: 11px; font-weight: 540; letter-spacing: .05em; }
 
 .navigation {
   min-height: 40px;
@@ -164,7 +164,7 @@
   border-radius: 6px;
   background: var(--apple-fill);
   color: var(--apple-tertiary);
-  font: 550 9px -apple-system, BlinkMacSystemFont, sans-serif;
+  font: 550 11px -apple-system, BlinkMacSystemFont, sans-serif;
   box-shadow: inset 0 -1px rgba(0, 0, 0, .05);
 }
 
@@ -175,7 +175,7 @@
   border-radius: 9px;
   background: var(--apple-accent);
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 660;
   white-space: nowrap;
   cursor: pointer;
@@ -191,7 +191,7 @@
   border-radius: 9px;
   color: var(--apple-accent);
   background: color-mix(in srgb, var(--apple-accent) 7%, var(--apple-surface));
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   white-space: nowrap;
   cursor: pointer;
@@ -251,7 +251,7 @@
 .suggestionIdentity:hover { background: var(--apple-fill); }
 .suggestionIdentity > span:last-child { min-width: 0; display: grid; gap: 3px; }
 .suggestionIdentity strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.suggestionIdentity small { color: var(--apple-tertiary); font-size: 10px; }
+.suggestionIdentity small { color: var(--apple-tertiary); font-size: 11px; }
 
 .stockAvatar {
   width: 36px;
@@ -273,7 +273,7 @@
   border-radius: 9px;
   color: var(--apple-secondary);
   background: var(--apple-surface);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 640;
   cursor: pointer;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
@@ -295,12 +295,12 @@
   border-radius: 8px;
   background: var(--apple-surface);
   color: var(--apple-secondary);
-  font-size: 9px;
+  font-size: 11px;
   box-shadow: 0 10px 28px rgba(20, 30, 50, .12);
 }
 
 .bannerActions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
-.dataState { display: inline-flex; align-items: center; gap: 7px; color: var(--apple-tertiary); font-size: 10px; font-weight: 560; white-space: nowrap; }
+.dataState { display: inline-flex; align-items: center; gap: 7px; color: var(--apple-tertiary); font-size: 11px; font-weight: 560; white-space: nowrap; }
 .dataState i { width: 6px; height: 6px; border-radius: 50%; background: var(--apple-fall); box-shadow: 0 0 0 4px color-mix(in srgb, var(--apple-fall) 10%, transparent); }
 
 .iconButton {
@@ -388,7 +388,7 @@
     justify-content: center;
     border: 1px solid var(--apple-border);
   }
-  .navigation a { min-width: 44px; min-height: 44px; padding-inline: 8px; font-size: 10px; }
+  .navigation a { min-width: 44px; min-height: 44px; padding-inline: 8px; font-size: 11px; }
   .search {
     width: 100%;
     grid-column: 2;
@@ -418,7 +418,7 @@
 
 @media (max-width: 520px) {
   .banner { gap: 5px; }
-  .navigation a { min-width: 44px; padding-inline: 6px; font-size: 9px; }
+  .navigation a { min-width: 44px; padding-inline: 6px; font-size: 11px; }
   .iconButton { width: 48px; height: 48px; min-height: 48px; }
 }
 
