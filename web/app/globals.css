@@ -820,41 +820,65 @@ button.active .dot {
   font-weight: 800;
 }
 
+.market-chart-frame {
+  min-width: 0;
+}
+
+.market-chart-control-dock {
+  min-height: 46px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(9, 19, 27, 0.58);
+}
+
 .chart-hint {
-  position: absolute;
-  top: 11px;
-  right: 84px;
+  min-width: 0;
+  flex: 1 1 auto;
   color: rgba(99, 115, 132, 0.62);
   font: 9px var(--mono);
   pointer-events: none;
 }
 
+.market-chart-control-actions,
+.chart-pan-controls {
+  display: flex;
+  align-items: center;
+}
+
+.market-chart-control-actions {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.chart-pan-controls {
+  gap: 3px;
+}
+
 .chart-nudge {
-  position: absolute;
-  top: 43%;
-  width: 25px;
-  height: 48px;
+  position: static;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: transparent;
-  font: 300 22px var(--sans);
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(7, 16, 22, 0.42);
+  font: 400 20px var(--sans);
   transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
 }
 
-.chart-stage:hover .chart-nudge {
-  color: var(--muted);
+.chart-nudge:hover,
+.chart-nudge:focus-visible {
+  color: var(--text);
   background: rgba(7, 16, 22, 0.72);
-  border-color: var(--line);
+  border-color: var(--line-strong);
 }
-
-.chart-nudge:hover {
-  color: var(--text) !important;
-}
-
-.chart-nudge-left { left: 9px; }
-.chart-nudge-right { right: 72px; }
 
 .chart-footer-controls {
   min-height: 48px;

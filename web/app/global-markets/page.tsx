@@ -453,9 +453,15 @@ function ShanghaiIndexPanel({ candles }: { candles: ShanghaiIndexCandle[] }) {
               setHoverIndex(plotIndexFromPointer({ pointerX, containerWidth: bounds.width, viewBoxWidth: width, plotLeft: padding.left, plotWidth, pointCount: visible.length }));
             }}
             onPointerUp={(event) => {
+              const gesture = dragRef.current;
               dragRef.current = null;
               setIsDragging(false);
               if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+              if (gesture?.intent === "pending") {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const pointerX = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+                setHoverIndex(plotIndexFromPointer({ pointerX, containerWidth: bounds.width, viewBoxWidth: width, plotLeft: padding.left, plotWidth, pointCount: visible.length }));
+              }
             }}
             onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
             onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
@@ -804,9 +810,22 @@ function FearKlineChart({ candles }: { candles: FearGaugeCandle[] }) {
               }));
             }}
             onPointerUp={(event) => {
+              const gesture = dragRef.current;
               dragRef.current = null;
               setIsDragging(false);
               if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+              if (gesture?.intent === "pending") {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const pointerX = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left));
+                setHoverIndex(plotIndexFromPointer({
+                  pointerX,
+                  containerWidth: bounds.width,
+                  viewBoxWidth: width,
+                  plotLeft: padding.left,
+                  plotWidth,
+                  pointCount: visible.length,
+                }));
+              }
             }}
             onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
             onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}

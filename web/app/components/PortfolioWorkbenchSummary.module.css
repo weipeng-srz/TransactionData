@@ -85,6 +85,14 @@
 .actionList,
 .signalList,
 .newsList { display: grid; }
+.actionViewport,
+.positionViewport {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.actionViewport { max-height: min(470px, 58vh); }
+.positionViewport { max-height: min(540px, 64vh); }
 .positionRow,
 .actionRow,
 .signalRow { width: 100%; min-width: 0; min-height: 66px; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--portfolio-border); background: transparent; color: inherit; text-align: left; cursor: pointer; }
@@ -120,6 +128,78 @@
 .hold { color: var(--portfolio-secondary); background: var(--portfolio-muted-surface); }
 .modelNotice { margin: 0; padding: 11px 15px; border-top: 1px solid var(--portfolio-border); color: var(--portfolio-secondary); font-size: 12px; line-height: 1.55; }
 
+.positionControls {
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  border-bottom: 1px solid var(--portfolio-border);
+  background: color-mix(in srgb, var(--portfolio-blue) 3%, transparent);
+}
+.positionQuickFilters { min-width: 0; grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+.positionQuickFilters button,
+.listPager button {
+  min-height: 44px;
+  padding: 0 11px;
+  border: 1px solid var(--portfolio-border);
+  border-radius: 10px;
+  background: var(--portfolio-surface-solid);
+  color: var(--portfolio-secondary);
+  font-size: 11px;
+  font-weight: 670;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.positionQuickFilters button[aria-pressed="true"],
+.listPager button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--portfolio-blue) 34%, var(--portfolio-border));
+  background: color-mix(in srgb, var(--portfolio-blue) 10%, var(--portfolio-surface-solid));
+  color: var(--portfolio-blue);
+}
+.positionSearch,
+.positionSort {
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--portfolio-border);
+  border-radius: 10px;
+  background: var(--portfolio-surface-solid);
+}
+.positionSearch > span,
+.positionSort > span { color: var(--portfolio-secondary); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.positionSearch input,
+.positionSort select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--portfolio-text);
+  font: inherit;
+  font-size: 12px;
+}
+.positionSearch input::placeholder { color: color-mix(in srgb, var(--portfolio-secondary) 72%, transparent); }
+.positionSearch:focus-within,
+.positionSort:focus-within { border-color: color-mix(in srgb, var(--portfolio-blue) 50%, var(--portfolio-border)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--portfolio-blue) 10%, transparent); }
+.positionColumns {
+  min-height: 34px;
+  padding: 7px 14px;
+  display: grid;
+  grid-template-columns: minmax(125px, 1.1fr) minmax(130px, .95fr) minmax(120px, .9fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--portfolio-border);
+  background: var(--portfolio-muted-surface);
+  color: var(--portfolio-secondary);
+  font-size: 10px;
+  font-weight: 690;
+  letter-spacing: .03em;
+}
 .positionRow { display: grid; grid-template-columns: minmax(125px, 1.1fr) minmax(130px, .95fr) minmax(120px, .9fr) auto; align-items: center; gap: 12px; }
 
 .signalRow { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 11px; }
@@ -142,6 +222,20 @@
 .empty { min-height: 92px; margin: 0; padding: 24px 19px; display: grid; place-items: center; color: var(--portfolio-secondary); font-size: 12px; line-height: 1.65; text-align: center; }
 .listToggle { width: 100%; min-height: 44px; padding: 0 14px; border: 0; border-top: 1px solid var(--portfolio-border); background: transparent; color: var(--portfolio-blue); font-size: 12px; font-weight: 670; cursor: pointer; }
 .listToggle:hover { background: color-mix(in srgb, var(--portfolio-blue) 5%, transparent); }
+.listPager {
+  min-height: 54px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--portfolio-border);
+}
+.listPager > span { color: var(--portfolio-secondary); font-size: 11px; white-space: nowrap; }
+.listPager > div { display: flex; justify-content: flex-end; gap: 7px; }
+.listPager button { color: var(--portfolio-blue); }
+.listPager button:hover,
+.positionQuickFilters button:hover { background: color-mix(in srgb, var(--portfolio-blue) 7%, var(--portfolio-surface-solid)); }
 
 .discoveryPanel { margin-top: 12px; }
 .discoveryStatus { background: color-mix(in srgb, var(--portfolio-blue) 5%, transparent); }
@@ -183,6 +277,8 @@
   .kpis article:nth-child(-n + 2) { border-bottom: 1px solid var(--portfolio-border); }
   .panelHeader { align-items: flex-start; flex-direction: column; }
   .panelHeader > span { max-width: none; text-align: left; }
+  .positionColumns { display: none; }
+  .positionViewport { max-height: min(560px, 68vh); }
   .positionRow { grid-template-columns: minmax(0, 1fr) auto; }
   .positionRow > span:nth-child(2) { grid-column: 1; grid-row: 2; }
   .positionRow > span:nth-child(3) { grid-column: 2; grid-row: 2; text-align: right; }
@@ -196,6 +292,9 @@
   .conflictBanner button,
   .coverageBanner button,
   .discoveryStatus button { min-height: 44px; }
+  .listPager { align-items: flex-start; flex-direction: column; }
+  .listPager > div { width: 100%; }
+  .listPager button { flex: 1; }
   .ideaGrid { grid-template-columns: 1fr; }
 }
 

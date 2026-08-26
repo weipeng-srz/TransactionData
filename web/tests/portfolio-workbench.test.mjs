@@ -258,6 +258,22 @@ test("uses a profit color that meets normal-text contrast on the light workbench
   assert.ok(contrastRatio(match[1], "#f8f8fa") >= 4.5);
 });
 
+test("keeps large holding sets searchable, filterable and incrementally rendered", () => {
+  const component = readFileSync(new URL("../app/components/PortfolioWorkbenchSummary.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../app/components/PortfolioWorkbenchSummary.module.css", import.meta.url), "utf8");
+
+  assert.match(component, /const holdingPageSize = 8/);
+  assert.match(component, /aria-label="持仓筛选"/);
+  assert.match(component, /aria-label="搜索持仓股票"/);
+  assert.match(component, /aria-label="持仓排序"/);
+  assert.match(component, /仓位从高到低/);
+  assert.match(component, /再显示 \{Math\.min\(holdingPageSize/);
+  assert.match(component, /包含 \$\{digest\.observeCount\} 只继续观察/);
+  assert.match(css, /\.positionViewport\s*\{[^}]*max-height:/s);
+  assert.match(css, /scrollbar-gutter:\s*stable/);
+  assert.match(css, /\.positionQuickFilters button,[\s\S]*?min-height:\s*44px/);
+});
+
 test("keeps B/S loading, partial, error and verified-zero states distinct", () => {
   const coverage = (overrides) => ({ tracked: 2, ready: 0, partial: 0, loading: 0, failed: 0, lagging: 0, latestUpdate: "", failedKeys: [], ...overrides });
   const loading = buildPortfolioSignalAvailability(coverage({ ready: 1, loading: 1 }), 0, 0);

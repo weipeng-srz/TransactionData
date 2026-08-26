@@ -604,8 +604,23 @@ function MarketChart({
     : "";
 
   return (
-    <div className={`chart-stage ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
-      <canvas
+    <div className="market-chart-frame">
+      <div className="market-chart-control-dock">
+        <div className="chart-hint">Ctrl/⌘ + 滚轮缩放 · Shift + 滚轮或横向拖动平移 · 双击复位{benchmarkCandles.length ? ` · 青色虚线为${benchmarkName}归一化走势` : ""}</div>
+        <div className="market-chart-control-actions">
+          <div className="chart-pan-controls" role="group" aria-label="K线平移控制">
+            <button className="chart-nudge chart-nudge-left" type="button" onClick={() => shiftRange(-Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向前移动图表">
+              ‹
+            </button>
+            <button className="chart-nudge chart-nudge-right" type="button" onClick={() => shiftRange(Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向后移动图表">
+              ›
+            </button>
+          </div>
+          <KlineViewportControls className="is-inline" range={range} total={candles.length} minVisible={10} resetVisible={resetVisible} onRangeChange={onRangeChange} />
+        </div>
+      </div>
+      <div className={`chart-stage ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
+        <canvas
         ref={canvasRef}
         role="img"
         aria-describedby={hoveredCandle ? "chart-accessible-summary chart-day-tooltip" : "chart-accessible-summary"}
@@ -654,11 +669,12 @@ function MarketChart({
           }
         }}
         onPointerUp={(event) => {
-          const pointerType = dragRef.current?.pointerType;
+          const gesture = dragRef.current;
+          const pointerType = gesture?.pointerType;
           dragRef.current = null;
           setIsDragging(false);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-          if (pointerType !== "touch") updateHover(event.clientX, event.clientY);
+          if (pointerType !== "touch" || gesture?.intent === "pending") updateHover(event.clientX, event.clientY);
         }}
         onPointerCancel={() => { dragRef.current = null; setIsDragging(false); }}
         onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
@@ -717,50 +733,43 @@ function MarketChart({
             onRangeChange(rangeForLatest(candles.length, resetVisible));
           }
         }}
-      />
-      {hover && hoveredCandle ? (
-        <div
-          id="chart-day-tooltip"
-          role="tooltip"
-          className={`chart-float chart-day-tooltip ${hover.x < size.width / 2 ? "is-edge-end" : "is-edge-start"}`}
-          style={hover.x < size.width / 2 ? { right: size.width < 420 ? 84 : 112 } : { left: 44 }}
-        >
-          <header>
-            <div>
-              <span>{hoveredCandle.key}</span>
-              <small>{hoveredCandle.time ? "分时 K 线明细" : "日 K 明细"}</small>
-            </div>
-            <div>
-              <strong>{formatNumber(hoveredCandle.close, 3)}</strong>
-              <em className={hoverTone}>{hoveredCandle.change >= 0 ? "+" : ""}{formatNumber(hoveredCandle.change, 3)} · {hoveredCandle.changePct >= 0 ? "+" : ""}{formatNumber(hoveredCandle.changePct, 2)}%</em>
-            </div>
-          </header>
-          <dl className="chart-day-stats">
-            <div><dt>开盘</dt><dd>{formatNumber(hoveredCandle.open, 3)}</dd></div>
-            <div><dt>最高</dt><dd>{formatNumber(hoveredCandle.high, 3)}</dd></div>
-            <div><dt>最低</dt><dd>{formatNumber(hoveredCandle.low, 3)}</dd></div>
-            <div><dt>收盘</dt><dd>{formatNumber(hoveredCandle.close, 3)}</dd></div>
-            <div><dt>成交量</dt><dd>{compactNumber(hoveredCandle.volume)}</dd></div>
-            <div><dt>成交额</dt><dd>{compactNumber(hoveredCandle.amount)}</dd></div>
-            <div><dt>均价</dt><dd>{formatNumber(hoveredCandle.vwap, 3)}</dd></div>
-            <div><dt>换手率</dt><dd>{hoveredCandle.turnoverPct == null ? "—" : `${formatNumber(hoveredCandle.turnoverPct, 2)}%`}</dd></div>
-          </dl>
-          {hoveredGuide || hoveredEvent ? (
-            <footer className="chart-day-meta">
-              {hoveredGuide ? <span className="chart-day-guide">信号 {hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</span> : null}
-              {hoveredEvent ? <small className="chart-event-detail">{hoveredEvent.label}</small> : null}
-            </footer>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="chart-hint">Ctrl/⌘ + 滚轮缩放 · Shift + 滚轮或横向拖动平移 · 双击复位{benchmarkCandles.length ? ` · 青色虚线为${benchmarkName}归一化走势` : ""}</div>
-      <KlineViewportControls range={range} total={candles.length} minVisible={10} resetVisible={resetVisible} onRangeChange={onRangeChange} />
-      <button className="chart-nudge chart-nudge-left" type="button" onClick={() => shiftRange(-Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向前移动图表">
-        ‹
-      </button>
-      <button className="chart-nudge chart-nudge-right" type="button" onClick={() => shiftRange(Math.max(1, Math.round((range.to - range.from) * 0.25)))} aria-label="向后移动图表">
-        ›
-      </button>
+        />
+        {hover && hoveredCandle ? (
+          <div
+            id="chart-day-tooltip"
+            role="tooltip"
+            className={`chart-float chart-day-tooltip ${hover.x < size.width / 2 ? "is-edge-end" : "is-edge-start"}`}
+            style={hover.x < size.width / 2 ? { right: size.width < 420 ? 84 : 112 } : { left: 44 }}
+          >
+            <header>
+              <div>
+                <span>{hoveredCandle.key}</span>
+                <small>{hoveredCandle.time ? "分时 K 线明细" : "日 K 明细"}</small>
+              </div>
+              <div>
+                <strong>{formatNumber(hoveredCandle.close, 3)}</strong>
+                <em className={hoverTone}>{hoveredCandle.change >= 0 ? "+" : ""}{formatNumber(hoveredCandle.change, 3)} · {hoveredCandle.changePct >= 0 ? "+" : ""}{formatNumber(hoveredCandle.changePct, 2)}%</em>
+              </div>
+            </header>
+            <dl className="chart-day-stats">
+              <div><dt>开盘</dt><dd>{formatNumber(hoveredCandle.open, 3)}</dd></div>
+              <div><dt>最高</dt><dd>{formatNumber(hoveredCandle.high, 3)}</dd></div>
+              <div><dt>最低</dt><dd>{formatNumber(hoveredCandle.low, 3)}</dd></div>
+              <div><dt>收盘</dt><dd>{formatNumber(hoveredCandle.close, 3)}</dd></div>
+              <div><dt>成交量</dt><dd>{compactNumber(hoveredCandle.volume)}</dd></div>
+              <div><dt>成交额</dt><dd>{compactNumber(hoveredCandle.amount)}</dd></div>
+              <div><dt>均价</dt><dd>{formatNumber(hoveredCandle.vwap, 3)}</dd></div>
+              <div><dt>换手率</dt><dd>{hoveredCandle.turnoverPct == null ? "—" : `${formatNumber(hoveredCandle.turnoverPct, 2)}%`}</dd></div>
+            </dl>
+            {hoveredGuide || hoveredEvent ? (
+              <footer className="chart-day-meta">
+                {hoveredGuide ? <span className="chart-day-guide">信号 {hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</span> : null}
+                {hoveredEvent ? <small className="chart-event-detail">{hoveredEvent.label}</small> : null}
+              </footer>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

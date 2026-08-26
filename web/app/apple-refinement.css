@@ -5,6 +5,17 @@
  */
 
 :root {
+  /*
+   * Platform border language: one neutral 1px stroke and two radii cover every
+   * structural surface. Feature colors are reserved for state and focus.
+   */
+  --platform-border-width: 1px;
+  --platform-border-style: solid;
+  --platform-border-color: rgba(67, 72, 82, 0.18);
+  --platform-border-strong: rgba(67, 72, 82, 0.27);
+  --platform-panel-radius: 28px;
+  --platform-inset-radius: 18px;
+  --platform-control-radius: 12px;
   --apple-page: #f2f5fa;
   --apple-surface: #ffffff;
   --apple-surface-soft: #f7f9fc;
@@ -12,23 +23,23 @@
   --apple-text: #191d24;
   --apple-secondary: #59616d;
   --apple-tertiary: #65707c;
-  --apple-border: rgba(27, 39, 56, 0.075);
-  --apple-border-strong: rgba(27, 39, 56, 0.14);
+  --apple-border: var(--platform-border-color);
+  --apple-border-strong: var(--platform-border-strong);
   --apple-accent: #086edb;
   --apple-accent-hover: #0878eb;
   --apple-rise: #ce3e49;
   --apple-fall: #147a52;
   --apple-warning: #a96100;
-  --apple-radius-sm: 11px;
-  --apple-radius-md: 16px;
-  --apple-radius-lg: 22px;
-  --apple-radius-xl: 26px;
+  --apple-radius-sm: var(--platform-control-radius);
+  --apple-radius-md: var(--platform-inset-radius);
+  --apple-radius-lg: var(--platform-panel-radius);
+  --apple-radius-xl: var(--platform-panel-radius);
   --apple-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.025), 0 12px 36px rgba(0, 0, 0, 0.045);
   --apple-shadow-float: 0 2px 8px rgba(0, 0, 0, 0.055), 0 18px 54px rgba(0, 0, 0, 0.09);
   --apple-glass: rgba(255, 255, 255, 0.66);
   --apple-glass-strong: rgba(255, 255, 255, 0.78);
   --apple-glass-soft: rgba(255, 255, 255, 0.46);
-  --apple-glass-border: rgba(67, 72, 82, 0.13);
+  --apple-glass-border: var(--platform-border-color);
   --apple-glass-highlight: rgba(255, 255, 255, 0.34);
   --apple-glass-shadow: 0 18px 48px rgba(48, 55, 66, 0.085);
   --apple-card-material: rgba(255, 255, 255, 0.74);
@@ -59,6 +70,8 @@
   :root {
     --site-frame-inset: 24px;
     --site-frame-gutter: 12px;
+    --platform-panel-radius: 20px;
+    --platform-inset-radius: 16px;
   }
 }
 
@@ -285,6 +298,8 @@
 }
 
 :root[data-appearance="dark"] {
+  --platform-border-color: rgba(207, 216, 229, 0.22);
+  --platform-border-strong: rgba(219, 226, 236, 0.3);
   --apple-page: #090c12;
   --apple-surface: #171b23;
   --apple-surface-soft: #20252f;
@@ -292,8 +307,8 @@
   --apple-text: #f4f7fb;
   --apple-secondary: #b2bac6;
   --apple-tertiary: #929ca9;
-  --apple-border: rgba(255, 255, 255, 0.1);
-  --apple-border-strong: rgba(255, 255, 255, 0.16);
+  --apple-border: var(--platform-border-color);
+  --apple-border-strong: var(--platform-border-strong);
   --apple-accent: #2997ff;
   --apple-accent-hover: #40a2ff;
   --apple-rise: #ef686f;
@@ -304,7 +319,7 @@
   --apple-glass: rgba(31, 31, 34, 0.68);
   --apple-glass-strong: rgba(35, 35, 38, 0.8);
   --apple-glass-soft: rgba(43, 43, 47, 0.5);
-  --apple-glass-border: rgba(255, 255, 255, 0.15);
+  --apple-glass-border: var(--platform-border-color);
   --apple-glass-highlight: rgba(255, 255, 255, 0.065);
   --apple-glass-shadow: 0 22px 58px rgba(0, 0, 0, 0.32);
   --apple-card-material: rgba(24, 29, 38, 0.76);
@@ -1473,9 +1488,8 @@ select:disabled {
 
 .chart-stage canvas { cursor: grab; touch-action: pan-y; }
 .chart-stage.is-dragging canvas { cursor: grabbing; }
-.chart-stage .kline-viewport-controls { right: 82px; }
-.realtime-canvas-wrap .kline-viewport-controls { right: 12px; }
-.chart-hint { right: auto; left: 14px; }
+.market-chart-control-dock .kline-viewport-controls,
+.realtime-chart-control-dock .kline-viewport-controls { flex: 0 0 auto; }
 
 .chart-float,
 .realtime-hover-card {
@@ -2282,6 +2296,25 @@ select:disabled {
     text-align: left;
   }
 
+  .realtime-chart-control-dock.is-session-fixed {
+    min-height: 76px;
+    padding: 10px 12px;
+  }
+
+  .realtime-session-dock {
+    flex-wrap: wrap;
+    gap: 9px 14px;
+  }
+
+  .realtime-session-dock strong {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .realtime-session-summary small {
+    white-space: normal;
+  }
+
   .analysis-rail {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2328,8 +2361,20 @@ select:disabled {
   }
 
   .chart-hint { display: none; }
-  .chart-stage .kline-viewport-controls { right: 74px; }
-  .realtime-canvas-wrap .kline-viewport-controls { top: 12px; right: 12px; }
+
+  .market-chart-control-dock {
+    padding: 6px 8px;
+    justify-content: flex-end;
+  }
+
+  .market-chart-control-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .realtime-chart-control-dock {
+    min-height: 56px;
+  }
 
   .ohlc-ribbon {
     overflow-x: auto;
@@ -2528,9 +2573,26 @@ select:disabled {
     min-height: 460px;
   }
 
-  .realtime-canvas-wrap .realtime-kline-controls {
-    top: 84px;
-    right: 12px;
+  .realtime-chart-control-dock {
+    padding-inline: 8px;
+  }
+
+  .realtime-chart-control-dock > span {
+    display: none;
+  }
+
+  .realtime-session-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .realtime-session-summary article {
+    min-height: 74px;
+    border-right: 0;
+    border-bottom: 1px solid var(--apple-border);
+  }
+
+  .realtime-session-summary article:last-child {
+    border-bottom: 0;
   }
 }
 
@@ -4899,6 +4961,82 @@ summary:active,
 .next-day-method li,
 .method-note,
 .finance-source-note { font-size: 12px; line-height: 1.6; }
+
+/*
+ * Unified platform borders. Large surfaces follow the generous rounded frame
+ * from the market overview; nested cards use the same stroke with a tighter
+ * radius, while tables and grids continue that color as simple dividers.
+ */
+.app-sidebar,
+.topbar,
+.query-strip,
+.quote-head,
+.realtime-panel,
+.chart-card,
+.rail-card,
+.research-dock,
+.finance-dashboard,
+.fundamentals-card,
+.financial-card,
+.recent-card,
+.news-card,
+.advanced-research-panel,
+.legacy-financial-summary,
+.stock-score-card,
+.next-day-card,
+.global-summary,
+.global-shanghai-panel,
+.global-map-card,
+.global-region-card,
+.stock-initial-card {
+  border-width: var(--platform-border-width);
+  border-style: var(--platform-border-style);
+  border-color: var(--platform-border-color);
+  border-radius: var(--platform-panel-radius);
+}
+
+.research-page .query-source,
+.orderbook-card,
+.stock-score-verdict,
+.stock-score-radar,
+.stock-score-dimension,
+.finance-chart-card,
+.finance-signal-card,
+.finance-detail-card,
+.finance-conclusion-card,
+.research-panel,
+.backtest-card,
+.financial-report-card,
+.news-summary-panel,
+.factor-card,
+.event-study-card,
+.next-day-grade,
+.next-day-range,
+.next-day-panel,
+.next-day-similar-table,
+.next-day-method,
+.finance-detail-preview,
+.next-day-evidence-toggle,
+.next-day-trust-summary {
+  border-color: var(--platform-border-color);
+  border-radius: var(--platform-inset-radius);
+}
+
+.realtime-header,
+.realtime-quote-strip,
+.realtime-signal-bar,
+.realtime-chart-footer,
+.finance-dashboard-header,
+.research-dock-heading,
+.section-heading,
+.fundamentals-heading,
+.finance-kpi-grid,
+.valuation-support-strip,
+.finance-detail-card > header,
+.finance-table th,
+.finance-table td {
+  border-color: var(--platform-border-color);
+}
 
 @media (max-width: 820px) {
   .app-sidebar .workspace-nav,

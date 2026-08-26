@@ -225,7 +225,7 @@
 .sentimentBar i { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg, var(--apple-warning), var(--apple-rise)); }
 .riskBudget strong { color: var(--apple-warning); }
 
-.decisionDeck { margin: 14px 0; padding: 15px 17px; border: 1px solid color-mix(in srgb, var(--apple-accent) 20%, var(--apple-border)); border-radius: 20px; background: linear-gradient(145deg, color-mix(in srgb, var(--apple-accent) 5%, var(--screener-glass)), var(--screener-glass)); box-shadow: var(--apple-shadow-card); }
+.decisionDeck { margin: 14px 0; padding: 15px 17px; border: var(--platform-border-width) var(--platform-border-style) var(--platform-border-color); border-radius: var(--platform-panel-radius); background: linear-gradient(145deg, color-mix(in srgb, var(--apple-accent) 5%, var(--screener-glass)), var(--screener-glass)); box-shadow: var(--apple-shadow-card); }
 .decisionDeck > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
 .decisionDeck > header span { color: var(--apple-accent); font-size: 9px; font-weight: 720; letter-spacing: .13em; }
 .decisionDeck h2 { margin: 3px 0 0; font-size: 17px; letter-spacing: -.025em; }
@@ -293,8 +293,8 @@
 .evidenceSection,
 .coveragePanel {
   min-width: 0;
-  border: 1px solid var(--apple-border);
-  border-radius: 20px;
+  border: var(--platform-border-width) var(--platform-border-style) var(--platform-border-color);
+  border-radius: var(--platform-panel-radius);
   background: var(--screener-glass);
   box-shadow: inset 0 1px color-mix(in srgb, #fff 42%, transparent), var(--apple-shadow-card);
   backdrop-filter: blur(22px) saturate(160%);
@@ -326,8 +326,8 @@
   padding: 16px;
   overflow: hidden;
   position: relative;
-  border: 1px solid var(--apple-border);
-  border-radius: 16px;
+  border: var(--platform-border-width) var(--platform-border-style) var(--platform-border-color);
+  border-radius: var(--platform-inset-radius);
   background: var(--apple-surface);
   transition: border-color 170ms ease, box-shadow 170ms ease, transform 170ms ease;
 }
@@ -814,7 +814,7 @@
 .drawerActions a:hover { background: var(--apple-accent-hover); }
 
 .methodBackdrop { position: fixed; inset: 0; z-index: 190; display: grid; place-items: center; padding: 20px; background: rgba(8, 18, 28, .4); backdrop-filter: blur(6px); }
-.methodDialog { width: min(560px, 100%); max-height: min(760px, 92vh); padding: 20px; overflow-y: auto; border: 1px solid var(--apple-border); border-radius: 20px; color: var(--apple-text); background: var(--apple-page); box-shadow: var(--apple-shadow-float); }
+.methodDialog { width: min(560px, 100%); max-height: min(760px, 92vh); padding: 20px; overflow-y: auto; border: var(--platform-border-width) var(--platform-border-style) var(--platform-border-color); border-radius: var(--platform-panel-radius); color: var(--apple-text); background: var(--apple-page); box-shadow: var(--apple-shadow-float); }
 .methodDialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
 .methodDialog header span { color: var(--apple-accent); font-size: 9px; font-weight: 720; letter-spacing: .13em; }
 .methodDialog h2 { margin: 4px 0 0; font-size: 20px; }

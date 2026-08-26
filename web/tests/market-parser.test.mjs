@@ -124,3 +124,70 @@ test("calculates nine-turn completion, composite guide and K-line conclusion", (
   assert.ok(conclusion.support < conclusion.resistance);
   assert.ok((conclusion.atr ?? 0) > 0);
 });
+
+test("requires an RSI or BOLL quality anchor for B points", () => {
+  const candles = Array.from({ length: 20 }, (_, index) => {
+    const close = 20 - index * 0.2;
+    const previousClose = index === 0 ? close : close + 0.2;
+    return {
+      key: `2026-05-${String(index + 1).padStart(2, "0")}`,
+      label: `05-${String(index + 1).padStart(2, "0")}`,
+      date: `2026-05-${String(index + 1).padStart(2, "0")}`,
+      time: "",
+      open: close + 0.08,
+      high: close + 0.15,
+      low: close - 0.12,
+      close,
+      volume: 100_000,
+      amount: close * 100_000,
+      adjustedAmount: close * 100_000,
+      vwap: close,
+      turnoverPct: null,
+      change: close - previousClose,
+      changePct: ((close - previousClose) / previousClose) * 100,
+    };
+  });
+  const indicators = calculateIndicators(candles);
+
+  assert.deepEqual(indicators.nineTurn[12], { count: 9, direction: "buy", completed: true });
+  assert.equal(indicators.guidePoints[12], null, "nine-turn alone must not bypass the B quality gate");
+});
+
+test("uses volume only to strengthen an already-qualified B point", () => {
+  let seed = 1;
+  let previousClose = 20;
+  const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const candles = Array.from({ length: 120 }, (_, index) => {
+    const close = Math.max(2, previousClose + Math.sin(index / 5) * 0.081 + (random() - 0.5) * 0.9);
+    const open = previousClose + (random() - 0.5) * 0.25;
+    const high = Math.max(open, close) + random() * 0.35;
+    const low = Math.min(open, close) - random() * 0.35;
+    const volume = 100_000 + Math.floor(random() * 300_000) + (index % 11 === 0 ? 300_000 : 0);
+    const change = close - previousClose;
+    const candle = {
+      key: String(index),
+      label: String(index),
+      date: `2026-${String(Math.floor(index / 28) + 1).padStart(2, "0")}-${String(index % 28 + 1).padStart(2, "0")}`,
+      time: "",
+      open,
+      high,
+      low,
+      close,
+      volume,
+      amount: close * volume,
+      adjustedAmount: close * volume,
+      vwap: close,
+      turnoverPct: null,
+      change,
+      changePct: (change / previousClose) * 100,
+    };
+    previousClose = close;
+    return candle;
+  });
+  const buys = calculateIndicators(candles).guidePoints.filter((guide) => guide?.type === "buy");
+
+  assert.ok(buys.length > 0);
+  assert.ok(buys.every((guide) => guide.reasons.includes("RSI超卖回升") || guide.reasons.includes("BOLL下轨承接")));
+  assert.ok(buys.some((guide) => guide.reasons.includes("量能确认")));
+  assert.ok(buys.filter((guide) => guide.reasons.includes("量能确认")).every((guide) => guide.score >= 3));
+});

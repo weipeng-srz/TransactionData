@@ -725,7 +725,7 @@ export function calculateIndicators(candles: Candle[]): IndicatorSet {
   const volumeMa10 = sma(candles.map((candle) => candle.volume), 10);
   const guidePoints = calculateGuidePoints(
     candles,
-    { ma5, bollUpper, bollLower, macdHist, rsi: rsi14, k, d, nineTurn },
+    { ma5, bollUpper, bollLower, macdHist, rsi: rsi14, k, d, nineTurn, volumeMa5 },
   );
 
   return {
@@ -958,6 +958,7 @@ function calculateGuidePoints(
     k: number[];
     d: number[];
     nineTurn: Array<NineTurnMark | null>;
+    volumeMa5: Array<number | null>;
   },
 ): Array<GuidePoint | null> {
   const result: Array<GuidePoint | null> = Array(candles.length).fill(null);
@@ -986,7 +987,14 @@ function calculateGuidePoints(
     if (values.bollUpper[index] !== null && candles[index].high >= (values.bollUpper[index] as number) && candles[index].close < candles[index].open) { sellScore += 1; sellReasons.push("BOLL上轨受压"); }
 
     if (index - lastSignalIndex < 3) continue;
-    if (buyScore >= 2 && buyScore > sellScore) {
+    const hasBuyQualityAnchor = buyReasons.includes("RSI超卖回升") || buyReasons.includes("BOLL下轨承接");
+    const qualifiesBuy = buyScore >= 2 && buyScore > sellScore && hasBuyQualityAnchor;
+    if (qualifiesBuy) {
+      const previousVolumeMa5 = values.volumeMa5[index - 1];
+      if (previousVolumeMa5 !== null && previousVolumeMa5 > 0 && candles[index].volume >= previousVolumeMa5) {
+        buyScore += 1;
+        buyReasons.push("量能确认");
+      }
       result[index] = { type: "buy", score: buyScore, reasons: buyReasons };
       lastSignalIndex = index;
     } else if (sellScore >= 2 && sellScore > buyScore) {

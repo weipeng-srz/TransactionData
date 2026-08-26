@@ -424,7 +424,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       date: realtime?.date ?? latest?.date ?? "",
       time: realtime?.time ?? "收盘",
       marketStatus: realtime?.marketStatus ?? "最近收盘",
-      source: realtime ? "实时 + 180日K" : "最近收盘 + 180日K",
+      source: realtime?.source ?? (market === "US" ? "新浪美股日K" : "新浪公开日K"),
       error: marketResult.status === "rejected" || realtimeResult.status === "rejected" ? "部分数据源暂不可用" : "",
       score: null,
       intent: marketResult.status === "fulfilled" ? marketResult.value.intent : null,
@@ -538,7 +538,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           date: realtime.date,
           time: realtime.time,
           marketStatus: realtime.marketStatus,
-          source: previous.candles.length ? "实时 + 180日K" : "实时行情",
+          source: realtime.source || previous.source,
           error: "",
         };
       });
@@ -1001,17 +1001,34 @@ function FxConversionPanel({
 }
 
 function PortfolioDecisionBrief({ summary }: { summary: PortfolioInsightSummary }) {
-  const dataHeadline = summary.tracked ? `${summary.completionPct}% 行情就绪` : "等待建立自选";
+  const dataHeadline = summary.tracked ? `${summary.completionPct}% 行情可用` : "等待建立自选";
+  const reviewCount = summary.validation.partial + summary.validation.warning;
+  const dataDetail = summary.tracked
+    ? `${summary.ready}/${summary.tracked} 只可用${summary.failed ? ` · ${summary.failed} 只失败` : ""} · ${summary.validation.verified} 只通过 3 项一致性校验${reviewCount ? ` · ${reviewCount} 只待复核` : ""}${summary.latestUpdate ? ` · 最新 ${summary.latestUpdate.slice(5, 16)}` : ""}`
+    : "添加股票后会显示来源、时效与完整度";
   const performanceHeadline = summary.bestHolding
-    ? `${summary.bestHolding.stockName} ${signedPercent(summary.bestHolding.valuePct)}`
+    ? `${summary.bestHolding.stockName} · 持仓累计 ${signedPercent(summary.bestHolding.valuePct)}`
     : summary.strongestMove
-      ? `${summary.strongestMove.stockName} ${signedPercent(summary.strongestMove.valuePct)}`
+      ? `${summary.strongestMove.stockName} · 当日波动 ${signedPercent(summary.strongestMove.valuePct)}`
       : "等待收益与波动数据";
-  const riskDetail = summary.highestConcentration
-    ? `${summary.highestConcentration.topStockName} 占${currencyName(summary.highestConcentration.currency)}子组合 ${formatNumber(summary.highestConcentration.topWeightPct, 1)}%`
-    : summary.weakestHolding
-      ? `${summary.weakestHolding.stockName} 当前收益率 ${signedPercent(summary.weakestHolding.valuePct)}`
-      : "尚无可计算的持仓集中度";
+  const riskDetails = [
+    summary.highestConcentration
+      ? `集中度：${summary.highestConcentration.topStockName} 占${currencyName(summary.highestConcentration.currency)}子组合 ${formatNumber(summary.highestConcentration.topWeightPct, 1)}%`
+      : "尚无可计算的持仓集中度",
+    summary.weakestHolding
+      ? `最弱持仓：${summary.weakestHolding.stockName} ${signedPercent(summary.weakestHolding.valuePct)}`
+      : "",
+  ].filter(Boolean).join(" · ");
+  const lead = summary.bestHolding;
+  const leadQuoteTime = lead?.quoteDate
+    ? `${lead.quoteDate.slice(5)}${lead.quoteTime ? ` ${lead.quoteTime.slice(0, 5)}` : ""}`
+    : "时点待确认";
+  const verificationLabel = lead?.verification.status === "verified"
+    ? `${lead.verification.passedChecks}/${lead.verification.totalChecks} 项一致性校验通过`
+    : lead
+      ? `${lead.verification.passedChecks}/${lead.verification.totalChecks} 项通过 · 仍需复核`
+      : "";
+  const verificationIssue = lead?.verification.status === "verified" ? "" : lead?.verification.issues[0] ?? "";
 
   return (
     <section className={styles.decisionBrief} aria-labelledby="decision-brief-title">
@@ -1023,12 +1040,26 @@ function PortfolioDecisionBrief({ summary }: { summary: PortfolioInsightSummary 
         <article>
           <span>1 · 数据状态</span>
           <strong>{dataHeadline}</strong>
-          <small>{summary.tracked ? `${summary.ready}/${summary.tracked} 只可用${summary.failed ? ` · ${summary.failed} 只失败` : ""}${summary.latestUpdate ? ` · 最新 ${summary.latestUpdate.slice(5, 16)}` : ""}` : "添加股票后会显示来源、时效与完整度"}</small>
+          <small>{dataDetail}</small>
         </article>
-        <article>
+        <article className={styles.performanceDecision}>
           <span>2 · 收益与风险线索</span>
           <strong>{performanceHeadline}</strong>
-          <small>{riskDetail}；不同币种不合并、不隐式折算。</small>
+          {lead ? (
+            <>
+              <div className={styles.performanceMetrics}>
+                <span><small>当日涨跌</small><b className={toneClass(lead.dayChangePct)}>{lead.dayChangePct == null ? "—" : signedPercent(lead.dayChangePct)}</b></span>
+                <span><small>现价 / 成本</small><b>{formatCurrency(lead.price, lead.currency)} / {formatCurrency(lead.cost, lead.currency)}</b></span>
+                <span><small>持仓盈亏</small><b className={toneClass(lead.profit)}>{signedCurrency(lead.profit, lead.currency)}</b></span>
+              </div>
+              <p className={styles.verificationLine}>
+                <b className={lead.verification.status === "verified" ? styles.verified : styles.needsReview}>{verificationLabel}</b>
+                <span>行情 {leadQuoteTime} · {lead.quoteSource || "来源待确认"}{verificationIssue ? ` · 提示：${verificationIssue}` : ""}</span>
+              </p>
+              <small className={styles.performanceNote}>复算口径：(现价 − 平均成本) ÷ 平均成本；成本录入 {lead.holdingUpdatedAt.slice(0, 10)}。未计手续费、税费、分红及公司行动。</small>
+            </>
+          ) : null}
+          <small>{riskDetails}；不同币种不合并、不隐式折算。</small>
         </article>
         <article>
           <span>3 · 下一步核验</span>

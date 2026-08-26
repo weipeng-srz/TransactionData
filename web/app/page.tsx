@@ -53,6 +53,7 @@ import { readCachedText, writeCachedText } from "./lib/browserCache";
 import { reportTelemetry } from "./lib/telemetry";
 import type { RealtimeSnapshot } from "./lib/realtimeMarket";
 import { mergeClosedCnRealtimeDay } from "./lib/closedMarketDay";
+import { mergeCnRealtimeDailyCandle } from "./lib/realtimeDailyCandle";
 import { parseHoldings, type StockHoldings } from "./lib/holdings";
 import { buildStockScore } from "./lib/stockScore";
 import { publicStockLookupError } from "./lib/stockLookupError";
@@ -466,13 +467,20 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       : dataset,
     [dataset, realtimeSnapshot, selectedCode, selectedMarket],
   );
-  const dailyCandles = useMemo(
+  const historicalDailyCandles = useMemo(
     () => aggregateCandles(analyticalDataset.rows, selectedCode, "1d"),
     [analyticalDataset.rows, selectedCode],
   );
+  const realtimeDailySeries = useMemo(
+    () => selectedMarket === "CN" && realtimeSnapshot?.code === selectedCode
+      ? mergeCnRealtimeDailyCandle(historicalDailyCandles, analyticalDataset, realtimeSnapshot)
+      : { candles: historicalDailyCandles, included: false, provisional: false, date: "", time: "" },
+    [analyticalDataset, historicalDailyCandles, realtimeSnapshot, selectedCode, selectedMarket],
+  );
+  const dailyCandles = realtimeDailySeries.candles;
   const candles = useMemo(
-    () => aggregateCandles(analyticalDataset.rows, selectedCode, timeframe),
-    [analyticalDataset.rows, selectedCode, timeframe],
+    () => timeframe === "1d" ? dailyCandles : aggregateCandles(analyticalDataset.rows, selectedCode, timeframe),
+    [analyticalDataset.rows, dailyCandles, selectedCode, timeframe],
   );
   useEffect(() => {
     const key = `${selectedCode}:${timeframe}`;
@@ -490,6 +498,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const benchmarkCandles = useMemo(() => benchmarkDataset ? aggregateCandles(benchmarkDataset.rows, benchmarkDataset.codes[0], "1d") : [], [benchmarkDataset]);
   const indicators = useMemo(() => calculateIndicators(candles), [candles]);
   const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles), [dailyCandles]);
+  const todayGuide = realtimeDailySeries.included ? dailyIndicators.guidePoints.at(-1) ?? null : null;
   const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], { benchmark: timeframe === "1d" ? benchmarkCandles : [], roundTripCostPct, limitUpDownPct: selectedMarket === "US" ? null : 9.8 }), [benchmarkCandles, candles, indicators, roundTripCostPct, selectedMarket, timeframe]);
   const scoreBacktest = useMemo(() => backtestGuideSignals(dailyCandles, dailyIndicators, [5, 10, 20], { benchmark: benchmarkCandles, roundTripCostPct, limitUpDownPct: selectedMarket === "US" ? null : 9.8 }), [benchmarkCandles, dailyCandles, dailyIndicators, roundTripCostPct, selectedMarket]);
   const riskMetrics = useMemo(() => calculateRiskMetrics(dailyCandles, benchmarkCandles), [benchmarkCandles, dailyCandles]);
@@ -1278,7 +1287,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <span aria-hidden="true">⌁</span>
               <div>
                 <strong>价格走势</strong>
-                <small>{timeframes.find((item) => item.key === timeframe)?.label} · {selectedMarket === "US" ? "美元日K" : "前复权"} · {benchmarkCandles.length ? `对比${selectedMarket === "US" ? benchmarkCode : "沪深300"}` : "等待基准"}</small>
+                <small>{timeframes.find((item) => item.key === timeframe)?.label} · {selectedMarket === "US" ? "美元日K" : "前复权"} · {benchmarkCandles.length ? `对比${selectedMarket === "US" ? benchmarkCode : "沪深300"}` : "等待基准"}{timeframe === "1d" && realtimeDailySeries.included ? ` · 含今日${realtimeDailySeries.time.slice(0, 5)}${realtimeDailySeries.provisional ? "盘中" : "收盘"}K线` : ""}</small>
               </div>
             </div>
             {viewMode === "pro" ? <div className="segmented" aria-label="K线周期">
@@ -1292,7 +1301,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                   title={dailyOnly && key !== "1d" ? "历史行情数据源为日 K 聚合；当前交易日 1 分钟 K 线请查看上方实时行情区域" : undefined}
                   onClick={() => {
                     setTimeframe(key);
-                    setRange(defaultRange(aggregateCandles(analyticalDataset.rows, selectedCode, key).length, key));
+                    const nextLength = key === "1d" ? dailyCandles.length : aggregateCandles(analyticalDataset.rows, selectedCode, key).length;
+                    setRange(defaultRange(nextLength, key));
                     setHoverIndex(null);
                   }}
                 >
@@ -1317,6 +1327,11 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <Toggle active={overlays.nineTurn} label="九转" color="cyan" onClick={() => setOverlays((value) => ({ ...value, nineTurn: !value.nineTurn }))} />
               <Toggle active={overlays.guides} label="B/S指引" color="red" onClick={() => setOverlays((value) => ({ ...value, guides: !value.guides }))} />
               </div>
+              {timeframe === "1d" && realtimeDailySeries.included ? (
+                <span className="event-count" title="今日 K 线和 B/S 使用实时快照计算，收盘前会随行情变化">
+                  今日{realtimeDailySeries.provisional ? "盘中预估" : "收盘确认"} · {todayGuide ? `${todayGuide.type === "buy" ? "B" : "S"}${todayGuide.score}` : "观察"} @ {formatNumber(liveQuote?.price ?? dailyCandles.at(-1)?.close ?? 0, 3)} · {realtimeDailySeries.time.slice(0, 5)}
+                </span>
+              ) : null}
               {chartEvents.length ? <span className="event-count" title="N 新闻 · F 财报 · D 分红">事件 {chartEvents.length}</span> : null}
               <button className="icon-button" type="button" onClick={exportCandles} title="导出当前周期K线" aria-label="导出当前周期K线">⇩</button>
               <button className="icon-button" type="button" onClick={() => document.getElementById("stock-market")?.requestFullscreen?.()} title="全屏研究图表" aria-label="全屏研究图表">⛶</button>
@@ -1427,7 +1442,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                 <ul className="analysis-points">
                   {klineConclusion.points.slice(0, 5).map((point) => <li key={point}>{point}</li>)}
                 </ul>
-                <p className="method-note">B/S 为九转、MACD、KDJ、RSI、MA5 与 BOLL 的规则组合信号，不是交易指令。</p>
+                <p className="method-note">B 点须由 RSI 超卖回升或 BOLL 下轨承接锚定，量能只作加分确认；S 点保留原规则。盘中信号会随当日 K 线变化，不是交易指令。</p>
               </>
             ) : <p className="empty-note">当前周期暂无足够 K 线用于研判。</p>}
           </section>
@@ -1546,6 +1561,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <Detail label="ATR14" value={currentIndicator.atr == null ? "—" : formatNumber(currentIndicator.atr, 3)} />
               <Detail label="神奇九转" value={currentIndicator.nineTurn ? `${currentIndicator.nineTurn.direction === "buy" ? "下跌" : "上涨"} ${currentIndicator.nineTurn.count}${currentIndicator.nineTurn.completed ? " · 完成" : ""}` : "—"} />
               <Detail label="买卖指引" value={currentIndicator.guide ? `${currentIndicator.guide.type === "buy" ? "B" : "S"}${currentIndicator.guide.score}` : "—"} />
+              {realtimeDailySeries.included ? <Detail label={`今日B/S（${realtimeDailySeries.provisional ? "盘中预估" : "收盘确认"}）`} value={`${todayGuide ? `${todayGuide.type === "buy" ? "B" : "S"}${todayGuide.score}` : "观察"} @ ${formatNumber(liveQuote?.price ?? dailyCandles.at(-1)?.close ?? 0, 3)} · ${realtimeDailySeries.time.slice(0, 5)}`} /> : null}
               <Detail label="换手率" value={selectedCandle?.turnoverPct == null ? "—" : `${formatNumber(selectedCandle.turnoverPct, 2)}%`} />
             </dl>
           </section>

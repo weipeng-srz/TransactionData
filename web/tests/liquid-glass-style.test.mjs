@@ -10,8 +10,9 @@ const globalGlassBlock = globalStyles.slice(globalStyles.indexOf("/* Desktop liq
 test("defines readable liquid-glass surfaces for light and dark appearances", () => {
   assert.match(appleStyles, /--apple-glass: rgba\(255, 255, 255, 0\.66\)/);
   assert.match(appleStyles, /--apple-glass: rgba\(31, 31, 34, 0\.68\)/);
-  assert.match(appleStyles, /--apple-glass-border: rgba\(67, 72, 82, 0\.13\)/);
-  assert.match(appleStyles, /--apple-glass-border: rgba\(255, 255, 255, 0\.15\)/);
+  assert.match(appleStyles, /--platform-border-color: rgba\(67, 72, 82, 0\.18\)/);
+  assert.match(appleStyles, /--platform-border-color: rgba\(207, 216, 229, 0\.22\)/);
+  assert.match(appleStyles, /--apple-glass-border: var\(--platform-border-color\)/);
   assert.match(appleStyles, /backdrop-filter: blur\(26px\) saturate\(175%\)/);
   assert.match(appleStyles, /\.quote-head,/);
   assert.match(appleStyles, /\.stock-score-card \{/);

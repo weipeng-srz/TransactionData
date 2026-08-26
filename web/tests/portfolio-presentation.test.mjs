@@ -13,12 +13,21 @@ const cnStock = { code: "600519", name: "贵州茅台", addedAt: "2026-08-18T00:
 const usStock = { code: "AAPL", name: "Apple", market: "US", currency: "USD", addedAt: "2026-08-17T00:00:00.000Z" };
 
 function quote(overrides = {}) {
+  const price = overrides.price ?? 10;
+  const changePct = overrides.changePct ?? 0;
+  const previousClose = overrides.previousClose ?? price / (1 + changePct / 100);
   return {
     status: "ready",
-    price: 10,
-    changePct: 0,
+    price,
+    previousClose,
+    change: overrides.change ?? price - previousClose,
+    changePct,
+    high: overrides.high ?? Math.max(price, previousClose),
+    low: overrides.low ?? Math.min(price, previousClose),
     date: "2026-08-18",
     time: "15:00:00",
+    source: "测试行情源",
+    error: "",
     score: null,
     intent: null,
     ...overrides,
@@ -66,6 +75,45 @@ test("keeps portfolio exposure and concentration separate by currency", () => {
   assert.equal(summary.exposures[1].marketValue, 100);
   assert.equal(summary.exposures[1].topWeightPct, 100);
   assert.match(summary.nextAction, /美元子组合/);
+});
+
+test("separates holding return from the stock's daily move and verifies quote arithmetic", () => {
+  const stock = { code: "603629", name: "利通电子", addedAt: "2026-08-25T00:00:00.000Z" };
+  const holdings = {
+    "603629": { code: "603629", shares: 100, cost: 112.51, updatedAt: "2026-08-20T08:00:00.000Z" },
+  };
+  const quotes = {
+    "603629": quote({
+      price: 119.79,
+      previousClose: 121.78,
+      change: -1.99,
+      changePct: -1.6340942683527593,
+      high: 121.7,
+      low: 115.66,
+      date: "2026-08-25",
+      time: "11:30:00",
+      source: "新浪 HTTPS 实时行情与五档盘口",
+    }),
+  };
+
+  const summary = buildPortfolioInsights([stock], holdings, quotes);
+  assert.equal(summary.bestHolding.stockName, "利通电子");
+  assert.ok(Math.abs(summary.bestHolding.valuePct - 6.470535952359785) < 1e-9);
+  assert.equal(summary.bestHolding.dayChangePct, -1.6340942683527593);
+  assert.equal(summary.bestHolding.verification.status, "verified");
+  assert.equal(summary.bestHolding.verification.passedChecks, 3);
+  assert.equal(summary.validation.verified, 1);
+});
+
+test("flags a quote when displayed change percentage contradicts price and previous close", () => {
+  const stock = { code: "603629", name: "利通电子", addedAt: "2026-08-25T00:00:00.000Z" };
+  const quotes = {
+    "603629": quote({ price: 119.79, previousClose: 121.78, change: -1.99, changePct: 6.47, high: 121.7, low: 115.66 }),
+  };
+
+  const summary = buildPortfolioInsights([stock], {}, quotes);
+  assert.equal(summary.validation.warning, 1);
+  assert.match(summary.nextAction, /复核 利通电子/);
 });
 
 test("formats estimated capital flow in the security's own currency", () => {

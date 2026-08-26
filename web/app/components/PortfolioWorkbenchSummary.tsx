@@ -21,8 +21,12 @@ type DiscoveryState = {
   markets: Record<StockMarket, MarketLoadState>;
   errors: Partial<Record<StockMarket, string>>;
 };
+type HoldingFilter = "all" | "review" | "profit" | "loss";
+type HoldingSort = "priority" | "weight" | "profitAsc" | "profitDesc";
 
 const markets: StockMarket[] = ["CN", "US"];
+const actionPageSize = 6;
+const holdingPageSize = 8;
 
 export default function PortfolioWorkbenchSummary({
   watchlist,
@@ -42,8 +46,12 @@ export default function PortfolioWorkbenchSummary({
   const [discovery, setDiscovery] = useState<DiscoveryState>({ feeds: {}, markets: { CN: "loading", US: "loading" }, errors: {} });
   const [scanRequest, setScanRequest] = useState({ version: 0, markets });
   const [showAllConflicts, setShowAllConflicts] = useState(false);
-  const [showAllActions, setShowAllActions] = useState(false);
-  const [showAllHoldings, setShowAllHoldings] = useState(false);
+  const [includeObservedActions, setIncludeObservedActions] = useState(false);
+  const [visibleActionCount, setVisibleActionCount] = useState(actionPageSize);
+  const [holdingFilter, setHoldingFilter] = useState<HoldingFilter>("all");
+  const [holdingSort, setHoldingSort] = useState<HoldingSort>("priority");
+  const [holdingQuery, setHoldingQuery] = useState("");
+  const [visibleHoldingCount, setVisibleHoldingCount] = useState(holdingPageSize);
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [showAllNews, setShowAllNews] = useState(false);
   const workbenchId = useId();
@@ -96,8 +104,31 @@ export default function PortfolioWorkbenchSummary({
 
   const visibleConflicts = showAllConflicts ? digest.conflicts : digest.conflicts.slice(0, 3);
   const actionableActions = digest.actions.filter((item) => item.actionable);
-  const visibleActions = showAllActions ? digest.actions : actionableActions;
-  const visibleHoldings = showAllHoldings ? digest.holdings : digest.holdings.slice(0, 3);
+  const actionPool = includeObservedActions ? digest.actions : actionableActions;
+  const visibleActions = actionPool.slice(0, visibleActionCount);
+  const holdingStats = useMemo(() => ({
+    review: digest.holdings.filter((item) => item.action.actionable).length,
+    profit: digest.holdings.filter((item) => (item.profitPct ?? 0) > 0).length,
+    loss: digest.holdings.filter((item) => (item.profitPct ?? 0) < 0).length,
+  }), [digest.holdings]);
+  const filteredHoldings = useMemo(() => {
+    const normalizedQuery = holdingQuery.trim().toLocaleLowerCase();
+    const items = digest.holdings.filter((item) => {
+      if (normalizedQuery && !`${item.stockName} ${item.code}`.toLocaleLowerCase().includes(normalizedQuery)) return false;
+      if (holdingFilter === "review") return item.action.actionable;
+      if (holdingFilter === "profit") return (item.profitPct ?? 0) > 0;
+      if (holdingFilter === "loss") return (item.profitPct ?? 0) < 0;
+      return true;
+    });
+    return items.sort((left, right) => {
+      if (holdingSort === "weight") return (right.weightPct ?? -1) - (left.weightPct ?? -1) || right.action.priority - left.action.priority;
+      if (holdingSort === "profitAsc") return (left.profitPct ?? Number.POSITIVE_INFINITY) - (right.profitPct ?? Number.POSITIVE_INFINITY);
+      if (holdingSort === "profitDesc") return (right.profitPct ?? Number.NEGATIVE_INFINITY) - (left.profitPct ?? Number.NEGATIVE_INFINITY);
+      return right.action.priority - left.action.priority || (left.profitPct ?? 0) - (right.profitPct ?? 0);
+    });
+  }, [digest.holdings, holdingFilter, holdingQuery, holdingSort]);
+  const visibleHoldings = filteredHoldings.slice(0, visibleHoldingCount);
+  const holdingHasControls = digest.holdings.length > 6;
   const visibleSignals = showAllSignals ? digest.bsSignals : digest.bsSignals.slice(0, 6);
   const visibleNews = showAllNews ? digest.attentionNews : digest.attentionNews.slice(0, 4);
   const newsFailedStocks = watchlist.filter((stock) => digest.newsCoverage.failedKeys.includes(stockStorageKey(stock)));
@@ -157,7 +188,7 @@ export default function PortfolioWorkbenchSummary({
               {digest.conflicts.length > 3 ? <button type="button" aria-expanded={showAllConflicts} aria-controls={`${workbenchId}-conflicts`} onClick={() => setShowAllConflicts((value) => !value)}>{showAllConflicts ? "收起分歧" : `查看全部 ${digest.conflicts.length} 项`}</button> : null}
             </div>
           ) : null}
-          <div className={styles.actionList} id={`${workbenchId}-actions`}>
+          <div className={`${styles.actionList} ${actionPool.length > actionPageSize ? styles.actionViewport : ""}`} id={`${workbenchId}-actions`}>
             {visibleActions.length ? visibleActions.map((item) => (
               <button key={item.key} className={styles.actionRow} type="button" onClick={() => onOpenStock(stockRouteKey({ code: item.code, market: item.market }))}>
                 <ActionBadge action={item.action} />
@@ -166,13 +197,77 @@ export default function PortfolioWorkbenchSummary({
               </button>
             )) : <EmptyCopy>{digest.observeCount ? `${digest.observeCount} 只持仓暂归为继续观察；没有需要优先复核的操作候选。` : "尚未形成持仓复核队列；先记录持仓并等待行情完成。"}</EmptyCopy>}
           </div>
-          {digest.observeCount ? <ListToggle controls={`${workbenchId}-actions`} expanded={showAllActions} onClick={() => setShowAllActions((value) => !value)} expandLabel={`查看其余 ${digest.observeCount} 只继续观察`} collapseLabel="仅看需优先复核" /> : null}
+          {actionPool.length > actionPageSize || digest.observeCount ? (
+            <div className={styles.listPager}>
+              <span role="status">显示 {visibleActions.length}/{actionPool.length} 只{includeObservedActions ? "持仓" : "需复核持仓"}</span>
+              <div>
+                {digest.observeCount ? (
+                  <button
+                    type="button"
+                    aria-pressed={includeObservedActions}
+                    onClick={() => {
+                      setIncludeObservedActions((value) => !value);
+                      setVisibleActionCount(actionPageSize);
+                    }}
+                  >
+                    {includeObservedActions ? "隐藏继续观察" : `包含 ${digest.observeCount} 只继续观察`}
+                  </button>
+                ) : null}
+                {visibleActionCount > actionPageSize ? <button type="button" onClick={() => setVisibleActionCount(actionPageSize)}>收起</button> : null}
+                {visibleActions.length < actionPool.length ? (
+                  <button type="button" onClick={() => setVisibleActionCount((count) => count + actionPageSize)}>
+                    再显示 {Math.min(actionPageSize, actionPool.length - visibleActions.length)} 只
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <p className={styles.modelNotice}>“止损/止盈/加减仓”均为模型复核候选；执行前必须核对个人交易计划、持有周期、目标仓位和风险预算。</p>
         </article>
 
         <article className={styles.panel}>
-          <PanelHeader eyebrow="POSITIONS" title="持仓分析" meta={`按同币种权重计算 · ≥${digest.concentrationThresholdPct}% 进入集中度复核`} />
-          <div className={styles.positionList} id={`${workbenchId}-holdings`}>
+          <PanelHeader eyebrow="POSITIONS" title="持仓分析" meta={`共 ${digest.holdings.length} 只 · 需复核 ${holdingStats.review} 只 · 默认风险优先`} />
+          {holdingHasControls ? (
+            <div className={styles.positionControls}>
+              <div className={styles.positionQuickFilters} role="group" aria-label="持仓筛选">
+                <button type="button" aria-pressed={holdingFilter === "all"} onClick={() => { setHoldingFilter("all"); setVisibleHoldingCount(holdingPageSize); }}>全部 {digest.holdings.length}</button>
+                <button type="button" aria-pressed={holdingFilter === "review"} onClick={() => { setHoldingFilter("review"); setVisibleHoldingCount(holdingPageSize); }}>需复核 {holdingStats.review}</button>
+                <button type="button" aria-pressed={holdingFilter === "profit"} onClick={() => { setHoldingFilter("profit"); setVisibleHoldingCount(holdingPageSize); }}>盈利 {holdingStats.profit}</button>
+                <button type="button" aria-pressed={holdingFilter === "loss"} onClick={() => { setHoldingFilter("loss"); setVisibleHoldingCount(holdingPageSize); }}>亏损 {holdingStats.loss}</button>
+              </div>
+              <label className={styles.positionSearch}>
+                <span>搜索</span>
+                <input
+                  aria-label="搜索持仓股票"
+                  type="search"
+                  value={holdingQuery}
+                  placeholder="名称 / 代码"
+                  onChange={(event) => {
+                    setHoldingQuery(event.target.value);
+                    setVisibleHoldingCount(holdingPageSize);
+                  }}
+                />
+              </label>
+              <label className={styles.positionSort}>
+                <span>排序</span>
+                <select
+                  aria-label="持仓排序"
+                  value={holdingSort}
+                  onChange={(event) => {
+                    setHoldingSort(event.target.value as HoldingSort);
+                    setVisibleHoldingCount(holdingPageSize);
+                  }}
+                >
+                  <option value="priority">风险优先</option>
+                  <option value="weight">仓位从高到低</option>
+                  <option value="profitAsc">收益从低到高</option>
+                  <option value="profitDesc">收益从高到低</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
+          {holdingHasControls ? <div className={styles.positionColumns} aria-hidden="true"><span>股票</span><span>市值 / 权重</span><span>累计 / 当日</span><span>复核状态</span></div> : null}
+          <div className={`${styles.positionList} ${holdingHasControls ? styles.positionViewport : ""}`} id={`${workbenchId}-holdings`}>
             {visibleHoldings.length ? visibleHoldings.map((position) => (
               <button key={position.key} className={styles.positionRow} type="button" onClick={() => onOpenStock(stockRouteKey({ code: position.code, market: position.market }))}>
                 <span className={styles.stockIdentity}><b>{position.stockName}</b><small>{position.code} · {position.currency}</small></span>
@@ -180,9 +275,21 @@ export default function PortfolioWorkbenchSummary({
                 <span><small>累计 / 当日</small><b className={toneClass(position.profitPct)}>{signedPercent(position.profitPct)} / {signedPercent(position.dayChangePct)}</b></span>
                 <ActionBadge action={position.action.action} />
               </button>
-            )) : <EmptyCopy>在自选股中记录持股数与成本价后，这里会按币种计算市值、收益、集中度与操作复核。</EmptyCopy>}
+            )) : <EmptyCopy>{digest.holdings.length ? "没有符合当前筛选条件的持仓。" : "在自选股中记录持股数与成本价后，这里会按币种计算市值、收益、集中度与操作复核。"}</EmptyCopy>}
           </div>
-          {digest.holdings.length > 3 ? <ListToggle controls={`${workbenchId}-holdings`} expanded={showAllHoldings} onClick={() => setShowAllHoldings((value) => !value)} expandLabel={`查看其余 ${digest.holdings.length - 3} 只持仓`} collapseLabel="收起持仓" /> : null}
+          {holdingHasControls ? (
+            <div className={styles.listPager}>
+              <span role="status">显示 {visibleHoldings.length}/{filteredHoldings.length} 只{holdingQuery.trim() || holdingFilter !== "all" ? "匹配持仓" : "持仓"}</span>
+              <div>
+                {visibleHoldingCount > holdingPageSize ? <button type="button" onClick={() => setVisibleHoldingCount(holdingPageSize)}>收起</button> : null}
+                {visibleHoldings.length < filteredHoldings.length ? (
+                  <button type="button" onClick={() => setVisibleHoldingCount((count) => count + holdingPageSize)}>
+                    再显示 {Math.min(holdingPageSize, filteredHoldings.length - visibleHoldings.length)} 只
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </article>
       </div>
 
