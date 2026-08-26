@@ -213,3 +213,63 @@
   .glossary summary { transition-duration: .01ms; }
   .glossary[open] dl { animation: none; }
 }
+
+/* Apple Design craft pass: guidance feels native without distracting from data. */
+.card {
+  border-color: color-mix(in srgb, var(--apple-accent) 14%, var(--apple-divider));
+  background:
+    linear-gradient(138deg, color-mix(in srgb, #fff 34%, transparent), transparent 34%),
+    color-mix(in srgb, var(--apple-surface) 88%, transparent);
+  box-shadow: var(--apple-shadow-resting);
+}
+
+.header h2 {
+  font-family: var(--apple-display-font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -.04em;
+  text-wrap: balance;
+}
+
+.item {
+  border-color: var(--apple-divider);
+  background: color-mix(in srgb, var(--apple-surface) 88%, transparent);
+  transition:
+    border-color var(--apple-motion-base) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-base) var(--apple-motion-curve),
+    transform var(--apple-motion-base) var(--apple-motion-curve);
+}
+
+.profile {
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--apple-text) 8%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--apple-text) 5%, transparent);
+}
+
+.profile button { border: 0; border-radius: 9px; background: transparent; }
+.profile button[aria-pressed="true"] {
+  color: var(--apple-text);
+  background: var(--apple-surface);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 4px 12px rgba(16, 24, 40, .055);
+}
+
+.profile button:focus-visible,
+.glossary summary:focus-visible {
+  outline: 2px solid var(--apple-accent);
+  outline-offset: 3px;
+  box-shadow: var(--apple-focus-ring);
+}
+
+.profile button:active { transform: scale(var(--apple-press-scale, .97)); }
+
+@media (hover: hover) and (pointer: fine) {
+  .item:hover {
+    border-color: color-mix(in srgb, var(--apple-accent) 16%, var(--apple-border));
+    box-shadow: var(--apple-shadow-hover);
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .card { background: var(--apple-surface); backdrop-filter: none; }
+}

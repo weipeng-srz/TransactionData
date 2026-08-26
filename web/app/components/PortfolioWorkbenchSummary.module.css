@@ -301,3 +301,92 @@
 @media (prefers-reduced-motion: reduce) {
   .summary * { scroll-behavior: auto !important; transition: none !important; }
 }
+
+/* Apple Design craft pass: consistent hierarchy and immediate control feedback. */
+.header,
+.panel,
+.kpis {
+  border-color: var(--apple-divider);
+  box-shadow: var(--apple-shadow-resting);
+}
+
+.header h2,
+.panelHeader h3 {
+  font-family: var(--apple-display-font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  font-optical-sizing: auto;
+  text-wrap: balance;
+}
+
+.kpis strong { font-optical-sizing: auto; letter-spacing: -.04em; }
+
+.positionRow,
+.actionRow,
+.signalRow,
+.newsRow,
+.ideaCard {
+  border-color: var(--apple-divider);
+  transition:
+    border-color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve),
+    transform var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.summary button {
+  touch-action: manipulation;
+  transition:
+    color var(--apple-motion-fast) var(--apple-motion-curve),
+    border-color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve),
+    transform var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.summary :is(button, input, select, a):focus-visible {
+  outline: 2px solid var(--portfolio-blue);
+  outline-offset: 3px;
+  box-shadow: var(--apple-focus-ring);
+}
+
+.summary button:active:not(:disabled) {
+  transform: scale(var(--apple-press-scale, .97));
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+.positionSearch:focus-within,
+.positionSort:focus-within {
+  border-color: color-mix(in srgb, var(--portfolio-blue) 60%, var(--apple-control-stroke));
+  box-shadow: var(--apple-focus-ring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .panel,
+  .ideaCard {
+    transition:
+      border-color var(--apple-motion-base) var(--apple-motion-curve),
+      box-shadow var(--apple-motion-base) var(--apple-motion-curve),
+      transform var(--apple-motion-base) var(--apple-motion-curve);
+  }
+
+  .panel:hover,
+  .ideaCard:hover {
+    border-color: color-mix(in srgb, var(--portfolio-blue) 16%, var(--portfolio-border));
+    box-shadow: var(--apple-shadow-hover);
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 760px) {
+  .header,
+  .panel { backdrop-filter: none; }
+  .summary :is(button, select) { min-height: 44px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .header,
+  .panel {
+    background: var(--portfolio-surface-solid);
+    backdrop-filter: none;
+  }
+}

@@ -964,3 +964,372 @@
   .page *::before,
   .page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Apple Design craft pass: dense decision data with a calm, physical hierarchy. */
+.page {
+  --screener-panel-shadow: var(--apple-shadow-resting, 0 10px 30px rgba(16, 24, 40, .045));
+  --screener-panel-shadow-hover: var(--apple-shadow-hover, 0 18px 48px rgba(16, 24, 40, .075));
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 10% -6%, color-mix(in srgb, var(--apple-ambient-blue) 44%, transparent), transparent 32rem),
+    radial-gradient(circle at 92% 4%, color-mix(in srgb, var(--apple-ambient-mint) 34%, transparent), transparent 26rem),
+    var(--apple-page);
+  font-family: var(--apple-font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell {
+  width: min(100%, var(--site-frame-max, 1600px));
+  margin-inline: auto;
+  padding-bottom: max(52px, env(safe-area-inset-bottom));
+}
+
+.hero h1,
+.decisionDeck h2,
+.sectionHeader h2,
+.poolHeader h2,
+.ladderCard h2,
+.themeCard h2,
+.scaleCard h2,
+.comparePanel h3,
+.drawerHeader h2,
+.drawerSection h3,
+.methodDialog h2 {
+  font-family: var(--apple-display-font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -.028em;
+  text-wrap: balance;
+}
+
+.hero h1 {
+  max-width: 18ch;
+  font-size: clamp(30px, 4vw, 54px);
+  line-height: 1.02;
+  letter-spacing: -.045em;
+}
+
+.heroCopy > p {
+  max-width: 64ch;
+  color: var(--apple-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.eyebrow,
+.sectionHeader span,
+.poolHeader span,
+.ladderCard header span,
+.themeCard header span,
+.scaleCard > span,
+.comparePanel header span,
+.drawerHeader > div > span {
+  color: var(--apple-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .11em;
+}
+
+.featuredSection,
+.stockPool,
+.ladderCard,
+.themeCard,
+.scaleCard,
+.researchPoolCard,
+.evidenceSection,
+.coveragePanel,
+.decisionDeck,
+.comparePanel {
+  border-color: var(--platform-border-color);
+  background:
+    linear-gradient(138deg, color-mix(in srgb, #fff 34%, transparent), transparent 34%),
+    color-mix(in srgb, var(--screener-glass) 95%, var(--apple-page));
+  box-shadow: var(--screener-panel-shadow);
+}
+
+:global(html[data-appearance="dark"]) .featuredSection,
+:global(html[data-appearance="dark"]) .stockPool,
+:global(html[data-appearance="dark"]) .ladderCard,
+:global(html[data-appearance="dark"]) .themeCard,
+:global(html[data-appearance="dark"]) .scaleCard,
+:global(html[data-appearance="dark"]) .researchPoolCard,
+:global(html[data-appearance="dark"]) .evidenceSection,
+:global(html[data-appearance="dark"]) .coveragePanel,
+:global(html[data-appearance="dark"]) .decisionDeck,
+:global(html[data-appearance="dark"]) .comparePanel {
+  background:
+    linear-gradient(138deg, color-mix(in srgb, #fff 7%, transparent), transparent 32%),
+    color-mix(in srgb, var(--screener-glass) 96%, var(--apple-page));
+}
+
+.featuredCard,
+.compactCandidate,
+.mobileOpportunityCard,
+.compareGrid article,
+.evidenceGrid article,
+.drawerSection,
+.positionPlan > span,
+.coverageFunnel > button {
+  border-color: var(--apple-divider);
+  background: color-mix(in srgb, var(--apple-surface) 90%, transparent);
+}
+
+.marketSwitch,
+.viewSwitch,
+.strategyTabs,
+.drawerTabs {
+  border: 1px solid color-mix(in srgb, var(--apple-text) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--apple-text) 5%, transparent);
+}
+
+.marketSwitch button,
+.viewSwitch button,
+.strategyTabs button,
+.drawerTabs button {
+  border-radius: 999px;
+  transition:
+    color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve),
+    transform var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.marketSwitch .active,
+.viewSwitch .active,
+.strategyTabs .activeTab,
+.drawerTabs button[aria-pressed="true"] {
+  color: var(--apple-text);
+  background: var(--apple-surface);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 4px 12px rgba(16, 24, 40, .055);
+}
+
+.page button,
+.page input,
+.page select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page button {
+  touch-action: manipulation;
+  transition:
+    color var(--apple-motion-fast) var(--apple-motion-curve),
+    border-color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve),
+    transform var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.page button:active:not(:disabled) {
+  transform: scale(var(--apple-press-scale, .97));
+  transition-duration: 100ms;
+  transition-timing-function: ease-out;
+}
+
+.page :is(button, input, select, a):focus-visible {
+  outline: 2px solid var(--apple-accent);
+  outline-offset: 3px;
+  box-shadow: var(--apple-focus-ring);
+}
+
+.page :is(input, select) {
+  border-color: var(--apple-control-stroke);
+  color: var(--apple-text);
+  background: var(--apple-control-fill);
+  transition:
+    border-color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.page :is(input, select):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--apple-accent) 28%, var(--apple-control-stroke));
+  background: var(--apple-control-fill-hover);
+}
+
+.page :is(input, select):focus {
+  border-color: color-mix(in srgb, var(--apple-accent) 64%, var(--apple-control-stroke));
+}
+
+.tableWrap {
+  border-color: var(--apple-divider);
+  scrollbar-color: color-mix(in srgb, var(--apple-tertiary) 36%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.tableWrap::-webkit-scrollbar { width: 8px; height: 8px; }
+.tableWrap::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--apple-tertiary) 34%, transparent);
+  background-clip: padding-box;
+}
+
+.tableWrap th {
+  color: var(--apple-tertiary);
+  background: color-mix(in srgb, var(--apple-surface) 90%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.tableWrap tbody tr {
+  border-color: var(--apple-divider);
+  transition: background-color var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.drawerBackdrop,
+.methodBackdrop {
+  background: color-mix(in srgb, #101114 42%, transparent);
+  backdrop-filter: blur(8px) saturate(112%);
+  -webkit-backdrop-filter: blur(8px) saturate(112%);
+}
+
+.drawer,
+.methodDialog {
+  border-color: var(--apple-control-stroke);
+  background: color-mix(in srgb, var(--apple-surface) 94%, transparent);
+  box-shadow: 0 24px 80px rgba(10, 15, 24, .2);
+  backdrop-filter: blur(30px) saturate(170%);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+}
+
+.drawerHeader,
+.drawerActions {
+  background: color-mix(in srgb, var(--apple-surface) 88%, transparent);
+  backdrop-filter: blur(20px) saturate(155%);
+  -webkit-backdrop-filter: blur(20px) saturate(155%);
+}
+
+.toast {
+  border: 1px solid color-mix(in srgb, #fff 24%, var(--apple-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--apple-text) 88%, transparent);
+  box-shadow: var(--screener-panel-shadow-hover);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+
+.spinner { border-width: 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .featuredCard,
+  .compactCandidate,
+  .mobileOpportunityCard,
+  .compareGrid article,
+  .evidenceGrid article,
+  .coverageFunnel > button {
+    transition:
+      border-color var(--apple-motion-base) var(--apple-motion-curve),
+      box-shadow var(--apple-motion-base) var(--apple-motion-curve),
+      transform var(--apple-motion-base) var(--apple-motion-curve);
+  }
+
+  .featuredCard:hover,
+  .compactCandidate:hover,
+  .compareGrid article:hover,
+  .evidenceGrid article:hover,
+  .coverageFunnel > button:hover {
+    border-color: color-mix(in srgb, var(--apple-accent) 18%, var(--apple-border));
+    box-shadow: var(--screener-panel-shadow-hover);
+    transform: translateY(-1px);
+  }
+
+  .tableWrap tbody tr:hover {
+    background: color-mix(in srgb, var(--apple-accent) 5%, transparent);
+  }
+}
+
+@media (min-width: 821px) {
+  .featuredSection,
+  .stockPool,
+  .ladderCard,
+  .themeCard,
+  .scaleCard,
+  .researchPoolCard,
+  .evidenceSection,
+  .coveragePanel,
+  .decisionDeck,
+  .comparePanel {
+    backdrop-filter: blur(24px) saturate(155%);
+    -webkit-backdrop-filter: blur(24px) saturate(155%);
+  }
+}
+
+@media (max-width: 820px) {
+  .page {
+    background:
+      radial-gradient(circle at 50% -8%, color-mix(in srgb, var(--apple-ambient-blue) 38%, transparent), transparent 24rem),
+      var(--apple-page);
+  }
+
+  .shell { padding-bottom: max(36px, env(safe-area-inset-bottom)); }
+  .hero h1 { max-width: none; font-size: clamp(28px, 10vw, 42px); }
+
+  .tableWrap th,
+  .drawerHeader,
+  .drawerActions {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .page :is(button, select) { min-height: 44px; }
+  .drawerHeader button { min-width: 44px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .featuredSection,
+  .stockPool,
+  .ladderCard,
+  .themeCard,
+  .scaleCard,
+  .researchPoolCard,
+  .evidenceSection,
+  .coveragePanel,
+  .decisionDeck,
+  .comparePanel,
+  .drawer,
+  .methodDialog,
+  .drawerHeader,
+  .drawerActions,
+  .toast,
+  .drawerBackdrop,
+  .methodBackdrop {
+    background: var(--apple-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    scroll-behavior: auto;
+    transition-duration: .01ms;
+    animation-duration: .01ms;
+    animation-iteration-count: 1;
+  }
+
+  .featuredCard:hover,
+  .compactCandidate:hover,
+  .compareGrid article:hover,
+  .evidenceGrid article:hover,
+  .coverageFunnel > button:hover { transform: none; }
+}
+
+@media (prefers-contrast: more) {
+  .featuredSection,
+  .stockPool,
+  .ladderCard,
+  .themeCard,
+  .scaleCard,
+  .researchPoolCard,
+  .evidenceSection,
+  .coveragePanel,
+  .decisionDeck,
+  .comparePanel,
+  .featuredCard,
+  .compactCandidate,
+  .drawer,
+  .methodDialog { border-color: color-mix(in srgb, var(--apple-text) 44%, transparent); }
+}

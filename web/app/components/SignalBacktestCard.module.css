@@ -59,3 +59,26 @@
   .costControl { min-height: 44px; }
   .costControl input { min-height: 36px; }
 }
+
+/* Apple Design craft pass: make cost assumptions clear and tactile. */
+.costControl {
+  border-color: var(--apple-control-stroke);
+  background: var(--apple-control-fill);
+  box-shadow: none;
+  transition:
+    border-color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.costControl:focus-within {
+  border-color: color-mix(in srgb, var(--apple-accent) 60%, var(--apple-control-stroke));
+  background: var(--apple-control-fill-hover);
+  box-shadow: var(--apple-focus-ring);
+}
+
+.costControl input:focus-visible {
+  outline: 2px solid var(--apple-accent);
+  outline-offset: 2px;
+  box-shadow: var(--apple-focus-ring);
+}
