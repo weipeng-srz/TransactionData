@@ -32,11 +32,11 @@ test("uses one optical type, focus, and motion language across the platform", ()
   }
 });
 
-test("keeps translucency on structural surfaces and supports reduced transparency", () => {
+test("keeps translucency on structural chrome while scrolling surfaces stay stable", () => {
   assert.match(bannerStyles, /@media \(min-width: 821px\)[\s\S]*?backdrop-filter: blur\(30px\) saturate\(175%\)/);
-  assert.match(portfolioStyles, /\.watchlistCard,[\s\S]*?backdrop-filter: blur\(24px\) saturate\(155%\)/);
-  assert.match(screenerStyles, /\.featuredSection,[\s\S]*?backdrop-filter: blur\(24px\) saturate\(155%\)/);
-  assert.match(globalStyles, /\.global-summary,[\s\S]*?backdrop-filter: blur\(24px\) saturate\(155%\)/);
+  assert.match(portfolioStyles, /\.watchlistCard,[\s\S]*?\.globalMarketCard \{[\s\S]*?backdrop-filter: none/);
+  assert.match(screenerStyles, /\.featuredSection,[\s\S]*?\.comparePanel \{[\s\S]*?backdrop-filter: none/);
+  assert.match(globalStyles, /\.global-summary,[\s\S]*?\.global-region-card \{[\s\S]*?backdrop-filter: none/);
 
   for (const styles of platformStyles) {
     assert.match(styles, /prefers-reduced-transparency: reduce/);

@@ -389,7 +389,6 @@ body {
     radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--apple-ambient-violet) 52%, transparent), transparent 28rem),
     radial-gradient(circle at 22% 74%, color-mix(in srgb, var(--apple-ambient-mint) 48%, transparent), transparent 26rem),
     linear-gradient(180deg, color-mix(in srgb, var(--apple-page) 88%, white), var(--apple-page));
-  background-attachment: fixed;
   font-feature-settings: "kern" 1, "liga" 1, "tnum" 1;
   line-height: 1.5;
 }
@@ -400,7 +399,6 @@ body {
     radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--apple-ambient-violet) 42%, transparent), transparent 28rem),
     radial-gradient(circle at 22% 74%, color-mix(in srgb, var(--apple-ambient-mint) 34%, transparent), transparent 26rem),
     linear-gradient(180deg, #10151e, var(--apple-page));
-  background-attachment: fixed;
 }
 
 @media (min-width: 1181px) {
@@ -4787,47 +4785,6 @@ summary:active,
   grid-column: 1 / -1;
 }
 
-.research-page .stock-score-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 620px;
-}
-
-.research-page .realtime-panel {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 650px;
-}
-
-.research-page .workspace-grid {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 2500px;
-}
-
-.research-page .next-day-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 1900px;
-}
-
-.research-page .finance-dashboard {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 1600px;
-}
-
-.research-page .legacy-financial-summary {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 54px;
-}
-
-.research-page .advanced-only {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 680px;
-}
-
-.research-page .research-dock,
-.research-page .news-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 620px;
-}
-
 @media (min-width: 1181px) {
   .research-page .app-sidebar,
   .research-page .query-strip,
@@ -4943,7 +4900,6 @@ summary:active,
 
 .view-basic .finance-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .view-basic .finance-kpi-grid > :nth-child(n + 5) { display: none; }
-.view-basic .finance-dashboard { contain-intrinsic-size: auto 720px; }
 .view-basic .news-layout { grid-template-columns: minmax(0, 1fr); }
 .view-basic .news-summary-panel { display: none; }
 .view-basic .basic-news-more { width: 100%; margin-top: 4px; }
@@ -5165,21 +5121,6 @@ summary:active,
 @media (prefers-reduced-motion: reduce) {
   .platform-mobile-section-nav button { transition: none; }
   .platform-mobile-section-nav button:active { transform: none; }
-}
-
-@media print {
-  .research-page .stock-score-card,
-  .research-page .realtime-panel,
-  .research-page .workspace-grid,
-  .research-page .next-day-card,
-  .research-page .finance-dashboard,
-  .research-page .legacy-financial-summary,
-  .research-page .advanced-only,
-  .research-page .research-dock,
-  .research-page .news-card {
-    content-visibility: visible;
-    contain-intrinsic-size: none;
-  }
 }
 
 /*

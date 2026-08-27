@@ -1749,11 +1749,6 @@ tbody tr:hover td {
 
 .mobile-nav-hint { display: none; }
 
-.advanced-research-panel,
-.finance-dashboard,
-.news-card,
-.recent-card,
-.research-dock { content-visibility: auto; contain-intrinsic-size: 600px; }
 @media (max-width: 1100px) {
   .advanced-risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .advanced-research-columns { grid-template-columns: 1fr; }
