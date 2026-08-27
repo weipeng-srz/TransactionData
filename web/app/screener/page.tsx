@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAppearance } from "../components/AppearanceProvider";
 import SiteBanner from "../components/SiteBanner";
 import { stockRouteKey, stockStorageKey } from "../lib/security";
 import type { ScreenerFeed, ScreenerMarket, ScreenerOpportunity, ScreenerRecommendation, ScreenerSecurityType, ScreenerStrategyEvidence } from "../lib/screenerTypes";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import styles from "./screener.module.css";
 
-type Appearance = "light" | "dark";
 type SortKey = "score" | "change" | "confidence" | "volume" | "relativeStrength" | "rewardRisk";
 type MarketCapFilter = "all" | "small" | "mid" | "large";
 type ResearchPoolEntry = Pick<ScreenerOpportunity, "market" | "symbol" | "name" | "sector" | "risk" | "score"> & { addedAt: string };
@@ -25,7 +25,6 @@ type SavedPreset = FilterSnapshot & { id: string; market: ScreenerMarket; name: 
 type CoverageStage = "universe" | "scan" | "quality" | "prefilter" | "history";
 
 const watchlistStorageKey = "ticklens.watchlist.v1";
-const appearanceStorageKey = "ticklens.appearance.v1";
 const researchPoolStorageKey = "ticklens.screener-research-pool.v1";
 const screenerPresetStorageKey = "ticklens.screener-professional-preset.v1";
 const screenerModeStorageKey = "ticklens.screener-mode.v1";
@@ -37,6 +36,7 @@ const strategyTabs: Record<ScreenerMarket, string[]> = {
 };
 
 export default function ScreenerPage() {
+  const { appearance, toggleAppearance } = useAppearance();
   const [market, setMarket] = useState<ScreenerMarket>("CN");
   const [strategy, setStrategy] = useState("今日精选");
   const [sort, setSort] = useState<SortKey>("score");
@@ -59,7 +59,6 @@ export default function ScreenerPage() {
   const [presetName, setPresetName] = useState("");
   const [marketFilters, setMarketFilters] = useState<Partial<Record<ScreenerMarket, FilterSnapshot>>>({});
   const [researchUndo, setResearchUndo] = useState<{ stock: ScreenerOpportunity; wasObserved: boolean } | null>(null);
-  const [appearance, setAppearance] = useState<Appearance>("light");
   const [selected, setSelected] = useState<ScreenerOpportunity | null>(null);
   const [watchlistKeys, setWatchlistKeys] = useState<string[]>([]);
   const [researchPool, setResearchPool] = useState<ResearchPoolEntry[]>([]);
@@ -73,8 +72,6 @@ export default function ScreenerPage() {
   const refreshRequestedRef = useRef<ScreenerMarket | null>(null);
 
   useEffect(() => {
-    const storedAppearance = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
-    document.documentElement.dataset.appearance = storedAppearance;
     document.title = "智能选股 · TrendSight";
     let storedWatchlistKeys: string[] = [];
     let storedResearchPool: ResearchPoolEntry[] = [];
@@ -103,7 +100,6 @@ export default function ScreenerPage() {
     let mounted = true;
     Promise.resolve().then(() => {
       if (!mounted) return;
-      setAppearance(storedAppearance);
       setWatchlistKeys(storedWatchlistKeys);
       setResearchPool(storedResearchPool);
       setSavedPresets(storedPresets);
@@ -231,13 +227,6 @@ export default function ScreenerPage() {
     setLoadingMarket(market);
     setReloadNonce((value) => value + 1);
     setToast("正在刷新真实行情");
-  };
-
-  const toggleAppearance = () => {
-    const next = appearance === "light" ? "dark" : "light";
-    setAppearance(next);
-    document.documentElement.dataset.appearance = next;
-    localStorage.setItem(appearanceStorageKey, next);
   };
 
   const addToWatchlist = (stock: ScreenerOpportunity) => {

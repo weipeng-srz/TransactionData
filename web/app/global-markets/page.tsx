@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useAppearance } from "../components/AppearanceProvider";
 import KlineViewportControls from "../components/KlineViewportControls";
 import SiteBanner from "../components/SiteBanner";
 import { plotIndexFromPointer } from "../lib/chartInteraction";
@@ -21,9 +22,6 @@ import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib
 import "./global-markets.css";
 
 type FeedState = "loading" | "live" | "refreshing" | "error";
-type Appearance = "light" | "dark";
-
-const appearanceStorageKey = "ticklens.appearance.v1";
 const mapLabelOffsets: Record<string, { x: number; y: number }> = {
   tsx: { x: -116, y: -52 },
   dow: { x: 17, y: 13 },
@@ -45,6 +43,7 @@ const mapTickerLabels: Record<string, string> = {
 };
 
 export default function GlobalMarketsPage() {
+  const { appearance, toggleAppearance } = useAppearance();
   const [quotes, setQuotes] = useState<GlobalIndexQuote[]>([]);
   const [usQuotes, setUSQuotes] = useState<USIndexSessionQuote[]>([]);
   const [fearGauges, setFearGauges] = useState<FearGaugeQuote[]>([]);
@@ -52,7 +51,6 @@ export default function GlobalMarketsPage() {
   const [feedState, setFeedState] = useState<FeedState>("loading");
   const [fetchedAt, setFetchedAt] = useState("");
   const [error, setError] = useState("");
-  const [appearance, setAppearance] = useState<Appearance>("light");
   const [preservedStock, setPreservedStock] = useState("");
   const [mobileChapter, setMobileChapter] = useState<"overview" | "trend" | "map" | "regions">("overview");
   const requestRef = useRef<AbortController | null>(null);
@@ -87,12 +85,6 @@ export default function GlobalMarketsPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      let next: Appearance = "light";
-      try {
-        next = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
-      } catch { /* Appearance remains available for the current page. */ }
-      setAppearance(next);
-      document.documentElement.dataset.appearance = next;
       const stock = new URLSearchParams(window.location.search).get("stock") ?? "";
       if (/^\d{6}$/.test(stock)) setPreservedStock(stock);
     }, 0);
@@ -157,13 +149,6 @@ export default function GlobalMarketsPage() {
     })),
   ];
   const mappedMarketCount = mappedMarkets.length;
-
-  const toggleAppearance = () => {
-    const next: Appearance = appearance === "light" ? "dark" : "light";
-    setAppearance(next);
-    document.documentElement.dataset.appearance = next;
-    try { localStorage.setItem(appearanceStorageKey, next); } catch { /* Preference remains in memory. */ }
-  };
 
   return (
     <div className="global-page">

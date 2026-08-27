@@ -43,12 +43,12 @@ import {
   type PortfolioSortKey,
 } from "../lib/portfolioPresentation";
 import { buildPortfolioPredictionConclusion } from "../lib/portfolioPrediction";
+import { useAppearance } from "./AppearanceProvider";
 import SiteBanner from "./SiteBanner";
 import PortfolioWorkbenchSummary from "./PortfolioWorkbenchSummary";
 import styles from "./PortfolioHome.module.css";
 import { currencyOf, marketLabel, marketOf, stockRouteKey, stockStorageKey, type StockCurrency, type StockMarket } from "../lib/security";
 
-type Appearance = "light" | "dark";
 type QuoteStatus = "idle" | "loading" | "ready" | "error";
 
 type PortfolioQuote = {
@@ -117,7 +117,6 @@ type GlobalFeedState = {
 
 const watchlistStorageKey = "ticklens.watchlist.v1";
 const holdingsStorageKey = "ticklens.holdings.v1";
-const appearanceStorageKey = "ticklens.appearance.v1";
 const fxPreferenceStorageKey = "ticklens.fx-preference.v1";
 const portfolioBenchmarkRequests = new Map<StockMarket, { expiresAt: number; request: Promise<PortfolioBenchmark> }>();
 const dialogFocusableSelector = [
@@ -189,10 +188,10 @@ function loadPortfolioBenchmark(market: StockMarket): Promise<PortfolioBenchmark
 }
 
 export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: string) => void }) {
+  const { appearance, toggleAppearance } = useAppearance();
   const [watchlist, setWatchlist] = useState<WatchlistStock[]>([]);
   const [holdings, setHoldings] = useState<StockHoldings>({});
   const [quotes, setQuotes] = useState<Record<string, PortfolioQuote>>({});
-  const [appearance, setAppearance] = useState<Appearance>("light");
   const [hydrated, setHydrated] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [editor, setEditor] = useState<PositionEditor | null>(null);
@@ -214,7 +213,6 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   useEffect(() => {
     let storedWatchlist: WatchlistStock[] = [];
     let storedHoldings: StockHoldings = {};
-    let storedAppearance: Appearance = "light";
     let storedFxPreference: FxPreference = { enabled: true, usdCny: "7.20", updatedAt: "" };
     try {
       storedWatchlist = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
@@ -225,11 +223,6 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       storedHoldings = parseHoldings(JSON.parse(localStorage.getItem(holdingsStorageKey) ?? "[]"));
     } catch {
       localStorage.removeItem(holdingsStorageKey);
-    }
-    try {
-      storedAppearance = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
-    } catch {
-      storedAppearance = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
     try {
       const parsed = JSON.parse(localStorage.getItem(fxPreferenceStorageKey) ?? "null") as Partial<FxPreference> | null;
@@ -244,11 +237,9 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     } catch {
       localStorage.removeItem(fxPreferenceStorageKey);
     }
-    document.documentElement.dataset.appearance = storedAppearance;
     const frame = window.requestAnimationFrame(() => {
       setWatchlist(storedWatchlist);
       setHoldings(storedHoldings);
-      setAppearance(storedAppearance);
       setFxPreference(storedFxPreference);
       setHydrated(true);
     });
@@ -736,13 +727,6 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     } finally {
       if (holdingsFileRef.current) holdingsFileRef.current.value = "";
     }
-  };
-
-  const toggleAppearance = () => {
-    const next: Appearance = appearance === "light" ? "dark" : "light";
-    setAppearance(next);
-    document.documentElement.dataset.appearance = next;
-    try { localStorage.setItem(appearanceStorageKey, next); } catch { /* current view still updates */ }
   };
 
   const sortedWatchlist = useMemo(

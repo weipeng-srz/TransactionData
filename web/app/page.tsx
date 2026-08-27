@@ -8,6 +8,7 @@ import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import HoldingProfitCard from "./components/HoldingProfitCard";
 import StockScoreCard from "./components/StockScoreCard";
 import BeginnerGuideCard from "./components/BeginnerGuideCard";
+import { useAppearance } from "./components/AppearanceProvider";
 import PortfolioHome from "./components/PortfolioHome";
 import SiteBanner from "./components/SiteBanner";
 import ViewModeSwitch from "./components/ViewModeSwitch";
@@ -115,12 +116,9 @@ type RecentStock = {
   queriedAt: number;
 };
 
-type Appearance = "light" | "dark";
-
 const stockCodePattern = /^(?:(?:sh|sz)\d{6}|\d{6}(?:\.(?:sh|sz))?)$/i;
 const recentStocksStorageKey = "ticklens.recent-stocks.v1";
 const workspaceStorageKey = "ticklens.saved-workspace.v1";
-const appearanceStorageKey = "ticklens.appearance.v1";
 const annotationsStorageKey = "ticklens.annotations.v1";
 const viewModeStorageKey = "ticklens.view-mode.v1";
 const holdingsStorageKey = "ticklens.holdings.v1";
@@ -233,6 +231,7 @@ export default function Home() {
 }
 
 function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { initialStockCode: string; onBackHome: () => void; onOpenStock: (code: string) => void }) {
+  const { appearance, toggleAppearance } = useAppearance();
   const initialIdentity = parseStockRoute(initialStockCode) ?? { code: initialStockCode, market: "CN" as const, currency: "CNY" as const };
   const [initialRouteState, setInitialRouteState] = useState<"loading" | "ready" | "error">("loading");
   const [initialRouteError, setInitialRouteError] = useState("");
@@ -287,7 +286,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const [hasSavedView, setHasSavedView] = useState(false);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
   const [freshness, setFreshness] = useState({ market: "", financial: "", news: "" });
-  const [appearance, setAppearance] = useState<Appearance>("light");
   const [viewMode, setViewMode] = useState<ViewMode>("basic");
   const [mobileChapter, setMobileChapter] = useState<"overview" | "live" | "chart" | "forecast" | "tools" | "financials" | "news">("overview");
   const [roundTripCostPct, setRoundTripCostPct] = useState(0.25);
@@ -466,21 +464,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
 
   useEffect(() => () => requestControllerRef.current?.abort(), []);
   useEffect(() => { reportTelemetry("app_loaded", performance.now()); }, []);
-
-  useEffect(() => {
-    let resolved: Appearance = "light";
-    try {
-      const stored = localStorage.getItem(appearanceStorageKey);
-      resolved = stored === "dark" || stored === "light"
-        ? stored
-        : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    } catch {
-      resolved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    document.documentElement.dataset.appearance = resolved;
-    const frame = window.requestAnimationFrame(() => setAppearance(resolved));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
 
   const analyticalDataset = useMemo(
     () => selectedMarket === "CN" && realtimeSnapshot?.code === selectedCode
@@ -915,17 +898,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     setBenchmarkDataset(null);
     setTimeframe("1d");
     setFreshness({ market: "", financial: "", news: "" });
-  };
-
-  const toggleAppearance = () => {
-    const next: Appearance = appearance === "light" ? "dark" : "light";
-    setAppearance(next);
-    document.documentElement.dataset.appearance = next;
-    try {
-      localStorage.setItem(appearanceStorageKey, next);
-    } catch {
-      // Appearance still changes for the current page when storage is restricted.
-    }
   };
 
   const exportCandles = () => {

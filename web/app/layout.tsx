@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import AppearanceProvider from "./components/AppearanceProvider";
 import ThemeIconSync from "./components/ThemeIconSync";
+import { appearanceBootstrapScript } from "./lib/appearance";
 import "./globals.css";
 import "./apple.css";
 import "./apple-refinement.css";
@@ -43,8 +45,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN" data-appearance="light">
-      <body><ThemeIconSync />{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script id="appearance-bootstrap" dangerouslySetInnerHTML={{ __html: appearanceBootstrapScript }} />
+      </head>
+      <body>
+        <AppearanceProvider>
+          <ThemeIconSync />
+          {children}
+        </AppearanceProvider>
+      </body>
     </html>
   );
 }
