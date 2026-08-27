@@ -1483,7 +1483,15 @@ body:has(.global-page-shell) {
 .global-us-index-list > article,
 .global-fear-card,
 .global-pressure-components > div {
-  border-color: var(--apple-divider);
+  border-color: var(--apple-material-border);
+}
+
+.global-summary article,
+.global-shanghai-analysis article,
+.global-index-list article,
+.global-us-index-list > article,
+.global-pressure-components > div {
+  background: var(--apple-material-inset);
 }
 
 .global-summary strong,
@@ -1606,7 +1614,9 @@ body:has(.global-page-shell) {
   .global-shanghai-panel,
   .global-map-card,
   .global-region-card {
-    background: color-mix(in srgb, var(--apple-surface) 97%, var(--apple-page));
+    border-color: var(--apple-material-border);
+    background: var(--apple-material-panel);
+    box-shadow: var(--apple-material-shadow);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

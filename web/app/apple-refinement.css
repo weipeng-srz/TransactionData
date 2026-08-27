@@ -45,6 +45,17 @@
   --apple-card-material: rgba(255, 255, 255, 0.74);
   --apple-card-material-strong: rgba(255, 255, 255, 0.84);
   --apple-dense-material: rgba(255, 255, 255, 0.9);
+  --apple-material-panel-fill: rgba(255, 255, 255, 0.72);
+  --apple-material-inset-fill: rgba(255, 255, 255, 0.62);
+  --apple-material-border: color-mix(in srgb, var(--apple-glass-border) 72%, rgba(255, 255, 255, 0.62));
+  --apple-material-panel:
+    linear-gradient(135deg, color-mix(in srgb, var(--apple-reflection) 78%, transparent), transparent 42%),
+    linear-gradient(315deg, color-mix(in srgb, var(--apple-accent) 3.5%, transparent), transparent 52%),
+    var(--apple-material-panel-fill);
+  --apple-material-inset:
+    linear-gradient(138deg, var(--apple-reflection-soft), transparent 48%),
+    var(--apple-material-inset-fill);
+  --apple-material-shadow: 0 1px 2px rgba(16, 24, 40, 0.025), 0 16px 46px rgba(32, 48, 72, 0.07);
   --apple-reflection: rgba(255, 255, 255, 0.48);
   --apple-reflection-soft: rgba(255, 255, 255, 0.16);
   --apple-ambient-blue: rgba(57, 131, 229, 0.19);
@@ -325,6 +336,10 @@
   --apple-card-material: rgba(24, 29, 38, 0.76);
   --apple-card-material-strong: rgba(27, 32, 42, 0.86);
   --apple-dense-material: rgba(29, 34, 44, 0.92);
+  --apple-material-panel-fill: rgba(20, 25, 34, 0.74);
+  --apple-material-inset-fill: rgba(30, 36, 47, 0.62);
+  --apple-material-border: color-mix(in srgb, var(--apple-glass-border) 82%, rgba(255, 255, 255, 0.12));
+  --apple-material-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), 0 18px 50px rgba(0, 0, 0, 0.28);
   --apple-reflection: rgba(255, 255, 255, 0.09);
   --apple-reflection-soft: rgba(255, 255, 255, 0.035);
   --apple-ambient-blue: rgba(48, 125, 229, 0.25);
@@ -4676,12 +4691,16 @@ summary:active,
     --apple-card-material: rgba(255, 255, 255, 0.94);
     --apple-card-material-strong: rgba(255, 255, 255, 0.97);
     --apple-dense-material: #ffffff;
+    --apple-material-panel-fill: rgba(255, 255, 255, 0.94);
+    --apple-material-inset-fill: rgba(255, 255, 255, 0.9);
   }
 
   :root[data-appearance="dark"] {
     --apple-card-material: rgba(24, 29, 38, 0.96);
     --apple-card-material-strong: rgba(27, 32, 42, 0.98);
     --apple-dense-material: #1d222c;
+    --apple-material-panel-fill: rgba(24, 29, 38, 0.96);
+    --apple-material-inset-fill: rgba(27, 32, 42, 0.94);
   }
 }
 
@@ -4690,6 +4709,8 @@ summary:active,
     --apple-card-material: rgba(255, 255, 255, 0.97);
     --apple-card-material-strong: #ffffff;
     --apple-dense-material: #ffffff;
+    --apple-material-panel-fill: #ffffff;
+    --apple-material-inset-fill: #ffffff;
     --apple-reflection: transparent;
     --apple-reflection-soft: transparent;
   }
@@ -4698,6 +4719,8 @@ summary:active,
     --apple-card-material: rgba(24, 29, 38, 0.98);
     --apple-card-material-strong: #1b202a;
     --apple-dense-material: #1d222c;
+    --apple-material-panel-fill: #1b202a;
+    --apple-material-inset-fill: #1d222c;
   }
 
   body::before,
@@ -4713,6 +4736,8 @@ summary:active,
     --apple-card-material: #ffffff;
     --apple-card-material-strong: #ffffff;
     --apple-dense-material: #ffffff;
+    --apple-material-panel-fill: #ffffff;
+    --apple-material-inset-fill: #ffffff;
   }
 
   :root[data-appearance="dark"] {
@@ -4721,6 +4746,8 @@ summary:active,
     --apple-card-material: #151922;
     --apple-card-material-strong: #181d26;
     --apple-dense-material: #1b202a;
+    --apple-material-panel-fill: #181d26;
+    --apple-material-inset-fill: #1b202a;
   }
 }
 
@@ -4801,10 +4828,9 @@ summary:active,
   .research-page .advanced-research-panel,
   .research-page .research-dock,
   .research-page .news-card {
-    background:
-      linear-gradient(132deg, var(--apple-reflection), var(--apple-reflection-soft) 17%, transparent 39%),
-      linear-gradient(315deg, color-mix(in srgb, var(--apple-accent) 3%, transparent), transparent 46%),
-      color-mix(in srgb, var(--apple-surface) 96%, var(--apple-page));
+    border-color: var(--apple-material-border);
+    background: var(--apple-material-panel);
+    box-shadow: var(--apple-material-shadow);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -5269,7 +5295,8 @@ body {
 }
 
 .research-page :where(.query-source, .orderbook-card, .stock-score-verdict, .stock-score-radar, .stock-score-dimension, .finance-chart-card, .finance-signal-card, .finance-detail-card, .research-panel, .backtest-card, .financial-report-card, .news-summary-panel, .factor-card, .event-study-card, .next-day-grade, .next-day-range, .next-day-panel, .next-day-method) {
-  background: color-mix(in srgb, var(--apple-surface) 88%, transparent);
+  border-color: var(--apple-material-border);
+  background: var(--apple-material-inset);
 }
 
 .research-page :where(.table-wrap, .finance-table-wrap) {

@@ -44,6 +44,18 @@ test("keeps translucency on structural chrome while scrolling surfaces stay stab
   }
 });
 
+test("uses one light translucent material hierarchy for information surfaces", () => {
+  assert.match(researchStyles, /--apple-material-panel-fill: rgba\(255, 255, 255, 0\.72\)/);
+  assert.match(researchStyles, /--apple-material-inset-fill: rgba\(255, 255, 255, 0\.62\)/);
+  assert.match(researchStyles, /--apple-material-panel-fill: rgba\(20, 25, 34, 0\.74\)/);
+  assert.match(researchStyles, /--apple-material-shadow:/);
+  assert.match(researchStyles, /\.research-page \.app-sidebar,[\s\S]*?\.research-page \.news-card \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(portfolioStyles, /\.watchlistCard,[\s\S]*?\.globalMarketCard \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(globalStyles, /\.global-summary,[\s\S]*?\.global-region-card \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(screenerStyles, /\.featuredSection,[\s\S]*?\.comparePanel \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(researchStyles, /@media \(prefers-reduced-transparency: reduce\)[\s\S]*?--apple-material-panel-fill: #ffffff/);
+});
+
 test("preserves touch accessibility and calm reduced-motion fallbacks", () => {
   assert.match(researchStyles, /@media \(pointer: coarse\)[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px/);
   assert.match(portfolioStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);

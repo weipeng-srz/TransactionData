@@ -1,8 +1,8 @@
 .page {
   --portfolio-background: rgba(245, 245, 247, 0.82);
-  --portfolio-surface: rgba(255, 255, 255, 0.84);
+  --portfolio-surface: rgba(255, 255, 255, 0.78);
   --portfolio-surface-solid: #fff;
-  --portfolio-muted-surface: rgba(248, 248, 250, 0.86);
+  --portfolio-muted-surface: rgba(248, 248, 250, 0.72);
   --portfolio-text: #1d1d1f;
   --portfolio-secondary: #6e6e73;
   --portfolio-tertiary: #8e8e93;
@@ -22,9 +22,9 @@
 
 :global(html[data-appearance="dark"]) .page {
   --portfolio-background: rgba(16, 16, 18, 0.86);
-  --portfolio-surface: rgba(31, 31, 34, 0.82);
+  --portfolio-surface: rgba(31, 31, 34, 0.76);
   --portfolio-surface-solid: #1c1c1e;
-  --portfolio-muted-surface: rgba(42, 42, 45, 0.82);
+  --portfolio-muted-surface: rgba(42, 42, 45, 0.72);
   --portfolio-text: #f5f5f7;
   --portfolio-secondary: #aeaeb2;
   --portfolio-tertiary: #85858b;
@@ -1731,7 +1731,8 @@
 .globalMetric,
 .exposureStrip,
 .positionPreview {
-  background: color-mix(in srgb, var(--portfolio-surface-solid) 88%, transparent);
+  border-color: var(--apple-material-border);
+  background: var(--apple-material-inset);
 }
 
 .returnPrimary > strong,
@@ -1757,17 +1758,9 @@
 .decisionBrief,
 .globalMarketCard {
   overflow: clip;
-  background:
-    linear-gradient(138deg, color-mix(in srgb, #fff 36%, transparent), transparent 34%),
-    color-mix(in srgb, var(--portfolio-surface) 94%, var(--apple-page));
-}
-
-:global(html[data-appearance="dark"]) .watchlistCard,
-:global(html[data-appearance="dark"]) .decisionBrief,
-:global(html[data-appearance="dark"]) .globalMarketCard {
-  background:
-    linear-gradient(138deg, color-mix(in srgb, #fff 8%, transparent), transparent 32%),
-    color-mix(in srgb, var(--portfolio-surface) 96%, var(--apple-page));
+  border-color: var(--apple-material-border);
+  background: var(--apple-material-panel);
+  box-shadow: var(--apple-material-shadow);
 }
 
 .listHeader,
@@ -1918,7 +1911,9 @@
   .watchlistCard,
   .decisionBrief,
   .globalMarketCard {
-    background: color-mix(in srgb, var(--portfolio-surface-solid) 96%, var(--apple-page));
+    border-color: var(--apple-material-border);
+    background: var(--apple-material-panel);
+    box-shadow: var(--apple-material-shadow);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

@@ -1,6 +1,6 @@
 .page {
-  --screener-glass: color-mix(in srgb, var(--apple-surface) 89%, transparent);
-  --screener-raised: color-mix(in srgb, var(--apple-surface-soft) 82%, transparent);
+  --screener-glass: var(--apple-material-panel-fill);
+  --screener-raised: var(--apple-material-inset-fill);
   --screener-risk-low: #14866d;
   --screener-risk-medium: #7b61a8;
   --screener-risk-high: #d16b14;
@@ -1096,26 +1096,9 @@
 .coveragePanel,
 .decisionDeck,
 .comparePanel {
-  border-color: var(--platform-border-color);
-  background:
-    linear-gradient(138deg, color-mix(in srgb, #fff 34%, transparent), transparent 34%),
-    color-mix(in srgb, var(--screener-glass) 95%, var(--apple-page));
-  box-shadow: var(--screener-panel-shadow);
-}
-
-:global(html[data-appearance="dark"]) .featuredSection,
-:global(html[data-appearance="dark"]) .stockPool,
-:global(html[data-appearance="dark"]) .ladderCard,
-:global(html[data-appearance="dark"]) .themeCard,
-:global(html[data-appearance="dark"]) .scaleCard,
-:global(html[data-appearance="dark"]) .researchPoolCard,
-:global(html[data-appearance="dark"]) .evidenceSection,
-:global(html[data-appearance="dark"]) .coveragePanel,
-:global(html[data-appearance="dark"]) .decisionDeck,
-:global(html[data-appearance="dark"]) .comparePanel {
-  background:
-    linear-gradient(138deg, color-mix(in srgb, #fff 7%, transparent), transparent 32%),
-    color-mix(in srgb, var(--screener-glass) 96%, var(--apple-page));
+  border-color: var(--apple-material-border);
+  background: var(--apple-material-panel);
+  box-shadow: var(--apple-material-shadow);
 }
 
 .featuredCard,
@@ -1126,8 +1109,8 @@
 .drawerSection,
 .positionPlan > span,
 .coverageFunnel > button {
-  border-color: var(--apple-divider);
-  background: color-mix(in srgb, var(--apple-surface) 90%, transparent);
+  border-color: var(--apple-material-border);
+  background: var(--apple-material-inset);
 }
 
 .marketSwitch,
@@ -1306,7 +1289,9 @@
   .coveragePanel,
   .decisionDeck,
   .comparePanel {
-    background: color-mix(in srgb, var(--apple-surface) 97%, var(--apple-page));
+    border-color: var(--apple-material-border);
+    background: var(--apple-material-panel);
+    box-shadow: var(--apple-material-shadow);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
