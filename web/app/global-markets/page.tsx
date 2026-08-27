@@ -39,6 +39,10 @@ const mapLabelOffsets: Record<string, { x: number; y: number }> = {
   sti: { x: -126, y: 15 },
   asx: { x: -124, y: 13 },
 };
+const mapTickerLabels: Record<string, string> = {
+  tsx: "TSX", dow: "DOW", bovespa: "BVSP", ftse: "FTSE", dax: "DAX", cac: "CAC", sensex: "SENSEX",
+  shanghai: "上证", hsi: "恒指", kospi: "KOSPI", nikkei: "日经", sti: "STI", asx: "ASX",
+};
 
 export default function GlobalMarketsPage() {
   const [quotes, setQuotes] = useState<GlobalIndexQuote[]>([]);
@@ -133,7 +137,25 @@ export default function GlobalMarketsPage() {
   const snapshotBreadthTotal = snapshotRising + snapshotFalling;
   const snapshotBreadthPct = snapshotBreadthTotal ? Math.round((snapshotRising / snapshotBreadthTotal) * 100) : 0;
   const coveredIndexes = quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length;
-  const mappedMarketCount = GLOBAL_INDEXES.filter((item) => item.map).length + US_INDEXES.filter((item) => item.map).length;
+  const mappedMarkets = [
+    ...GLOBAL_INDEXES.filter((item) => item.map).map((definition) => ({
+      id: definition.id,
+      city: definition.city,
+      name: definition.name,
+      longitude: definition.map!.longitude,
+      latitude: definition.map!.latitude,
+      changePct: quoteById.get(definition.id)?.changePct,
+    })),
+    ...US_INDEXES.filter((item) => item.map).map((definition) => ({
+      id: definition.id,
+      city: "纽约",
+      name: definition.name,
+      longitude: definition.map!.longitude,
+      latitude: definition.map!.latitude,
+      changePct: usQuoteById.get(definition.id)?.cashChangePct ?? undefined,
+    })),
+  ];
+  const mappedMarketCount = mappedMarkets.length;
 
   const toggleAppearance = () => {
     const next: Appearance = appearance === "light" ? "dark" : "light";
@@ -264,34 +286,16 @@ export default function GlobalMarketsPage() {
               {/* The land silhouette and every market use the exact same Robinson viewBox. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
-              {GLOBAL_INDEXES.filter((item) => item.map).map((definition) => {
-                const quote = quoteById.get(definition.id);
-                const map = definition.map!;
+              {mappedMarkets.map((market) => <MarketMapMarker key={market.id} {...market} />)}
+            </div>
+            <div className="global-map-mobile-list" aria-label="全球主要市场行情列表">
+              {mappedMarkets.map((market) => {
+                const changeLabel = market.changePct == null ? "等待行情" : signedPercent(market.changePct);
                 return (
-                  <MarketMapMarker
-                    key={definition.id}
-                    id={definition.id}
-                    city={definition.city}
-                    name={definition.name}
-                    longitude={map.longitude}
-                    latitude={map.latitude}
-                    changePct={quote?.changePct}
-                  />
-                );
-              })}
-              {US_INDEXES.filter((item) => item.map).map((definition) => {
-                const quote = usQuoteById.get(definition.id);
-                const map = definition.map!;
-                return (
-                  <MarketMapMarker
-                    key={definition.id}
-                    id={definition.id}
-                    city="纽约"
-                    name={definition.name}
-                    longitude={map.longitude}
-                    latitude={map.latitude}
-                    changePct={quote?.cashChangePct ?? undefined}
-                  />
+                  <article key={market.id} className={tone(market.changePct)} aria-label={`${market.city}，${market.name}，${changeLabel}`}>
+                    <span><small>{market.city}</small><strong>{compactIndexName(market.name)}</strong></span>
+                    <b>{market.changePct == null ? "—" : changeLabel}</b>
+                  </article>
                 );
               })}
             </div>
@@ -600,7 +604,8 @@ function MarketMapMarker({ id, city, name, longitude, latitude, changePct }: { i
     <article className={`global-map-marker ${tone(changePct)}`} style={style} title={`${city} · ${name} · ${changeLabel}`} data-map-id={id} aria-label={`${city}，${name}，${changeLabel}`}>
       <div className="global-marker-label">
         <small>{city}</small>
-        <span><strong>{compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
+        <span className="global-marker-desktop-value"><strong>{compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
+        <span className="global-marker-mobile-value"><strong>{mapTickerLabels[id] ?? compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
       </div>
     </article>
   );

@@ -92,11 +92,14 @@ test("adds same-market peer comparison without cross-currency amount comparisons
   assert.match(financialDashboardSource, /一致预期修正[\s\S]*?明确留空/);
 });
 
-test("keeps FX conversion opt-in with an explicit source and update time", () => {
+test("separates A-share and US returns before presenting one CNY total", () => {
   assert.match(portfolioHomeSource, /ticklens\.fx-preference\.v1/);
-  assert.match(portfolioHomeSource, /人民币折算视图/);
-  assert.match(portfolioHomeSource, /默认仍按人民币与美元分别统计/);
-  assert.match(portfolioHomeSource, /来源：用户输入 · 更新/);
+  assert.match(portfolioHomeSource, /A 股与美股先按原币核算，再统一折算为人民币/);
+  assert.match(portfolioHomeSource, /title: "A 股"[\s\S]*?title: "美股"/);
+  assert.match(portfolioHomeSource, /人民币总计/);
+  assert.match(portfolioHomeSource, /const rateSource = preference\.updatedAt \? "用户输入" : "默认设定"/);
+  assert.match(portfolioHomeSource, /汇率来源：\{rateSource\} · 更新/);
+  assert.match(portfolioHomeSource, /仅影响展示，不改写原始持仓/);
 });
 
 test("restores saved comparison benchmarks only within the selected market", () => {

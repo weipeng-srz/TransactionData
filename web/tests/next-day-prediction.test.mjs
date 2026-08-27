@@ -255,6 +255,16 @@ test("describes prediction quality without presenting heuristic sufficiency as c
   assert.doesNotMatch(cardSource, /分析置信度|AI 隔日交易概率分析/);
 });
 
+test("keeps the current prediction visible and announces expensive parameter recomputation", () => {
+  assert.match(cardSource, /useDeferredValue/);
+  assert.match(cardSource, /const isRecomputing =/);
+  assert.match(cardSource, /aria-busy=\{isRecomputing\}/);
+  assert.match(cardSource, /PredictionRecomputeStatus/);
+  assert.match(cardSource, /正在按新参数重新计算预测，请稍候/);
+  assert.match(globalStyles, /\.next-day-recompute\s*\{[^}]*min-height:\s*38px[^}]*display:\s*flex/s);
+  assert.match(appleRefinementStyles, /\.next-day-recompute\s*\{[^}]*var\(--apple-accent\)[^}]*var\(--apple-secondary\)/s);
+});
+
 test("keeps scenario cards clear of the preceding divider in every style layer", () => {
   for (const source of [globalStyles, appleRefinementStyles]) {
     const rules = [...source.matchAll(/\.next-day-scenarios\s*\{([^}]*)\}/gs)];

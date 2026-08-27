@@ -3204,6 +3204,22 @@ tbody tr:last-child td {
 .next-day-basis span { color: var(--text-soft); font-size: 11px; line-height: 1.5; }
 .next-day-basis i { flex: 0 0 auto; color: var(--muted); font: 700 11px var(--mono); font-style: normal; }
 
+.next-day-recompute {
+  min-height: 38px;
+  margin: 12px 22px 0;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(109, 211, 255, .2);
+  border-radius: 11px;
+  color: var(--text-soft);
+  background: rgba(109, 211, 255, .07);
+  font-size: 11px;
+}
+
+.next-day-recompute .loading-spinner { width: 16px; height: 16px; flex: 0 0 auto; }
+
 .next-day-decision {
   margin: 18px 22px 0;
   padding: 17px;

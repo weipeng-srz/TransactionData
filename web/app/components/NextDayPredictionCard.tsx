@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Candle } from "../lib/market";
 import type { NewsItem } from "../lib/news";
 import type { RealtimeSnapshot } from "../lib/realtimeMarket";
@@ -39,6 +39,10 @@ function NextDayPredictionCard({
   const [mode, setMode] = useState<PredictionMode>("tomorrow");
   const [windowSize, setWindowSize] = useState<PredictionWindow>(126);
   const [neighbors, setNeighbors] = useState<PredictionNeighborCount>(15);
+  const deferredMode = useDeferredValue(mode);
+  const deferredWindowSize = useDeferredValue(windowSize);
+  const deferredNeighbors = useDeferredValue(neighbors);
+  const isRecomputing = deferredMode !== mode || deferredWindowSize !== windowSize || deferredNeighbors !== neighbors;
   const [predictionSnapshot, setPredictionSnapshot] = useState<RealtimeSnapshot | null>(realtimeSnapshot);
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const latestSnapshotRef = useRef(realtimeSnapshot);
@@ -52,25 +56,26 @@ function NextDayPredictionCard({
   }, [predictionMinute]);
   const report = useMemo(
     () => buildNextDayPrediction(candles, {
-      window: windowSize,
-      neighbors,
-      mode,
+      window: deferredWindowSize,
+      neighbors: deferredNeighbors,
+      mode: deferredMode,
       market,
       realtimeSnapshot: predictionSnapshot,
       benchmarkCandles,
       benchmarkName,
       newsItems,
     }),
-    [benchmarkCandles, benchmarkName, candles, market, mode, neighbors, newsItems, predictionSnapshot, windowSize],
+    [benchmarkCandles, benchmarkName, candles, deferredMode, deferredNeighbors, deferredWindowSize, market, newsItems, predictionSnapshot],
   );
 
   if (!report) {
     return (
-      <section className="next-day-card is-empty" id="next-day-prediction" aria-labelledby="next-day-title">
+      <section className="next-day-card is-empty" id="next-day-prediction" aria-labelledby="next-day-title" aria-busy={isRecomputing}>
         <header className="next-day-header">
           <div><p className="eyebrow">ADAPTIVE PREDICTION LAB</p><h2 id="next-day-title">统计今日 / 明日概率实验</h2></div>
         </header>
         <ModeSwitch mode={mode} onChange={setMode} />
+        {isRecomputing ? <PredictionRecomputeStatus /> : null}
         <p className="next-day-empty">至少需要 32 个有效交易日，才能建立隔日标签、历史相似日和滚动验证样本。预测今日模式还需要识别当前交易日。</p>
       </section>
     );
@@ -79,7 +84,7 @@ function NextDayPredictionCard({
   const modelMetric = (value: number | null) => value == null ? "样本不足" : percent(value, 1);
 
   return (
-    <section className={`next-day-card grade-${report.signal.grade.toLowerCase()}`} id="next-day-prediction" aria-labelledby="next-day-title">
+    <section className={`next-day-card grade-${report.signal.grade.toLowerCase()}`} id="next-day-prediction" aria-labelledby="next-day-title" aria-busy={isRecomputing}>
       <header className="next-day-header">
         <div>
           <p className="eyebrow">ADAPTIVE PREDICTION LAB</p>
@@ -102,6 +107,7 @@ function NextDayPredictionCard({
       </header>
 
       <ModeSwitch mode={mode} onChange={setMode} />
+      {isRecomputing ? <PredictionRecomputeStatus /> : null}
       <div className="next-day-basis" role="status">
         <div><strong>{report.target.label}</strong><span>{report.target.basis}</span></div>
         <i>{report.target.isPartialSession ? `盘中样本 · 交易进度约 ${percent(report.target.sessionProgress)}` : report.target.usesCurrentSession ? "完整当日样本" : "严格收盘切片"}</i>
@@ -337,6 +343,15 @@ function NextDayPredictionCard({
 
       <footer className="next-day-notice">{report.notice}</footer>
     </section>
+  );
+}
+
+function PredictionRecomputeStatus() {
+  return (
+    <div className="next-day-recompute" role="status" aria-live="polite">
+      <span className="loading-spinner" aria-hidden="true" />
+      <span>正在按新参数重新计算预测，请稍候…</span>
+    </div>
   );
 }
 

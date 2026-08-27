@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import SiteBanner from "../components/SiteBanner";
 import { stockRouteKey, stockStorageKey } from "../lib/security";
 import type { ScreenerFeed, ScreenerMarket, ScreenerOpportunity, ScreenerRecommendation, ScreenerSecurityType, ScreenerStrategyEvidence } from "../lib/screenerTypes";
@@ -68,6 +68,7 @@ export default function ScreenerPage() {
   const [loadingMarket, setLoadingMarket] = useState<ScreenerMarket | null>("CN");
   const [errors, setErrors] = useState<Partial<Record<ScreenerMarket, string>>>({});
   const [reloadNonce, setReloadNonce] = useState(0);
+  const refreshRequestedRef = useRef<ScreenerMarket | null>(null);
 
   useEffect(() => {
     const storedAppearance = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
@@ -111,7 +112,10 @@ export default function ScreenerPage() {
   }, []);
 
   useEffect(() => {
-    if (feeds[market]) return;
+    const hadFeed = Boolean(feeds[market]);
+    const forceRefresh = refreshRequestedRef.current === market;
+    if (hadFeed && !forceRefresh) return;
+    if (forceRefresh) refreshRequestedRef.current = null;
     const controller = new AbortController();
     let mounted = true;
     Promise.resolve().then(() => {
@@ -127,7 +131,9 @@ export default function ScreenerPage() {
       })
       .catch((reason) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setErrors((current) => ({ ...current, [market]: reason instanceof Error ? reason.message : "行情服务暂不可用" }));
+        const message = reason instanceof Error ? reason.message : "行情服务暂不可用";
+        setErrors((current) => ({ ...current, [market]: message }));
+        if (hadFeed) setToast(`${message}；已保留上次成功数据`);
       })
       .finally(() => setLoadingMarket((current) => current === market ? null : current));
     return () => { mounted = false; controller.abort(); };
@@ -164,6 +170,7 @@ export default function ScreenerPage() {
   })).filter((item) => item.count > 0) : [];
   const industryThemes = market === "US" ? (feed?.themes.filter((item) => !["股票", "ETF", "信托", "杠杆ETF"].includes(item.name)) ?? []) : (feed?.themes ?? []);
   const isLoading = loadingMarket === market && !feed;
+  const isRefreshing = loadingMarket === market;
   const error = errors[market];
 
   const currentFilters = (): FilterSnapshot => ({ minimumScore, maximumRisk, minimumAmount, minimumRewardRisk, marketCapFilter, securityType, qualityGate });
@@ -198,6 +205,7 @@ export default function ScreenerPage() {
 
   const switchMarket = (nextMarket: ScreenerMarket) => {
     if (nextMarket === market) return;
+    refreshRequestedRef.current = null;
     setMarketFilters((current) => ({ ...current, [market]: currentFilters() }));
     setMarket(nextMarket);
     setStrategy("今日精选");
@@ -212,7 +220,8 @@ export default function ScreenerPage() {
   };
 
   const retry = () => {
-    setFeeds((current) => ({ ...current, [market]: undefined }));
+    refreshRequestedRef.current = market;
+    setLoadingMarket(market);
     setReloadNonce((value) => value + 1);
     setToast("正在刷新真实行情");
   };
@@ -332,7 +341,7 @@ export default function ScreenerPage() {
 
   return (
     <div className={styles.page}>
-      <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : "正在连接公开行情"} />
+      <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={isRefreshing && feed ? `正在刷新${market === "CN" ? "A股" : "美股"} · 保留上次快照` : feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : "正在连接公开行情"} />
 
       <main className={styles.shell}>
         <section className={styles.hero} aria-labelledby="screener-title">
@@ -350,7 +359,7 @@ export default function ScreenerPage() {
               <button className={market === "CN" ? styles.active : ""} aria-pressed={market === "CN"} onClick={() => switchMarket("CN")} type="button">A股</button>
               <button className={market === "US" ? styles.active : ""} aria-pressed={market === "US"} onClick={() => switchMarket("US")} type="button">美股</button>
             </div>
-            <div className={styles.tradeDate}><span>交易日</span><strong>{feed?.tradeDate ?? "—"}</strong><small>{feed ? `${relativeFreshness(feed.fetchedAt)} · ${feed.quoteStatus}` : "加载中"}</small><button type="button" onClick={retry} disabled={isLoading}>↻ 刷新</button></div>
+            <div className={styles.tradeDate}><span>交易日</span><strong>{feed?.tradeDate ?? "—"}</strong><small>{feed ? `${relativeFreshness(feed.fetchedAt)} · ${isRefreshing ? "刷新中，保留当前快照" : feed.quoteStatus}` : "加载中"}</small><button type="button" onClick={retry} disabled={isRefreshing}>{isRefreshing ? "刷新中…" : "↻ 刷新"}</button></div>
             <a className={styles.researchShortcut} href="#research-pool" aria-label={`研究观察池 ${marketResearchPool.length} 只`}>研究池 <strong>{marketResearchPool.length}</strong></a>
           </div>
         </section>

@@ -30,6 +30,7 @@ import { backtestGuideSignals, calculateRiskMetrics } from "../lib/research";
 import { buildStockScore, type StockScoreReport } from "../lib/stockScore";
 import {
   calculatePortfolioTotals,
+  convertPortfolioTotalsToCny,
   parseWatchlist,
   upsertWatchlistStock,
   type WatchlistStock,
@@ -200,7 +201,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const [sortBy, setSortBy] = useState<PortfolioSortKey>("custom");
   const [lastRealtimeRefresh, setLastRealtimeRefresh] = useState("");
   const [globalFeed, setGlobalFeed] = useState<GlobalFeedState>({ status: "loading", data: null, error: "" });
-  const [fxPreference, setFxPreference] = useState<FxPreference>({ enabled: false, usdCny: "7.20", updatedAt: "" });
+  const [fxPreference, setFxPreference] = useState<FxPreference>({ enabled: true, usdCny: "7.20", updatedAt: "" });
   const realtimeRequestRef = useRef<AbortController | null>(null);
   const globalRequestRef = useRef<AbortController | null>(null);
   const holdingsFileRef = useRef<HTMLInputElement | null>(null);
@@ -213,7 +214,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     let storedWatchlist: WatchlistStock[] = [];
     let storedHoldings: StockHoldings = {};
     let storedAppearance: Appearance = "light";
-    let storedFxPreference: FxPreference = { enabled: false, usdCny: "7.20", updatedAt: "" };
+    let storedFxPreference: FxPreference = { enabled: true, usdCny: "7.20", updatedAt: "" };
     try {
       storedWatchlist = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
     } catch {
@@ -234,7 +235,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       const rate = Number(parsed?.usdCny);
       if (parsed && Number.isFinite(rate) && rate > 0 && rate < 20) {
         storedFxPreference = {
-          enabled: parsed.enabled === true,
+          enabled: true,
           usdCny: String(parsed.usdCny),
           updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
         };
@@ -774,28 +775,13 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
 
       <div className={styles.content} id="portfolio-top">
         <h1 className={styles.srOnly}>我的投资组合与市场观察</h1>
-        <section className={styles.summaryGrid} aria-label="投资组合概览">
-          <article>
-            <span>持仓市值</span>
-            <strong>{totals.positioned ? formatMixedCurrencyTotals(totals.byCurrency, "marketValue") : "—"}</strong>
-            <small>{totals.positioned ? `${totals.positioned} 只持仓 · 成本 ${formatMixedCurrencyTotals(totals.byCurrency, "costValue")}` : "设置持股数与成本价后显示"}</small>
-          </article>
-          <article>
-            <span>累计收益</span>
-            <strong>{totals.positioned ? formatMixedCurrencyTotals(totals.byCurrency, "profit", true) : "—"}</strong>
-            <small>{totals.positioned ? "不同币种分别统计，不进行汇率折算" : "暂无持仓数据"}</small>
-          </article>
-          <article>
-            <span>今日持仓盈亏</span>
-            <strong>{totals.positioned ? formatMixedCurrencyTotals(totals.byCurrency, "dayProfit", true) : "—"}</strong>
-            <small>{latestUpdate ? `按 ${latestUpdate.slice(0, 16)} 行情估算` : "等待最新行情"}</small>
-          </article>
-          <article>
-            <span>自选关注</span>
-            <strong>{totals.tracked || "—"}</strong>
-            <small>{totals.tracked ? `${Object.values(quotes).filter((quote) => quote.status === "ready").length} 只行情已就绪` : "从上方添加第一只股票"}</small>
-          </article>
-        </section>
+        <FxConversionPanel
+          totals={totals}
+          preference={fxPreference}
+          latestUpdate={latestUpdate}
+          readyCount={Object.values(quotes).filter((quote) => quote.status === "ready").length}
+          onChange={setFxPreference}
+        />
 
         <PortfolioWorkbenchSummary
           watchlist={watchlist}
@@ -804,12 +790,6 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           onOpenStock={onOpenStock}
           onAddStock={addResolvedStock}
           onRetryNews={async (stock) => { await loadNews(stock, new AbortController().signal); }}
-        />
-
-        <FxConversionPanel
-          totals={totals.byCurrency}
-          preference={fxPreference}
-          onChange={setFxPreference}
         />
 
         <PortfolioDecisionBrief summary={portfolioInsights} />
@@ -946,56 +926,95 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
 function FxConversionPanel({
   totals,
   preference,
+  latestUpdate,
+  readyCount,
   onChange,
 }: {
-  totals: ReturnType<typeof calculatePortfolioTotals>["byCurrency"];
+  totals: ReturnType<typeof calculatePortfolioTotals>;
   preference: FxPreference;
+  latestUpdate: string;
+  readyCount: number;
   onChange: (value: FxPreference) => void;
 }) {
   const rate = Number(preference.usdCny);
   const validRate = Number.isFinite(rate) && rate > 0 && rate < 20;
-  const converted = (key: "marketValue" | "costValue" | "profit" | "dayProfit") => validRate
-    ? totals.CNY[key] + totals.USD[key] * rate
-    : null;
+  const converted = convertPortfolioTotalsToCny(totals.byCurrency, rate);
+  const cny = totals.byCurrency.CNY;
+  const usd = totals.byCurrency.USD;
+  const cnyReady = cny.costValue > 0 || cny.marketValue > 0;
+  const usdReady = usd.costValue > 0 || usd.marketValue > 0;
+  const aggregateReady = converted != null && (cnyReady || usdReady);
   const updateTime = preference.updatedAt && !Number.isNaN(Date.parse(preference.updatedAt))
     ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(preference.updatedAt))
-    : "尚未确认";
+    : "默认值";
+  const rateSource = preference.updatedAt ? "用户输入" : "默认设定";
+  const marketCards = [
+    { key: "CNY", title: "A 股", subtitle: "人民币资产", badge: "A", totals: cny, ready: cnyReady, currency: "CNY" as const },
+    { key: "USD", title: "美股", subtitle: "美元资产", badge: "US", totals: usd, ready: usdReady, currency: "USD" as const },
+  ];
 
   return (
-    <section className={`${styles.fxPanel} ${preference.enabled ? styles.fxPanelEnabled : ""}`} aria-label="可选汇率折算">
-      <div>
-        <p>OPTIONAL FX VIEW</p>
-        <strong>人民币折算视图</strong>
-        <small>默认仍按人民币与美元分别统计；折算值只用于组合观察，不改写原始持仓和收益。</small>
-      </div>
-      <label className={styles.fxToggle}>
-        <input
-          type="checkbox"
-          checked={preference.enabled}
-          onChange={(event) => onChange({ ...preference, enabled: event.target.checked, updatedAt: new Date().toISOString() })}
-        />
-        <span>{preference.enabled ? "已开启" : "保持分币种"}</span>
-      </label>
-      {preference.enabled ? (
-        <>
-          <label className={styles.fxRateField}>
-            <span>USD/CNY</span>
-            <input
-              inputMode="decimal"
-              aria-label="美元兑人民币汇率"
-              value={preference.usdCny}
-              onChange={(event) => onChange({ ...preference, usdCny: event.target.value, updatedAt: new Date().toISOString() })}
-            />
-            <small>{validRate ? `来源：用户输入 · 更新 ${updateTime}` : "请输入 0–20 之间的有效汇率"}</small>
-          </label>
-          <div className={styles.fxConvertedValues}>
-            <span><small>折算市值</small><strong>{converted("marketValue") == null ? "—" : formatCurrency(converted("marketValue")!, "CNY")}</strong></span>
-            <span><small>折算成本</small><strong>{converted("costValue") == null ? "—" : formatCurrency(converted("costValue")!, "CNY")}</strong></span>
-            <span><small>折算累计收益</small><strong>{converted("profit") == null ? "—" : formatCurrency(converted("profit")!, "CNY")}</strong></span>
-            <span><small>折算今日盈亏</small><strong>{converted("dayProfit") == null ? "—" : formatCurrency(converted("dayProfit")!, "CNY")}</strong></span>
+    <section className={styles.returnsSummary} aria-labelledby="portfolio-returns-title">
+      <header className={styles.returnsHeader}>
+        <div>
+          <p>PORTFOLIO RETURNS</p>
+          <h2 id="portfolio-returns-title">收益汇总</h2>
+          <small>A 股与美股先按原币核算，再统一折算为人民币。</small>
+        </div>
+        <div className={styles.returnsHeaderMeta}>
+          <span>{totals.positioned} 只持仓</span>
+          <span>{totals.tracked} 只自选</span>
+          <span>{readyCount} 只行情就绪</span>
+        </div>
+        <label className={`${styles.fxRateField} ${validRate ? "" : styles.fxRateInvalid}`}>
+          <span>美元兑人民币</span>
+          <div><b>USD/CNY</b><input inputMode="decimal" aria-label="美元兑人民币汇率" value={preference.usdCny} onChange={(event) => onChange({ ...preference, enabled: true, usdCny: event.target.value, updatedAt: new Date().toISOString() })} /></div>
+          <small>{validRate ? `${rateSource} · ${updateTime}` : "请输入 0–20 之间的有效汇率"}</small>
+        </label>
+      </header>
+
+      <div className={styles.returnsMarkets}>
+        {marketCards.map((market) => (
+          <article className={styles.marketReturnCard} key={market.key}>
+            <header>
+              <span className={`${styles.marketBadge} ${market.currency === "USD" ? styles.marketBadgeUsd : styles.marketBadgeCny}`}>{market.badge}</span>
+              <div><h3>{market.title}</h3><small>{market.subtitle}</small></div>
+              <em>{market.key}</em>
+            </header>
+            <div className={styles.returnPrimary}>
+              <small>持仓市值</small>
+              <strong>{market.ready ? formatCurrency(market.totals.marketValue, market.currency) : "—"}</strong>
+              <span>成本 {market.ready ? formatCurrency(market.totals.costValue, market.currency) : "—"}</span>
+            </div>
+            <dl className={styles.returnDetails}>
+              <div><dt>累计收益</dt><dd className={market.ready ? toneClass(market.totals.profit) : styles.neutral}>{market.ready ? signedCurrency(market.totals.profit, market.currency) : "—"}<small>{market.ready ? signedPercent(market.totals.profitPct) : "—"}</small></dd></div>
+              <div><dt>今日持仓盈亏</dt><dd className={market.ready ? toneClass(market.totals.dayProfit) : styles.neutral}>{market.ready ? signedCurrency(market.totals.dayProfit, market.currency) : "—"}</dd></div>
+            </dl>
+          </article>
+        ))}
+
+        <article className={`${styles.marketReturnCard} ${styles.totalReturnCard}`}>
+          <header>
+            <span className={`${styles.marketBadge} ${styles.totalBadge}`}>¥</span>
+            <div><h3>人民币总计</h3><small>A 股 + 美股折算</small></div>
+            <em>CNY</em>
+          </header>
+          <div className={styles.returnPrimary}>
+            <small>组合总市值</small>
+            <strong>{aggregateReady ? formatCurrency(converted!.marketValue, "CNY") : "—"}</strong>
+            <span>折算成本 {aggregateReady ? formatCurrency(converted!.costValue, "CNY") : "—"}</span>
           </div>
-        </>
-      ) : null}
+          <dl className={styles.returnDetails}>
+            <div><dt>累计收益</dt><dd className={aggregateReady ? toneClass(converted!.profit) : styles.neutral}>{aggregateReady ? signedCurrency(converted!.profit, "CNY") : "—"}<small>{aggregateReady ? signedPercent(converted!.profitPct) : "—"}</small></dd></div>
+            <div><dt>今日持仓盈亏</dt><dd className={aggregateReady ? toneClass(converted!.dayProfit) : styles.neutral}>{aggregateReady ? signedCurrency(converted!.dayProfit, "CNY") : "—"}</dd></div>
+          </dl>
+        </article>
+      </div>
+
+      <footer className={styles.returnsFormula}>
+        <div><b>换算</b><span>A 股人民币金额 + 美股美元金额 × {validRate ? preference.usdCny : "有效汇率"}</span></div>
+        <small>{latestUpdate ? `行情截至 ${latestUpdate.slice(0, 16)} · ` : ""}汇率来源：{rateSource} · 更新 {updateTime} · 仅影响展示，不改写原始持仓</small>
+      </footer>
     </section>
   );
 }
@@ -1059,7 +1078,7 @@ function PortfolioDecisionBrief({ summary }: { summary: PortfolioInsightSummary 
               <small className={styles.performanceNote}>复算口径：(现价 − 平均成本) ÷ 平均成本；成本录入 {lead.holdingUpdatedAt.slice(0, 10)}。未计手续费、税费、分红及公司行动。</small>
             </>
           ) : null}
-          <small>{riskDetails}；不同币种不合并、不隐式折算。</small>
+          <small>{riskDetails}；风险判断保留原币口径，人民币总计仅采用顶部明确汇率。</small>
         </article>
         <article>
           <span>3 · 下一步核验</span>
@@ -1076,7 +1095,7 @@ function PortfolioDecisionBrief({ summary }: { summary: PortfolioInsightSummary 
             <small>{exposure.positioned} 只持仓{exposure.priced < exposure.positioned ? ` · ${exposure.positioned - exposure.priced} 只待定价` : ""}{exposure.topWeightPct != null ? ` · 最大集中 ${formatNumber(exposure.topWeightPct, 1)}%` : ""}</small>
           </div>
         )) : <p>尚未记录持仓；币种敞口会按人民币与美元分别展示。</p>}
-        <em>不采用隐含汇率</em>
+        <em>风险敞口不采用隐含汇率</em>
       </footer>
     </section>
   );

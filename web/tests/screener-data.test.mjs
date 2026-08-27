@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStrategyEvidence,
+  fetchText,
+  isTransientUpstreamStatus,
   normalizeScreenerMarket,
   parseCNDailyResponse,
   parseCNListResponse,
@@ -77,4 +79,24 @@ test("screener feed diagnostics disclose the rule prefilter stage", async () => 
   const source = await import("node:fs").then(({ readFileSync }) => readFileSync(new URL("../app/lib/screenerData.ts", import.meta.url), "utf8"));
   assert.match(source, /prefilterCount: selectedCodes\.length/);
   assert.match(source, /prefilterCount: selected\.length/);
+});
+
+test("screener retries transient upstream blocks without retrying permanent client errors", async () => {
+  assert.equal(isTransientUpstreamStatus(429), true);
+  assert.equal(isTransientUpstreamStatus(456), true);
+  assert.equal(isTransientUpstreamStatus(503), true);
+  assert.equal(isTransientUpstreamStatus(404), false);
+
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return calls === 1 ? new Response("blocked", { status: 456 }) : new Response("ok");
+  };
+  try {
+    assert.equal(await fetchText("https://example.com/quotes", 1024), "ok");
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

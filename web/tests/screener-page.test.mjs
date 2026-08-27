@@ -78,7 +78,20 @@ test("screener follows the shared segmented controls, data cards, and touch feed
   assert.match(styleSource, /\.strategyTabs \.activeTab \{[\s\S]*box-shadow:/);
   assert.match(styleSource, /\.marketStrip \{[\s\S]*border-radius: var\(--apple-radius-lg\)/);
   assert.match(styleSource, /\.cardMetrics > span \{[\s\S]*background: var\(--screener-raised\)/);
+  assert.match(styleSource, /\.tradeDate button \{[\s\S]*min-height: 32px;[\s\S]*border-radius: 999px;[\s\S]*background: var\(--apple-surface\)/);
+  assert.match(styleSource, /\.tradeDate button:hover:not\(:disabled\)/);
+  assert.match(styleSource, /\.tradeDate button:disabled \{[\s\S]*background: var\(--apple-fill\)/);
   assert.match(styleSource, /\.page :where\(button, a, select, input\):focus-visible/);
   assert.match(styleSource, /\.page button:not\(:disabled\):active/);
   assert.match(styleSource, /@media \(max-width: 760px\)[\s\S]*\.rowAction \{ width: 44px; height: 44px; \}/);
+});
+
+test("manual refresh keeps the last verified feed visible while requesting fresh data", () => {
+  assert.match(pageSource, /const refreshRequestedRef = useRef<ScreenerMarket \| null>\(null\)/);
+  assert.match(pageSource, /const hadFeed = Boolean\(feeds\[market\]\)/);
+  assert.match(pageSource, /if \(hadFeed\) setToast\(`\$\{message\}；已保留上次成功数据`\)/);
+  assert.match(pageSource, /refreshRequestedRef\.current = market/);
+  assert.doesNotMatch(pageSource, /setFeeds\(\(current\) => \(\{ \.\.\.current, \[market\]: undefined \}\)\)/);
+  assert.match(pageSource, /刷新中，保留当前快照/);
+  assert.match(pageSource, /disabled=\{isRefreshing\}/);
 });

@@ -19,6 +19,8 @@ const usListEndpoint = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/
 const eastmoneyEndpoint = "https://push2ex.eastmoney.com";
 const maxResponseBytes = 2 * 1024 * 1024;
 const cacheTtlMs: Record<ScreenerMarket, number> = { CN: 90_000, US: 120_000 };
+const maxStaleFeedMs = 15 * 60_000;
+const staleRetryTtlMs = 20_000;
 const screenerModelVersion = "rules-2026.08.2";
 const historyWindowDays = 90;
 const defaultRiskPerTradePercent = .5;
@@ -125,6 +127,17 @@ export async function fetchScreenerFeed(market: ScreenerMarket): Promise<Screene
   const request = (market === "CN" ? buildCNFeed() : buildUSFeed())
     .then((value) => {
       cache.set(market, { value, expiresAt: Date.now() + cacheTtlMs[market] });
+      return value;
+    })
+    .catch((reason) => {
+      const cachedAt = cached ? Date.parse(cached.value.fetchedAt) : Number.NaN;
+      if (!cached || !Number.isFinite(cachedAt) || now - cachedAt > maxStaleFeedMs) throw reason;
+      const value: ScreenerFeed = {
+        ...cached.value,
+        quoteStatus: cached.value.quoteStatus.startsWith("缓存快照") ? cached.value.quoteStatus : `缓存快照 · ${cached.value.quoteStatus}`,
+        diagnostics: { ...cached.value.diagnostics, delayed: true },
+      };
+      cache.set(market, { value, expiresAt: Date.now() + staleRetryTtlMs });
       return value;
     })
     .finally(() => pending.delete(market));
@@ -503,7 +516,7 @@ async function fetchCNUniverse(): Promise<CNQuote[]> {
   const countBody = await fetchText(`${cnCountEndpoint}?node=hs_a`, 32 * 1024);
   const count = Math.min(6_000, Math.max(100, Math.floor(finiteNumber(countBody.replaceAll('"', "")))));
   const pages = Array.from({ length: Math.ceil(count / 100) }, (_, index) => index + 1);
-  const responses = await mapLimited(pages, 10, async (page) => {
+  const responses = await mapLimited(pages, 4, async (page) => {
     const url = new URL(cnListEndpoint);
     url.searchParams.set("page", String(page));
     url.searchParams.set("num", "100");
@@ -1033,20 +1046,49 @@ function averageTrueRange(rows: DailyRow[]): number {
   return average(ranges.slice(-14));
 }
 
-async function fetchText(url: string, maxBytes: number): Promise<string> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      Accept: "*/*",
-      Referer: url.includes("eastmoney") ? "https://quote.eastmoney.com/ztb/" : "https://finance.sina.com.cn/",
-      "User-Agent": "Mozilla/5.0 (compatible; TrendSight/2.0)",
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`上游行情请求失败：HTTP ${response.status}`);
-  const body = await response.text();
-  if (new TextEncoder().encode(body).byteLength > maxBytes) throw new Error("上游行情响应超过安全上限");
-  return body;
+export async function fetchText(url: string, maxBytes: number): Promise<string> {
+  const attempts = 2;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        cache: "no-store",
+        headers: {
+          Accept: "*/*",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+          Referer: url.includes("eastmoney") ? "https://quote.eastmoney.com/ztb/" : "https://finance.sina.com.cn/",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/128.0 Safari/537.36",
+        },
+        signal: AbortSignal.timeout(9_000),
+      });
+    } catch (reason) {
+      if (attempt === attempts - 1) {
+        throw new Error(`上游行情请求失败：${reason instanceof Error ? reason.message : "网络连接异常"}`);
+      }
+      await waitForRetry(url, attempt);
+      continue;
+    }
+    if (!response.ok) {
+      if (!isTransientUpstreamStatus(response.status) || attempt === attempts - 1) {
+        throw new Error(`上游行情请求失败：HTTP ${response.status}`);
+      }
+      await waitForRetry(url, attempt);
+      continue;
+    }
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maxBytes) throw new Error("上游行情响应超过安全上限");
+    return body;
+  }
+  throw new Error("上游行情请求失败：重试次数已用尽");
+}
+
+export function isTransientUpstreamStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status === 456 || status >= 500;
+}
+
+async function waitForRetry(url: string, attempt: number): Promise<void> {
+  const stagger = [...url].reduce((sum, character) => (sum + character.charCodeAt(0)) % 60, 0);
+  await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1) + stagger));
 }
 
 async function mapLimited<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<Array<{ ok: true; value: R } | { ok: false; reason: unknown }>> {

@@ -120,3 +120,21 @@ export function calculatePortfolioTotals(
     byCurrency,
   };
 }
+
+export function convertPortfolioTotalsToCny(
+  totals: PortfolioTotals["byCurrency"],
+  usdCny: number,
+): CurrencyPortfolioTotals | null {
+  if (!Number.isFinite(usdCny) || usdCny <= 0 || usdCny >= 20) return null;
+  const costValue = totals.CNY.costValue + totals.USD.costValue * usdCny;
+  const marketValue = totals.CNY.marketValue + totals.USD.marketValue * usdCny;
+  const profit = totals.CNY.profit + totals.USD.profit * usdCny;
+  const dayProfit = totals.CNY.dayProfit + totals.USD.dayProfit * usdCny;
+  return {
+    costValue,
+    marketValue,
+    profit,
+    profitPct: costValue > 0 ? (profit / costValue) * 100 : 0,
+    dayProfit,
+  };
+}

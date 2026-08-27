@@ -258,6 +258,12 @@ test("uses a profit color that meets normal-text contrast on the light workbench
   assert.ok(contrastRatio(match[1], "#f8f8fa") >= 4.5);
 });
 
+test("rounds the workbench KPI strip into the bottom of the summary card", () => {
+  const css = readFileSync(new URL("../app/components/PortfolioWorkbenchSummary.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.header \{[\s\S]*?border-radius: var\(--platform-panel-radius\) var\(--platform-panel-radius\) 0 0;/);
+  assert.match(css, /\.kpis \{[\s\S]*?overflow: hidden;[\s\S]*?border-radius: 0 0 var\(--platform-panel-radius\) var\(--platform-panel-radius\);/);
+});
+
 test("keeps large holding sets searchable, filterable and incrementally rendered", () => {
   const component = readFileSync(new URL("../app/components/PortfolioWorkbenchSummary.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../app/components/PortfolioWorkbenchSummary.module.css", import.meta.url), "utf8");

@@ -27,6 +27,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--portfolio-border);
+  border-radius: 0 0 var(--platform-panel-radius) var(--platform-panel-radius);
   background: color-mix(in srgb, var(--portfolio-surface) 90%, transparent);
 }
 .kpis article { min-width: 0; padding: 18px 21px; display: grid; gap: 6px; border-right: 1px solid var(--portfolio-border); }

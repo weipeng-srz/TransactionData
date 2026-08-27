@@ -3888,7 +3888,10 @@ select:disabled {
     text-align: center;
   }
 
-  .sidebar-preview-strip > div:last-child { border-right: 0; }
+  .sidebar-preview-strip > div:nth-child(3n) { border-right: 0; }
+  .sidebar-preview-strip > div:nth-child(n + 4) {
+    border-top: 1px solid color-mix(in srgb, var(--apple-border-strong) 42%, transparent);
+  }
   .sidebar-preview-strip dt { color: var(--apple-tertiary); font-size: 11px; font-weight: 620; }
   .sidebar-preview-strip dd { min-width: 0; margin: 0; overflow: hidden; color: var(--apple-text); font-size: 11px; font-weight: 690; text-overflow: ellipsis; white-space: nowrap; }
   .sidebar-preview-strip dd.is-up { color: var(--apple-rise); }
@@ -4430,6 +4433,12 @@ select:disabled {
 .next-day-basis strong { color: var(--apple-accent); }
 .next-day-basis span { color: var(--apple-secondary); }
 .next-day-basis i { color: var(--apple-tertiary); }
+
+.next-day-recompute {
+  border-color: color-mix(in srgb, var(--apple-accent) 20%, var(--apple-border));
+  color: var(--apple-secondary);
+  background: color-mix(in srgb, var(--apple-accent) 6%, var(--apple-surface));
+}
 
 .next-day-decision {
   margin: 18px 20px 0;

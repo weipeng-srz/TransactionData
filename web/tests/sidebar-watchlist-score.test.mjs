@@ -17,6 +17,11 @@ test("shows live stock and global market summaries at the top of each sidebar", 
   assert.match(stockSource, /风险规则/);
   assert.doesNotMatch(stockSource, /买入信号|卖出信号/);
   assert.match(stockSource, /个股日内行情摘要/);
+  assert.match(stockSource, /<dt>开盘<\/dt>/);
+  assert.match(stockSource, /<dt>成交额<\/dt>/);
+  assert.match(stockSource, /<dt>换手率<\/dt>/);
+  assert.match(stockSource, /liveQuote\?\.amount \?\? latestDaily\?\.amount/);
+  assert.match(stockSource, /latestDaily\?\.turnoverPct/);
   assert.match(stockSource, /快速定位/);
   assert.match(globalSource, /aria-label="全球股指实时汇总"/);
   assert.match(globalSource, /当前开市广度/);
@@ -26,6 +31,7 @@ test("shows live stock and global market summaries at the top of each sidebar", 
   assert.match(globalSource, /全球市场覆盖摘要/);
   assert.match(appleStyles, /\.sidebar-preview-card/);
   assert.match(appleStyles, /\.sidebar-preview-strip/);
+  assert.match(appleStyles, /\.sidebar-preview-strip > div:nth-child\(n \+ 4\)/);
 });
 
 test("calculates watchlist predictions and reveals their detail on hover or focus", () => {

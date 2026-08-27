@@ -19,6 +19,11 @@ test("renders the A-share board before the global map and loads the map as an im
   assert.doesNotMatch(pageSource, /global-map-region-label/);
   assert.doesNotMatch(pageSource, /<button[^>]+global-map-marker/);
   assert.doesNotMatch(pageSource, /global-marker-dot/);
+  assert.match(pageSource, /className="global-map-mobile-list"/);
+  assert.match(pageSource, /mappedMarkets\.map/);
+  assert.match(pageSource, /global-marker-mobile-value/);
+  assert.match(globalStyles, /@media \(max-width: 520px\)[\s\S]*?\.global-marker-label > \.global-marker-desktop-value \{ display: none; \}[\s\S]*?\.global-marker-label > \.global-marker-mobile-value \{ display: flex;[\s\S]*?\.global-map-mobile-list \{[\s\S]*?display: grid;/);
+  assert.match(globalStyles, /\.global-map-mobile-list article \{[\s\S]*?min-height: 44px;/);
 });
 
 test("shows Shanghai Composite candles, whole-market turnover states and volume analysis", () => {
@@ -62,6 +67,8 @@ test("separates current-open breadth from the asynchronous cross-market snapshot
   assert.match(pageSource, /跨市场最近快照/);
   assert.match(pageSource, /openMarketMoves/);
   assert.match(pageSource, /snapshotBreadthPct/);
+  assert.match(globalStyles, /\.global-summary strong em \{[\s\S]*?flex: 0 0 auto;[\s\S]*?overflow: visible;/);
+  assert.match(globalStyles, /\.global-summary strong b \{[\s\S]*?min-width: \.72em;[\s\S]*?flex: 0 0 auto;[\s\S]*?overflow: visible;[\s\S]*?letter-spacing: 0;/);
 });
 
 test("labels the A-share gauge as a transparent pressure proxy", () => {

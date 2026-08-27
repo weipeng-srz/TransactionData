@@ -139,8 +139,24 @@ body:has(.global-page-shell) {
 
 .global-summary strong > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-.global-summary strong em { font-style: normal; }
-.global-summary strong b { color: var(--apple-tertiary); font-size: 15px; font-weight: 500; }
+.global-summary strong em {
+  flex: 0 0 auto;
+  overflow: visible;
+  font-style: normal;
+  text-overflow: clip;
+}
+.global-summary strong b {
+  min-width: .72em;
+  flex: 0 0 auto;
+  overflow: visible;
+  color: var(--apple-tertiary);
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: center;
+  text-overflow: clip;
+}
 .global-summary small { overflow: hidden; color: var(--apple-tertiary); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 
 .global-page-shell .is-up { color: var(--global-up) !important; }
@@ -416,6 +432,9 @@ body:has(.global-page-shell) {
 .global-marker-label > span { display: flex; align-items: baseline; justify-content: space-between; gap: 9px; }
 .global-marker-label strong { color: var(--apple-text); font-size: 11px; font-weight: 650; white-space: nowrap; }
 .global-marker-label b { color: currentColor; font-size: 12px; line-height: 1; font-weight: 710; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.global-marker-label > .global-marker-mobile-value { display: none; }
+
+.global-map-mobile-list { display: none; }
 
 .global-map-card > footer {
   min-height: 46px;
@@ -1291,6 +1310,47 @@ body:has(.global-page-shell) {
   .global-map-marker[data-map-id="nikkei"] .global-marker-label {
     transform: scale(.72) translate(-32px, var(--marker-label-y));
   }
+}
+
+@media (max-width: 520px) {
+  .global-map-stage {
+    min-height: 0;
+    padding: 18px 8px 14px;
+    display: block;
+  }
+
+  .global-map-viewport {
+    width: 100%;
+    margin: 0 auto 14px;
+  }
+
+  .global-marker-label > .global-marker-desktop-value { display: none; }
+  .global-marker-label > .global-marker-mobile-value { display: flex; gap: 4px; }
+
+  .global-map-mobile-list {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .global-map-mobile-list article {
+    min-width: 0;
+    min-height: 44px;
+    padding: 7px 9px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    border: 1px solid var(--apple-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--apple-surface) 94%, transparent);
+  }
+
+  .global-map-mobile-list article > span { min-width: 0; display: grid; gap: 2px; }
+  .global-map-mobile-list small { overflow: hidden; color: var(--apple-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .global-map-mobile-list strong { overflow: hidden; color: var(--apple-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .global-map-mobile-list b { flex: 0 0 auto; color: currentColor; font-size: 11px; font-variant-numeric: tabular-nums; }
 }
 
 /* Final frame guard: keep the global content aligned with the shared banner. */

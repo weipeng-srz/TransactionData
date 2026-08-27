@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   calculatePortfolioTotals,
+  convertPortfolioTotalsToCny,
   parseWatchlist,
   upsertWatchlistStock,
 } from "../app/lib/watchlist.ts";
@@ -51,4 +52,22 @@ test("calculatePortfolioTotals aggregates holdings, return and daily profit", ()
   assert.equal(totals.profit, 6_000);
   assert.equal(totals.profitPct, 4);
   assert.equal(totals.dayProfit, -300);
+});
+
+test("converts A-share and US portfolio totals into one CNY summary", () => {
+  const converted = convertPortfolioTotalsToCny({
+    CNY: { costValue: 100_000, marketValue: 110_000, profit: 10_000, profitPct: 10, dayProfit: 500 },
+    USD: { costValue: 10_000, marketValue: 12_000, profit: 2_000, profitPct: 20, dayProfit: -100 },
+  }, 7.2);
+  assert.deepEqual(converted, {
+    costValue: 172_000,
+    marketValue: 196_400,
+    profit: 24_400,
+    profitPct: 24_400 / 172_000 * 100,
+    dayProfit: -220,
+  });
+  assert.equal(convertPortfolioTotalsToCny({
+    CNY: { costValue: 0, marketValue: 0, profit: 0, profitPct: 0, dayProfit: 0 },
+    USD: { costValue: 0, marketValue: 0, profit: 0, profitPct: 0, dayProfit: 0 },
+  }, 0), null);
 });

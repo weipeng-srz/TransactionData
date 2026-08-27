@@ -524,6 +524,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     [analyticalDataset, selectedCode, lastRow],
   );
   const latest = candles[candles.length - 1];
+  const latestDaily = dailyCandles.at(-1);
   const selectedName = dataset.stockNames[selectedCode] ?? "";
   useEffect(() => {
     document.title = `${selectedName ? `${selectedName} ` : ""}${selectedCode} · TrendSight`;
@@ -571,12 +572,18 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     dataQuality: dataset.quality,
   }), [currentPrice, dailyCandles, dailyIndicators, dataset.quality, financialDataset, intent, riskMetrics, scoreBacktest, selectedNews]);
   const latestSidebarGuide = [...dailyIndicators.guidePoints].reverse().find((guide) => guide != null);
-  const sidebarChangePct = liveQuote?.changePct ?? latest?.changePct ?? null;
-  const sidebarMarketStatus = liveQuote?.marketStatus ?? (latest ? "最近收盘" : "等待行情");
-  const sidebarHigh = liveQuote?.high ?? latest?.high ?? null;
-  const sidebarLow = liveQuote?.low ?? latest?.low ?? null;
-  const sidebarVolume = liveQuote?.volume ?? latest?.volume ?? null;
+  const sidebarChangePct = liveQuote?.changePct ?? latestDaily?.changePct ?? null;
+  const sidebarMarketStatus = liveQuote?.marketStatus ?? (latestDaily ? "最近收盘" : "等待行情");
+  const sidebarOpen = liveQuote?.open ?? latestDaily?.open ?? null;
+  const sidebarHigh = liveQuote?.high ?? latestDaily?.high ?? null;
+  const sidebarLow = liveQuote?.low ?? latestDaily?.low ?? null;
+  const sidebarVolume = liveQuote?.volume ?? latestDaily?.volume ?? null;
+  const sidebarAmount = liveQuote?.amount ?? latestDaily?.amount ?? null;
+  const sidebarTurnoverPct = latestDaily?.turnoverPct ?? null;
   const sidebarVolumeText = sidebarVolume == null ? "—" : sidebarVolume >= 10_000_000 ? `${formatNumber(sidebarVolume / 100_000_000, 2)}亿` : compactNumber(sidebarVolume);
+  const sidebarAmountText = sidebarAmount == null ? "—" : compactNumber(sidebarAmount);
+  const sidebarVolumeTitle = sidebarVolume == null ? undefined : `${formatNumber(sidebarVolume, 0)} 股`;
+  const sidebarAmountTitle = sidebarAmount == null ? undefined : `${currencySymbol(selectedIdentity.currency)}${formatNumber(sidebarAmount, 0)}`;
   const dailyOnly = dataset.dataLevel.includes("日K聚合");
 
   const rememberRecentStock = useCallback((code: string, name: string, market: StockMarket) => {
@@ -1125,11 +1132,14 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             </div>
           </div>
           <dl className="sidebar-preview-strip" aria-label="个股日内行情摘要">
+            <div><dt>开盘</dt><dd>{sidebarOpen == null ? "—" : formatNumber(sidebarOpen, sidebarOpen >= 100 ? 2 : 3)}</dd></div>
             <div><dt>最高</dt><dd>{sidebarHigh == null ? "—" : formatNumber(sidebarHigh, sidebarHigh >= 100 ? 2 : 3)}</dd></div>
             <div><dt>最低</dt><dd>{sidebarLow == null ? "—" : formatNumber(sidebarLow, sidebarLow >= 100 ? 2 : 3)}</dd></div>
-            <div><dt>成交量</dt><dd>{sidebarVolumeText}</dd></div>
+            <div><dt>成交量</dt><dd title={sidebarVolumeTitle}>{sidebarVolumeText}</dd></div>
+            <div><dt>成交额</dt><dd title={sidebarAmountTitle}>{sidebarAmountText}</dd></div>
+            <div><dt>换手率</dt><dd>{sidebarTurnoverPct == null ? "—" : `${formatNumber(sidebarTurnoverPct, 2)}%`}</dd></div>
           </dl>
-          <small className="sidebar-preview-source">数据 · {dataset.dataLevel}</small>
+          <small className="sidebar-preview-source">数据 · {liveQuote?.source ?? dataset.dataLevel}</small>
         </section>
         <nav className="workspace-nav" aria-label="个股信息章节导航">
           <p className="sidebar-nav-heading">快速定位</p>
