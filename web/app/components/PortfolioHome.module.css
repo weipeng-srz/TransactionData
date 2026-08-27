@@ -1529,10 +1529,31 @@
   .returnsHeaderMeta { flex-wrap: wrap; }
   .fxRateField { grid-column: auto; grid-template-columns: 1fr; align-items: stretch; }
   .fxRateField small { text-align: left; }
-  .returnsMarkets { grid-template-columns: 1fr; }
+  .returnsMarkets {
+    padding: 12px;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--portfolio-muted-surface) 74%, transparent);
+    scroll-padding-inline: 12px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .returnsMarkets::-webkit-scrollbar { display: none; }
   .marketReturnCard,
-  .marketReturnCard:nth-child(2) { min-height: 210px; padding: 17px; border-right: 0; border-bottom: 1px solid var(--portfolio-border); }
-  .totalReturnCard { grid-column: auto; border-top: 0; border-bottom: 0; }
+  .marketReturnCard:nth-child(2),
+  .totalReturnCard {
+    min-width: min(88%, 340px);
+    min-height: 210px;
+    padding: 17px;
+    flex: 0 0 min(88%, 340px);
+    border: 1px solid var(--portfolio-border);
+    border-radius: var(--platform-inset-radius);
+    background: var(--portfolio-surface);
+    box-shadow: var(--apple-shadow-resting);
+    scroll-snap-align: start;
+  }
+  .totalReturnCard { grid-column: auto; }
   .returnsFormula { padding: 11px 16px; align-items: flex-start; flex-direction: column; gap: 6px; }
   .returnsFormula > small { text-align: left; }
   .decisionBrief { margin-top: 12px; padding: 16px 12px 13px; border-radius: var(--platform-panel-radius); }

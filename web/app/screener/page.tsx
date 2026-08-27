@@ -68,6 +68,8 @@ export default function ScreenerPage() {
   const [loadingMarket, setLoadingMarket] = useState<ScreenerMarket | null>("CN");
   const [errors, setErrors] = useState<Partial<Record<ScreenerMarket, string>>>({});
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [mobileChapter, setMobileChapter] = useState<"shortlist" | "pool" | "structure">("shortlist");
+  const [mobileVisibleStockCount, setMobileVisibleStockCount] = useState(4);
   const refreshRequestedRef = useRef<ScreenerMarket | null>(null);
 
   useEffect(() => {
@@ -160,6 +162,7 @@ export default function ScreenerPage() {
     .filter((stock) => matchesMarketCap(stock, marketCapFilter))
     .sort((left, right) => sort === "score" ? right.score - left.score : sort === "change" ? right.change - left.change : sort === "confidence" ? right.confidence - left.confidence : sort === "relativeStrength" ? right.relativeStrength20 - left.relativeStrength20 : sort === "rewardRisk" ? right.plan.rewardRisk - left.plan.rewardRisk : right.volumeRatio - left.volumeRatio),
   [eligibleStocks, marketCapFilter, maximumRisk, minimumAmount, minimumRewardRisk, minimumScore, securityType, sort, strategy, theme]);
+  const mobileVisibleStocks = visibleStocks.slice(0, mobileVisibleStockCount);
   const featured = eligibleStocks.filter((stock) => stock.strategies.includes("今日精选")).slice(0, 3);
   const availableThemes = feed?.themes.map((item) => item.name) ?? [];
   const marketResearchPool = researchPool.filter((item) => item.market === market);
@@ -183,6 +186,7 @@ export default function ScreenerPage() {
     setMarketCapFilter(snapshot.marketCapFilter);
     setSecurityType(snapshot.securityType);
     setQualityGate(snapshot.qualityGate);
+    setMobileVisibleStockCount(4);
   };
 
   const clearFilters = () => {
@@ -194,6 +198,7 @@ export default function ScreenerPage() {
     setMarketCapFilter("all");
     setSecurityType("全部");
     setQualityGate(true);
+    setMobileVisibleStockCount(4);
     setToast("筛选条件已清空");
   };
 
@@ -212,6 +217,8 @@ export default function ScreenerPage() {
     setTheme("全部题材");
     setSelected(null);
     setCompareKeys([]);
+    setMobileChapter("shortlist");
+    setMobileVisibleStockCount(4);
     setCoverageStage(null);
     setEvidenceMethod(null);
     const remembered = marketFilters[nextMarket];
@@ -376,7 +383,14 @@ export default function ScreenerPage() {
             <article className={styles.riskBudget}><span>模型风险预算</span><strong>{feed.snapshot.riskBudget}</strong><small>{feed.snapshot.riskNote}</small></article>
           </section>
 
-          <section className={styles.decisionDeck} aria-labelledby="decision-deck-title">
+          <nav className="platform-mobile-section-nav" aria-label="智能选股信息分组">
+            <button type="button" aria-pressed={mobileChapter === "shortlist"} onClick={() => setMobileChapter("shortlist")}>今日摘要</button>
+            <button type="button" aria-pressed={mobileChapter === "pool"} onClick={() => setMobileChapter("pool")}>策略股票池</button>
+            <button type="button" aria-pressed={mobileChapter === "structure"} onClick={() => setMobileChapter("structure")}>市场结构</button>
+          </nav>
+
+          <div className="platform-mobile-chapter" data-active={mobileChapter === "shortlist"}>
+            <section className={styles.decisionDeck} aria-labelledby="decision-deck-title">
             <header><div><span>NEXT RESEARCH ACTION</span><h2 id="decision-deck-title">先看候选，再看证据</h2></div><p>{professionalMode ? "专业模式 · 风险与计划优先" : "简洁模式 · 聚焦前三条线索"}</p></header>
             <div className={styles.decisionDeckGrid}>
               {featured.map((stock, index) => <CompactCandidateCard key={`${stock.market}-${stock.symbol}`} stock={stock} rank={index + 1} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
@@ -416,7 +430,7 @@ export default function ScreenerPage() {
             <div className={styles.briefTags}><span>{feed.brief.positiveTag}</span><span>{feed.brief.warningTag}</span></div>
           </section>
 
-          <section className={`${styles.evidenceSection} ${!showEvidence ? styles.evidenceCollapsed : ""}`} aria-labelledby="evidence-title">
+            <section className={`${styles.evidenceSection} ${!showEvidence ? styles.evidenceCollapsed : ""}`} aria-labelledby="evidence-title">
             <header>
               <div><span>ROLLING SIGNAL EVIDENCE</span><h2 id="evidence-title">策略历史表现</h2></div>
               <div className={styles.evidenceHeaderAction}><p>事件次数并非独立证券数 · 未扣佣金与滑点</p><button type="button" aria-expanded={showEvidence} onClick={() => setShowEvidence((value) => !value)}>{showEvidence ? "收起证据" : "展开证据"}</button></div>
@@ -434,10 +448,11 @@ export default function ScreenerPage() {
               </article>)}
               {!feed.strategyEvidence.length ? <div className={styles.evidenceEmpty}>当前候选日K中没有足够的历史信号样本，系统不会生成模拟胜率。</div> : null}
             </div> : <p className={styles.evidenceSummary}>当前有 {feed.strategyEvidence.length} 类真实日K滚动信号证据；专业模式默认收起，避免历史指标遮挡今日候选。</p>}
-          </section>
+            </section>
+          </div>
 
-          <div className={styles.workspace}>
-            <div className={styles.primaryColumn}>
+          <div className={`${styles.workspace} platform-mobile-visibility`} data-active={mobileChapter !== "shortlist"}>
+            <div className={`${styles.primaryColumn} platform-mobile-visibility`} data-active={mobileChapter === "pool"}>
               <section className={`${styles.featuredSection} ${professionalMode && !showFeatured ? styles.collapsedFeatured : ""}`} aria-labelledby="featured-title">
                 <header className={styles.sectionHeader}>
                   <div><span>DAILY SHORTLIST</span><h2 id="featured-title">今日模型精选</h2></div>
@@ -530,13 +545,20 @@ export default function ScreenerPage() {
                   </table>
                 </div>
                 <div className={styles.mobileOpportunityList} aria-label="策略股票池移动端卡片">
-                  {visibleStocks.map((stock) => <MobileOpportunityCard key={`${stock.market}-${stock.symbol}`} stock={stock} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
+                  {mobileVisibleStocks.map((stock) => <MobileOpportunityCard key={`${stock.market}-${stock.symbol}`} stock={stock} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
                 </div>
+                {visibleStocks.length > 4 ? <div className={styles.mobilePoolPager}>
+                  <span>已显示 {mobileVisibleStocks.length}/{visibleStocks.length} 只</span>
+                  <div>
+                    {mobileVisibleStockCount > 4 ? <button type="button" onClick={() => setMobileVisibleStockCount(4)}>收起</button> : null}
+                    {mobileVisibleStocks.length < visibleStocks.length ? <button type="button" onClick={() => setMobileVisibleStockCount((count) => Math.min(count + 4, visibleStocks.length))}>再显示 {Math.min(4, visibleStocks.length - mobileVisibleStocks.length)} 只</button> : null}
+                  </div>
+                </div> : null}
                 {!visibleStocks.length ? <div className={styles.emptyState}><strong>当前条件下没有真实行情候选</strong><span>可一键恢复默认门槛，或保留当前条件切换策略。</span><button type="button" onClick={clearFilters}>一键放宽条件</button></div> : null}
               </section>
             </div>
 
-            <aside className={styles.insightRail} aria-label="市场结构与热门板块">
+            <aside className={`${styles.insightRail} platform-mobile-visibility`} data-active={mobileChapter === "structure"} aria-label="市场结构与热门板块">
               <section className={styles.ladderCard}>
                 <header><div><span>{market === "CN" ? "LIMIT-UP LADDER" : "US QUALITY GATE"}</span><h2>{feed.structure.title}</h2></div><strong>{feed.structure.badge}</strong></header>
                 {market === "CN" ? <div className={styles.ladder}>{feed.structure.rows.map((row) => <div key={row.level}><strong>{row.level}</strong><span>{row.names.map((name) => <button type="button" key={name}>{name}</button>)}</span></div>)}</div>

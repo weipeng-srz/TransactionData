@@ -71,6 +71,7 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
   const [displayMode, setDisplayMode] = useState<DisplayMode>("absolute");
   const [expandedMetric, setExpandedMetric] = useState<MetricKey | null>(null);
   const [detailExpanded, setDetailExpanded] = useState(false);
+  const [mobileChapter, setMobileChapter] = useState<"summary" | "trends" | "details">("summary");
   const [peerCode, setPeerCode] = useState("");
   const [peerDataset, setPeerDataset] = useState<FinancialDataset | null>(null);
   const [peerLoad, setPeerLoad] = useState<LoadState>({ phase: "idle", detail: "" });
@@ -186,6 +187,12 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
         </div>
       ) : null}
 
+      {hasAnalysis ? <nav className="platform-mobile-section-nav" aria-label="财务信息分组">
+        <button type="button" aria-pressed={mobileChapter === "summary"} onClick={() => setMobileChapter("summary")}>关键指标</button>
+        <button type="button" aria-pressed={mobileChapter === "trends"} onClick={() => setMobileChapter("trends")}>趋势图表</button>
+        <button type="button" aria-pressed={mobileChapter === "details"} onClick={() => setMobileChapter("details")}>明细与结论</button>
+      </nav> : null}
+
       {!hasAnalysis ? (
         <div className={`finance-dashboard-empty ${load.phase === "loading" ? "is-loading" : ""}`}>
           <span className="finance-empty-mark">FIN</span>
@@ -196,7 +203,8 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
         </div>
       ) : latest ? (
         <>
-          <div className="finance-kpi-grid">
+          <div className="platform-mobile-chapter" data-active={mobileChapter === "summary"}>
+            <div className="finance-kpi-grid">
             <FinanceKpi label="营业收入" value={latest[effectiveMode].revenue} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").revenue} qoq={comparisonFor(latest, effectiveMode, "qoq").revenue} trend={visiblePeriods.map((period) => period[effectiveMode].revenue)} />
             <FinanceKpi label="归母净利润" value={latest[effectiveMode].parentNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").parentNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").parentNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].parentNetProfit)} />
             <FinanceKpi label="扣非净利润" value={latest[effectiveMode].deductNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").deductNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").deductNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].deductNetProfit)} note={`与归母差额 ${formatAmount(latest[effectiveMode].nonRecurringProfit, currency)}`} />
@@ -205,9 +213,9 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             <FinanceKpi label="现金含量（净利>0）" value={latest[effectiveMode].cashCoverage} format="ratio" yoy={comparisonFor(latest, effectiveMode, "yoy").cashCoverage} qoq={comparisonFor(latest, effectiveMode, "qoq").cashCoverage} trend={visiblePeriods.map((period) => period[effectiveMode].cashCoverage)} note={cashCoverageNote(latest[effectiveMode].cashCoverage, latest[effectiveMode].parentNetProfit)} deltaUnit="" />
             <FinanceKpi label="ROE TTM" value={latest.ttm.roe} format="percent" yoy={latest.ttmYoY.roe} qoq={latest.ttmQoQ.roe} trend={visiblePeriods.map((period) => period.ttm.roe)} note={roeQualityNote(latest)} deltaUnit="个百分点" />
             <FinanceKpi label="资产负债率" value={latest.balance.debtAssetRatio} format="percent" yoy={latest.balanceYoY.debtAssetRatio} qoq={latest.balanceQoQ.debtAssetRatio} trend={visiblePeriods.map((period) => period.balance.debtAssetRatio)} deltaUnit="个百分点" />
-          </div>
+            </div>
 
-          <div className="valuation-support-strip" id="finance-valuation">
+            <div className="valuation-support-strip" id="finance-valuation">
             <div className="valuation-support-copy">
               <span>业绩与估值匹配</span>
               <strong>{valuationVerdict(latest, dataset)}</strong>
@@ -224,22 +232,23 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             <ValuationMetric label="FCF收益率" value={formatPercent(advancedQuality?.freeCashFlowYield ?? null, false)} tone={advancedQuality?.freeCashFlowYield ?? null} />
             <ValuationMetric label="应计利润率" value={formatPercent(advancedQuality?.accrualRatio ?? null, false)} tone={advancedQuality?.accrualRatio == null ? null : -advancedQuality.accrualRatio} />
             <ValuationMetric label="杜邦ROE" value={formatPercent(advancedQuality?.dupontRoe ?? null, false)} tone={advancedQuality?.dupontRoe ?? null} />
+            </div>
+
+            <PeerComparisonPanel
+              dataset={dataset}
+              peer={peerDataset}
+              peerCode={peerCode}
+              peerLoad={peerLoad}
+              currency={currency}
+              onPeerCodeChange={(value) => {
+                setPeerCode(value);
+                if (peerLoad.phase !== "idle") setPeerLoad({ phase: "idle", detail: "" });
+              }}
+              onLoad={() => void loadPeer()}
+            />
           </div>
 
-          <PeerComparisonPanel
-            dataset={dataset}
-            peer={peerDataset}
-            peerCode={peerCode}
-            peerLoad={peerLoad}
-            currency={currency}
-            onPeerCodeChange={(value) => {
-              setPeerCode(value);
-              if (peerLoad.phase !== "idle") setPeerLoad({ phase: "idle", detail: "" });
-            }}
-            onLoad={() => void loadPeer()}
-          />
-
-          <div className="finance-chart-grid">
+          <div className="finance-chart-grid platform-mobile-visibility" data-active={mobileChapter === "trends"}>
             <FinanceChartCard id="finance-income" title="收入趋势" subtitle={`${rangeLabel(range)} · ${modeLabel(effectiveMode)} · 柱为规模，线为同比`}>
               <FinancialChart labels={labels} series={incomeSeries} leftUnit={displayMode === "absolute" ? amountUnit : "%"} rightUnit="%" ariaLabel="营业收入及同比趋势" />
             </FinanceChartCard>
@@ -270,7 +279,8 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             </section>
           </div>
 
-          <section className={`finance-detail-card ${detailExpanded ? "is-expanded" : "is-collapsed"}`} id="finance-detail">
+          <div className="platform-mobile-chapter" data-active={mobileChapter === "details"}>
+            <section className={`finance-detail-card ${detailExpanded ? "is-expanded" : "is-collapsed"}`} id="finance-detail">
             <header>
               <div><p className="eyebrow">FINANCIAL MATRIX</p><h4>详细财务指标对比</h4></div>
               <div>
@@ -314,16 +324,17 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
                 <i aria-hidden="true">⌄</i>
               </button>
             )}
-          </section>
+            </section>
 
-          <section className="finance-conclusion-card" id="finance-conclusion">
+            <section className="finance-conclusion-card" id="finance-conclusion">
             <header><div><p className="eyebrow">TRACEABLE READOUT</p><h4>财报结论与后续关注</h4></div><span>每条结论均可定位依据</span></header>
             <div className="finance-conclusion-grid">
               {conclusions.map((item, index) => (
                 <article key={item.title}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.body}</p><button type="button" onClick={() => document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "center" })}>查看依据</button></div></article>
               ))}
             </div>
-          </section>
+            </section>
+          </div>
           <p className="finance-source-note">财报截至 {dataset.analysis.latestReportDate}，估值截至 {dataset.snapshot.asOfDate || "—"}。来源：{dataset.source}；页面按公开合并报表计算，公告修订后数值可能变化。{currency === "USD" ? "美股季度均按公司财政年度 FY，而非自然季度标注。" : "A 股单季度流量值由同一会计年度累计披露差分，资产负债项目使用期末值。"}</p>
         </>
       ) : null}

@@ -273,6 +273,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const [freshness, setFreshness] = useState({ market: "", financial: "", news: "" });
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [viewMode, setViewMode] = useState<ViewMode>("basic");
+  const [mobileChapter, setMobileChapter] = useState<"overview" | "live" | "chart" | "forecast" | "tools" | "financials" | "news">("overview");
   const [roundTripCostPct, setRoundTripCostPct] = useState(0.25);
   const [benchmarkCode, setBenchmarkCode] = useState(initialIdentity.market === "US" ? "SPY" : "000300");
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([]);
@@ -1157,30 +1158,36 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <a href="#stock-news"><span>新闻舆情</span><small>News</small></a>
         </nav>
         <label className="mobile-section-jump">
-          <span>跳转到研究章节</span>
+          <span>当前研究层</span>
           <select
-            aria-label="跳转到研究章节"
-            defaultValue=""
+            aria-label="选择研究信息层"
+            value={mobileChapter}
             onChange={(event) => {
-              const target = document.getElementById(event.target.value);
-              target?.scrollIntoView({ behavior: "smooth", block: "start" });
-              window.setTimeout(() => target?.scrollIntoView({ behavior: "auto", block: "start" }), 700);
-              event.currentTarget.value = "";
+              const chapter = event.target.value as typeof mobileChapter;
+              setMobileChapter(chapter);
+              const targetId = chapter === "overview" ? "stock-score"
+                : chapter === "live" ? "realtime-trading"
+                  : chapter === "chart" ? "stock-market"
+                    : chapter === "forecast" ? "next-day-prediction"
+                      : chapter === "tools" ? "advanced-research"
+                        : chapter === "financials" ? "stock-financials"
+                          : "stock-news";
+              window.requestAnimationFrame(() => {
+                const target = document.getElementById(targetId);
+                const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+                target?.scrollIntoView({ behavior, block: "start" });
+              });
             }}
           >
-            <option value="" disabled>选择章节…</option>
-            <option value="stock-score">综合评分</option>
-            <option value="stock-market">价格行情</option>
+            <option value="overview">概览与综合评分</option>
+            {viewMode === "pro" ? <option value="live">实时盘口</option> : null}
+            <option value="chart">K 线与技术分析</option>
             {viewMode === "pro" ? <>
-              <option value="realtime-trading">实时盘口</option>
-              <option value="kline-analysis">K 线研判</option>
-              <option value="next-day-prediction">隔日预测</option>
-              <option value="signal-backtest">信号回测</option>
-              <option value="advanced-research">风险因子</option>
-              <option value="research-tools">研究工具</option>
+              <option value="forecast">隔日预测</option>
+              <option value="tools">风险因子与研究工具</option>
             </> : null}
-            <option value="stock-financials">财务数据</option>
-            <option value="stock-news">新闻舆情</option>
+            <option value="financials">财务与基本面</option>
+            <option value="news">新闻与舆情</option>
           </select>
         </label>
       </aside>
@@ -1252,7 +1259,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <span className="market-pill">{selectedMarket === "US" ? "美股" : "A股"}</span>
           <span className="level-pill">{dataset.dataLevel}</span>
           <span className="date-span">{firstRow?.date ?? "—"} → {lastRow?.date ?? "—"}</span>
-          <ViewModeSwitch value={viewMode} onChange={setViewMode} />
+          <ViewModeSwitch value={viewMode} onChange={(nextMode) => {
+            setViewMode(nextMode);
+            if (nextMode === "basic" && ["live", "forecast", "tools"].includes(mobileChapter)) setMobileChapter("overview");
+          }} />
         </div>
         <div className="quote-price">
           <strong className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</strong>
@@ -1277,20 +1287,25 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         </div>
       ) : null}
 
-      {viewMode === "basic" ? (
-        <BeginnerGuideCard
-          report={stockScore}
-          stockName={selectedName || selectedCode}
-          dataWarnings={dataset.quality.warnings.length}
-          newsCount={newsDataset.items.length}
-        />
-      ) : null}
+      <div className="platform-mobile-chapter" data-active={mobileChapter === "overview"}>
+        {viewMode === "basic" ? (
+          <BeginnerGuideCard
+            report={stockScore}
+            stockName={selectedName || selectedCode}
+            dataWarnings={dataset.quality.warnings.length}
+            newsCount={newsDataset.items.length}
+          />
+        ) : null}
 
-      <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
+        <StockScoreCard report={stockScore} stockName={selectedName || selectedCode} />
+      </div>
 
-      {viewMode === "pro" ? <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} /> : null}
+      <div className="platform-mobile-chapter" data-active={mobileChapter === "live"}>
+        {viewMode === "pro" ? <RealtimeTradingPanel snapshot={realtimeSnapshot} load={realtimeLoad} market={selectedMarket} onRefresh={() => void refreshRealtime(selectedCode)} /> : null}
+      </div>
 
-      <section className="workspace-grid" id="stock-market">
+      <div className="platform-mobile-chapter" data-active={mobileChapter === "chart"}>
+        <section className="workspace-grid" id="stock-market">
         <div className={`chart-card ${fetchingStock ? "is-stale" : ""}`}>
           <div className="chart-toolbar">
             <div className="chart-toolbar-title">
@@ -1609,53 +1624,60 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           </section>
           <SignalBacktestCard backtest={signalBacktest} benchmarkName={selectedMarket === "US" ? benchmarkCode : "沪深300"} market={selectedMarket} priceBasis={dataset.priceBasis ?? ""} onCostChange={setRoundTripCostPct} />
         </aside>
-      </section>
+        </section>
+      </div>
 
-      {viewMode === "pro" ? <NextDayPredictionCard
-        candles={dailyCandles}
-        benchmarkCandles={benchmarkCandles}
-        benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode}
-        newsItems={selectedNews}
-        realtimeSnapshot={liveQuote}
-        market={selectedMarket}
-        stockName={selectedName || selectedCode}
-        onInspectDate={inspectPredictionDate}
-      /> : null}
+      <div className="platform-mobile-chapter" data-active={mobileChapter === "forecast"}>
+        {viewMode === "pro" ? <NextDayPredictionCard
+          candles={dailyCandles}
+          benchmarkCandles={benchmarkCandles}
+          benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode}
+          newsItems={selectedNews}
+          realtimeSnapshot={liveQuote}
+          market={selectedMarket}
+          stockName={selectedName || selectedCode}
+          onInspectDate={inspectPredictionDate}
+        /> : null}
+      </div>
 
-      <FinancialDashboard dataset={financialDataset} load={financialLoad} currency={selectedIdentity.currency} />
-      {selectedMarket === "CN" && viewMode === "pro" ? <details className="legacy-financial-summary">
-        <summary>查看原始报告摘要、估值与分红明细</summary>
-        <FundamentalsPanel dataset={financialDataset} load={financialLoad} />
-        <FinancialReports dataset={financialDataset} load={financialLoad} />
-      </details> : null}
+      <div className="platform-mobile-chapter" data-active={mobileChapter === "financials"}>
+        <FinancialDashboard dataset={financialDataset} load={financialLoad} currency={selectedIdentity.currency} />
+        {selectedMarket === "CN" && viewMode === "pro" ? <details className="legacy-financial-summary">
+          <summary>查看原始报告摘要、估值与分红明细</summary>
+          <FundamentalsPanel dataset={financialDataset} load={financialLoad} />
+          <FinancialReports dataset={financialDataset} load={financialLoad} />
+        </details> : null}
+      </div>
 
-      {viewMode === "pro" ? <div className="advanced-only">
-        <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
-      </div> : null}
+      <div className="platform-mobile-chapter" data-active={mobileChapter === "tools"}>
+        {viewMode === "pro" ? <div className="advanced-only">
+          <AdvancedResearchPanel risk={riskMetrics} factors={factorProfile} events={eventStudies} benchmarkName={selectedMarket === "US" ? benchmarkCode : ({ "000300": "沪深300", "000001": "上证指数", "399001": "深证成指", "399006": "创业板指" } as Record<string, string>)[benchmarkCode] ?? benchmarkCode} />
+        </div> : null}
 
-      {viewMode === "pro" ? <ResearchDock
-        key={selectedCode}
-        code={selectedCode}
-        name={selectedName}
-        isDemo={isDemo}
-        busy={busy}
-        hasSavedView={hasSavedView}
-        freshness={freshness}
-        dataProfile={{ level: dataset.dataLevel, priceBasis: dataset.priceBasis ?? "", amountBasis: dataset.amountBasis, timePrecision: dataset.timePrecision, qualityWarnings: dataset.quality.warnings.length }}
-        notice={workspaceNotice}
-        cloudStatus={cloudStatus}
-        annotations={annotations}
-        onRefresh={() => void fetchStockData(selectedCode)}
-        onCopyLink={() => void copyWorkspaceLink()}
-        onSaveView={saveWorkspace}
-        onRestoreView={() => void restoreWorkspace()}
-        onExportReport={exportResearchReport}
-        onPrint={() => window.print()}
-        onAddAnnotation={addAnnotation}
-        onRemoveAnnotation={removeAnnotation}
-      /> : null}
+        {viewMode === "pro" ? <ResearchDock
+          key={selectedCode}
+          code={selectedCode}
+          name={selectedName}
+          isDemo={isDemo}
+          busy={busy}
+          hasSavedView={hasSavedView}
+          freshness={freshness}
+          dataProfile={{ level: dataset.dataLevel, priceBasis: dataset.priceBasis ?? "", amountBasis: dataset.amountBasis, timePrecision: dataset.timePrecision, qualityWarnings: dataset.quality.warnings.length }}
+          notice={workspaceNotice}
+          cloudStatus={cloudStatus}
+          annotations={annotations}
+          onRefresh={() => void fetchStockData(selectedCode)}
+          onCopyLink={() => void copyWorkspaceLink()}
+          onSaveView={saveWorkspace}
+          onRestoreView={() => void restoreWorkspace()}
+          onExportReport={exportResearchReport}
+          onPrint={() => window.print()}
+          onAddAnnotation={addAnnotation}
+          onRemoveAnnotation={removeAnnotation}
+        /> : null}
+      </div>
 
-      <section className="news-card" id="stock-news">
+      <section className="news-card platform-mobile-visibility" data-active={mobileChapter === "news"} id="stock-news">
         <div className="section-heading news-heading">
           <div>
             <p className="eyebrow">MARKET INTELLIGENCE</p>

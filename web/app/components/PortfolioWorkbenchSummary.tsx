@@ -54,6 +54,7 @@ export default function PortfolioWorkbenchSummary({
   const [visibleHoldingCount, setVisibleHoldingCount] = useState(holdingPageSize);
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [showAllNews, setShowAllNews] = useState(false);
+  const [mobileChapter, setMobileChapter] = useState<"priority" | "evidence" | "discovery">("priority");
   const workbenchId = useId();
   const digest = useMemo(
     () => buildPortfolioWorkbenchDigest(watchlist, holdings, quotes),
@@ -178,7 +179,13 @@ export default function PortfolioWorkbenchSummary({
         <SummaryKpi label="新闻关注" value={newsKpi.value} detail={newsKpi.detail} tone={digest.newsCoverage.failed ? "risk" : digest.newsCoverage.loading ? "warning" : "neutral"} />
       </div>
 
-      <div className={styles.primaryGrid}>
+      <nav className="platform-mobile-section-nav" aria-label="决策工作台信息分组">
+        <button type="button" aria-pressed={mobileChapter === "priority"} onClick={() => setMobileChapter("priority")}>优先复核</button>
+        <button type="button" aria-pressed={mobileChapter === "evidence"} onClick={() => setMobileChapter("evidence")}>信号与新闻</button>
+        <button type="button" aria-pressed={mobileChapter === "discovery"} onClick={() => setMobileChapter("discovery")}>研究候选</button>
+      </nav>
+
+      <div className={`${styles.primaryGrid} platform-mobile-visibility`} data-active={mobileChapter === "priority"}>
         <article className={`${styles.panel} ${styles.priorityPanel}`}>
           <PanelHeader eyebrow="PRIORITY QUEUE" title="持仓操作复核" meta={`需复核 ${digest.actionableCount} 只 · 继续观察 ${digest.observeCount} 只`} />
           {digest.conflicts.length ? (
@@ -293,7 +300,7 @@ export default function PortfolioWorkbenchSummary({
         </article>
       </div>
 
-      <div className={styles.secondaryGrid}>
+      <div className={`${styles.secondaryGrid} platform-mobile-visibility`} data-active={mobileChapter === "evidence"}>
         <article className={styles.panel}>
           <PanelHeader eyebrow="B / S & EVIDENCE" title="B/S 触发与证据倾向" meta="技术触发含日期和价格；综合倾向不等于价格 B/S 点" />
           <div className={styles.signalList} id={`${workbenchId}-signals`}>
@@ -329,7 +336,7 @@ export default function PortfolioWorkbenchSummary({
         </article>
       </div>
 
-      <article className={`${styles.panel} ${styles.discoveryPanel}`}>
+      <article className={`${styles.panel} ${styles.discoveryPanel} platform-mobile-visibility`} data-active={mobileChapter === "discovery"}>
         <PanelHeader eyebrow="DISCOVERY" title="新票研究候选" meta="排除现有自选；评分、风险与赔率共同达标后才进入候选" />
         <div className={styles.discoveryStatus} role="status">
           <div><span>{markets.map((market) => `${marketName(market)}${marketLoadText(discovery.markets[market])}`).join(" · ")}</span>{discoveryErrors.length ? <small>{discoveryErrors.join("；")}</small> : null}</div>

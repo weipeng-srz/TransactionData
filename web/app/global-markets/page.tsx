@@ -54,6 +54,7 @@ export default function GlobalMarketsPage() {
   const [error, setError] = useState("");
   const [appearance, setAppearance] = useState<Appearance>("light");
   const [preservedStock, setPreservedStock] = useState("");
+  const [mobileChapter, setMobileChapter] = useState<"overview" | "trend" | "map" | "regions">("overview");
   const requestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -223,26 +224,28 @@ export default function GlobalMarketsPage() {
           <a href="#asia-indexes"><span>亚太市场</span><small>Asia</small></a>
         </nav>
         <label className="mobile-section-jump">
-          <span>跳转到市场章节</span>
+          <span>当前市场层</span>
           <select
-            aria-label="跳转到市场章节"
-            defaultValue=""
+            aria-label="选择全球市场信息层"
+            value={mobileChapter}
             onChange={(event) => {
-              const target = document.getElementById(event.target.value);
-              target?.scrollIntoView({ behavior: "smooth", block: "start" });
-              window.setTimeout(() => target?.scrollIntoView({ behavior: "auto", block: "start" }), 700);
-              event.currentTarget.value = "";
+              const chapter = event.target.value as typeof mobileChapter;
+              setMobileChapter(chapter);
+              const targetId = chapter === "overview" ? "global-overview"
+                : chapter === "trend" ? "shanghai-index"
+                  : chapter === "map" ? "global-map"
+                    : "us-indexes";
+              window.requestAnimationFrame(() => {
+                const target = document.getElementById(targetId);
+                const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+                target?.scrollIntoView({ behavior, block: "start" });
+              });
             }}
           >
-            <option value="" disabled>选择章节…</option>
-            <option value="global-overview">市场概览</option>
-            <option value="a-share-indexes">A 股核心</option>
-            <option value="shanghai-index">上证指数</option>
-            <option value="global-map">全球地图</option>
-            <option value="us-indexes">美股指数</option>
-            <option value="americas-indexes">美洲市场</option>
-            <option value="europe-indexes">欧洲市场</option>
-            <option value="asia-indexes">亚太市场</option>
+            <option value="overview">全球概览与 A 股</option>
+            <option value="trend">上证趋势与成交额</option>
+            <option value="map">全球市场地图</option>
+            <option value="regions">美股与区域市场</option>
           </select>
         </label>
       </aside>
@@ -259,21 +262,25 @@ export default function GlobalMarketsPage() {
         </button>
         {error ? <div className="global-error" role="status"><strong>行情连接提示</strong><span>{error}，页面将在下一个刷新周期自动重试。</span></div> : null}
 
-        <section id="global-overview" className="global-summary" aria-label="全球市场概览">
-          <article><span>覆盖指数</span><strong>{quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length}</strong><small>美股 · A股 · 美洲 · 欧洲 · 亚太</small></article>
-          <article><span>当前开市广度</span><strong><em className="is-up">{openRising}</em><b>/</b><em className="is-down">{openFalling}</em></strong><small>{openBreadthTotal ? `上涨占比 ${openBreadthPct}% · 仅统计交易中市场` : "当前没有交易中样本"}</small></article>
-          <article><span>跨市场最近快照</span><strong><em className="is-up">{snapshotRising}</em><b>/</b><em className="is-down">{snapshotFalling}</em></strong><small>各市场时点不同，不视为同步收盘比较</small></article>
-          <article><span>交易中市场</span><strong>{openMarkets}</strong><small>依据各交易所当地时段</small></article>
-          <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
-        </section>
+        <div className="platform-mobile-chapter" data-active={mobileChapter === "overview"}>
+          <section id="global-overview" className="global-summary" aria-label="全球市场概览">
+            <article><span>覆盖指数</span><strong>{quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length}</strong><small>美股 · A股 · 美洲 · 欧洲 · 亚太</small></article>
+            <article><span>当前开市广度</span><strong><em className="is-up">{openRising}</em><b>/</b><em className="is-down">{openFalling}</em></strong><small>{openBreadthTotal ? `上涨占比 ${openBreadthPct}% · 仅统计交易中市场` : "当前没有交易中样本"}</small></article>
+            <article><span>跨市场最近快照</span><strong><em className="is-up">{snapshotRising}</em><b>/</b><em className="is-down">{snapshotFalling}</em></strong><small>各市场时点不同，不视为同步收盘比较</small></article>
+            <article><span>交易中市场</span><strong>{openMarkets}</strong><small>依据各交易所当地时段</small></article>
+            <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
+          </section>
 
-        <section id="a-share-indexes" className="global-a-share-board" aria-label="A股核心指数行情">
-          <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} fearGauge={fearGaugeByMarket.get("A股")} />
-        </section>
+          <section id="a-share-indexes" className="global-a-share-board" aria-label="A股核心指数行情">
+            <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} fearGauge={fearGaugeByMarket.get("A股")} />
+          </section>
+        </div>
 
-        <ShanghaiIndexPanel key={`shanghai-${shanghaiHistory.length}`} candles={shanghaiHistory} />
+        <div className="platform-mobile-chapter" data-active={mobileChapter === "trend"}>
+          <ShanghaiIndexPanel key={`shanghai-${shanghaiHistory.length}`} candles={shanghaiHistory} />
+        </div>
 
-        <section id="global-map" className="global-map-card" aria-label="全球主要股指地图">
+        <section id="global-map" className="global-map-card platform-mobile-visibility" data-active={mobileChapter === "map"} aria-label="全球主要股指地图">
           <header>
             <div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div>
             <div className="global-map-header-meta">
@@ -303,7 +310,7 @@ export default function GlobalMarketsPage() {
           <footer><span>数值框边缘贴近交易所坐标，位置采用 Robinson 投影并仅做防重叠避让</span><span>红涨绿跌 · 行情每 10 秒刷新</span></footer>
         </section>
 
-        <section className="global-region-board" aria-label="全球指数行情列表">
+        <section className="global-region-board platform-mobile-visibility" data-active={mobileChapter === "regions"} aria-label="全球指数行情列表">
           <USMarketPanel quotes={usQuotes} fearGauge={fearGaugeByMarket.get("美股")} />
           {(["美洲", "欧洲", "亚太"] as GlobalRegion[]).map((region) => (
             <RegionPanel key={region} region={region} definitions={GLOBAL_INDEXES.filter((item) => item.region === region)} quoteById={quoteById} />

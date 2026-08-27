@@ -296,7 +296,15 @@
   .listPager { align-items: flex-start; flex-direction: column; }
   .listPager > div { width: 100%; }
   .listPager button { flex: 1; }
-  .ideaGrid { grid-template-columns: 1fr; }
+  .ideaGrid {
+    display: flex;
+    overflow-x: auto;
+    scroll-padding-inline: 13px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .ideaGrid::-webkit-scrollbar { display: none; }
+  .ideaCard { min-width: min(88%, 340px); flex: 0 0 min(88%, 340px); scroll-snap-align: start; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -508,6 +508,7 @@
 .rowTools button[aria-pressed="true"] { color: #fff; border-color: var(--apple-accent); background: var(--apple-accent); }
 .expandedRow { background: color-mix(in srgb, var(--screener-risk-high) 4%, var(--apple-surface)); }
 .mobileOpportunityList { display: none; }
+.mobilePoolPager { display: none; }
 .mobileOpportunityCard { padding: 14px; border-bottom: 1px solid var(--apple-border); background: var(--apple-surface); }
 .mobileOpportunityCard > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .mobileOpportunityCard > header div { min-width: 0; display: grid; gap: 3px; }
@@ -937,6 +938,30 @@
   .drawerActions { bottom: -16px; }
   .tableWrap { display: none; }
   .mobileOpportunityList { display: block; }
+  .mobilePoolPager {
+    min-height: 58px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid var(--apple-divider);
+    color: var(--apple-tertiary);
+    background: var(--apple-surface-soft);
+    font-size: 11px;
+  }
+  .mobilePoolPager > div { display: flex; gap: 7px; }
+  .mobilePoolPager button {
+    min-height: 44px;
+    padding: 0 13px;
+    border: 1px solid var(--apple-border);
+    border-radius: 11px;
+    color: var(--apple-accent);
+    background: var(--apple-surface);
+    font-size: 11px;
+    font-weight: 670;
+    cursor: pointer;
+  }
   .decisionDeckGrid { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
   .compactCandidate { min-width: min(88%, 420px); scroll-snap-align: start; }
   .compactCandidate:last-child { display: block; }

@@ -8,7 +8,7 @@ const globalStyles = readFileSync(new URL("../app/global-markets/global-markets.
 test("renders the A-share board before the global map and loads the map as an image", () => {
   const aSharePosition = pageSource.indexOf('className="global-a-share-board"');
   const shanghaiChartPosition = pageSource.indexOf("<ShanghaiIndexPanel");
-  const mapPosition = pageSource.indexOf('className="global-map-card"');
+  const mapPosition = pageSource.indexOf('id="global-map"');
 
   assert.ok(aSharePosition >= 0);
   assert.ok(shanghaiChartPosition > aSharePosition);
@@ -86,8 +86,9 @@ test("keeps the spot index primary and reduces extended-hours proxies to directi
   assert.match(globalStyles, /\.global-us-close-row\.is-proxy/);
 });
 
-test("uses a mobile section picker and a route-specific document title", () => {
+test("uses a mobile information-layer picker and a route-specific document title", () => {
   assert.match(pageSource, /document\.title = "全球市场 · TrendSight"/);
-  assert.match(pageSource, /aria-label="跳转到市场章节"/);
+  assert.match(pageSource, /aria-label="选择全球市场信息层"/);
+  assert.match(pageSource, /useState<"overview" \| "trend" \| "map" \| "regions">\("overview"\)/);
   assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-navigation-sidebar \.global-workspace-nav \{ display: none !important; \}/);
 });

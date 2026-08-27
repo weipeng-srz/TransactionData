@@ -21,7 +21,8 @@ test("defaults first-time users to the basic view while preserving an explicit p
   assert.equal(resolveStoredViewMode("pro"), "pro");
   assert.equal(resolveStoredViewMode("unknown"), "basic");
   assert.match(pageSource, /useState<ViewMode>\("basic"\)/);
-  assert.match(pageSource, /<ViewModeSwitch value=\{viewMode\} onChange=\{setViewMode\}/);
+  assert.match(pageSource, /<ViewModeSwitch value=\{viewMode\} onChange=\{\(nextMode\) => \{/);
+  assert.match(pageSource, /nextMode === "basic"[\s\S]*?setMobileChapter\("overview"\)/);
   assert.match(pageSource, /localStorage\.setItem\(viewModeStorageKey, viewMode\)/);
 });
 

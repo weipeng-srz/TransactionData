@@ -202,6 +202,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const [lastRealtimeRefresh, setLastRealtimeRefresh] = useState("");
   const [globalFeed, setGlobalFeed] = useState<GlobalFeedState>({ status: "loading", data: null, error: "" });
   const [fxPreference, setFxPreference] = useState<FxPreference>({ enabled: true, usdCny: "7.20", updatedAt: "" });
+  const [mobileChapter, setMobileChapter] = useState<"overview" | "decisions" | "watchlist">("overview");
   const realtimeRequestRef = useRef<AbortController | null>(null);
   const globalRequestRef = useRef<AbortController | null>(null);
   const holdingsFileRef = useRef<HTMLInputElement | null>(null);
@@ -775,28 +776,40 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
 
       <div className={styles.content} id="portfolio-top">
         <h1 className={styles.srOnly}>我的投资组合与市场观察</h1>
-        <FxConversionPanel
-          totals={totals}
-          preference={fxPreference}
-          latestUpdate={latestUpdate}
-          readyCount={Object.values(quotes).filter((quote) => quote.status === "ready").length}
-          onChange={setFxPreference}
-        />
+        <nav className="platform-mobile-section-nav" aria-label="投资组合信息分组">
+          <button type="button" aria-pressed={mobileChapter === "overview"} onClick={() => setMobileChapter("overview")}>组合概览</button>
+          <button type="button" aria-pressed={mobileChapter === "decisions"} onClick={() => setMobileChapter("decisions")}>决策工作台</button>
+          <button type="button" aria-pressed={mobileChapter === "watchlist"} onClick={() => setMobileChapter("watchlist")}>自选与持仓</button>
+        </nav>
 
-        <PortfolioWorkbenchSummary
-          watchlist={watchlist}
-          holdings={holdings}
-          quotes={quotes}
-          onOpenStock={onOpenStock}
-          onAddStock={addResolvedStock}
-          onRetryNews={async (stock) => { await loadNews(stock, new AbortController().signal); }}
-        />
+        <div className="platform-mobile-chapter" data-active={mobileChapter === "overview"}>
+          <FxConversionPanel
+            totals={totals}
+            preference={fxPreference}
+            latestUpdate={latestUpdate}
+            readyCount={Object.values(quotes).filter((quote) => quote.status === "ready").length}
+            onChange={setFxPreference}
+          />
+        </div>
 
-        <PortfolioDecisionBrief summary={portfolioInsights} />
+        <div className="platform-mobile-chapter" data-active={mobileChapter === "decisions"}>
+          <PortfolioWorkbenchSummary
+            watchlist={watchlist}
+            holdings={holdings}
+            quotes={quotes}
+            onOpenStock={onOpenStock}
+            onAddStock={addResolvedStock}
+            onRetryNews={async (stock) => { await loadNews(stock, new AbortController().signal); }}
+          />
+        </div>
 
-        <GlobalMarketPulse feed={globalFeed} onRetry={() => void loadGlobalFeed()} />
+        <div className="platform-mobile-chapter" data-active={mobileChapter === "overview"}>
+          <PortfolioDecisionBrief summary={portfolioInsights} />
 
-        <section className={styles.watchlistCard} id="watchlist">
+          <GlobalMarketPulse feed={globalFeed} onRetry={() => void loadGlobalFeed()} />
+        </div>
+
+        <section className={`${styles.watchlistCard} platform-mobile-visibility`} data-active={mobileChapter === "watchlist"} id="watchlist">
           <header className={styles.listHeader}>
             <div>
               <p>PORTFOLIO</p>
@@ -1419,13 +1432,6 @@ function formatCurrency(value: number, currency: StockCurrency = "CNY"): string 
 function signedCurrency(value: number, currency: StockCurrency = "CNY"): string {
   if (!Number.isFinite(value)) return "—";
   return `${value >= 0 ? "+" : "−"}${currency === "USD" ? "$" : "¥"}${Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function formatMixedCurrencyTotals(totals: ReturnType<typeof calculatePortfolioTotals>["byCurrency"], key: "costValue" | "marketValue" | "profit" | "dayProfit", signed = false): string {
-  return (["CNY", "USD"] as StockCurrency[])
-    .filter((currency) => totals[currency].costValue > 0 || totals[currency][key] !== 0)
-    .map((currency) => signed ? signedCurrency(totals[currency][key], currency) : formatCurrency(totals[currency][key], currency))
-    .join(" · ") || "—";
 }
 
 function signedPercent(value: number): string {
