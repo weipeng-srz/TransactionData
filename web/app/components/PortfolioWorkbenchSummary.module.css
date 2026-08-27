@@ -380,10 +380,17 @@
 
   .panel:hover,
   .ideaCard:hover {
+    position: relative;
+    z-index: 1;
     border-color: color-mix(in srgb, var(--portfolio-blue) 16%, var(--portfolio-border));
     box-shadow: var(--apple-shadow-hover);
-    transform: none;
+    transform: translate3d(0, var(--apple-hover-lift, -2px), 0);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel:hover,
+  .ideaCard:hover { transform: none; }
 }
 
 @media (max-width: 760px) {

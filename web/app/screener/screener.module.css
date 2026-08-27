@@ -1434,9 +1434,11 @@
   .compareGrid article:hover,
   .evidenceGrid article:hover,
   .coverageFunnel > button:hover {
+    position: relative;
+    z-index: 1;
     border-color: color-mix(in srgb, var(--apple-accent) 18%, var(--apple-border));
     box-shadow: var(--screener-panel-shadow-hover);
-    transform: none;
+    transform: translate3d(0, var(--apple-hover-lift, -2px), 0);
   }
 
   .tableWrap tbody tr:hover {

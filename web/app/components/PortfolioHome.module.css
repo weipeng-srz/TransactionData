@@ -1896,9 +1896,11 @@
 
   .decisionGrid article:hover,
   .globalMetric:hover {
+    position: relative;
+    z-index: 1;
     border-color: color-mix(in srgb, var(--portfolio-blue) 18%, var(--portfolio-border));
     box-shadow: var(--portfolio-panel-shadow-hover);
-    transform: none;
+    transform: translate3d(0, var(--apple-hover-lift, -2px), 0);
   }
 
   .stockRow:hover {
