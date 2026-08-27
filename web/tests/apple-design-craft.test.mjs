@@ -56,6 +56,15 @@ test("preserves touch accessibility and calm reduced-motion fallbacks", () => {
   }
 });
 
+test("keeps the screener refresh action in the shared control language", () => {
+  const refreshButtonStyles = screenerStyles.match(/\.tradeDate button \{([\s\S]*?)\}/)?.[1] ?? "";
+
+  assert.match(refreshButtonStyles, /border: 1px solid var\(--apple-control-stroke\)/);
+  assert.match(refreshButtonStyles, /border-radius: var\(--platform-control-radius\)/);
+  assert.match(refreshButtonStyles, /background: var\(--apple-control-fill\)/);
+  assert.doesNotMatch(refreshButtonStyles, /border-radius: 999px/);
+});
+
 test("keeps captions readable and compact controls reliably clickable", () => {
   assert.match(researchStyles, /--apple-caption-size: 11px;/);
   assert.match(researchStyles, /--apple-compact-hit: 32px;/);
