@@ -7,6 +7,7 @@ const commandPaletteSource = readFileSync(new URL("../app/components/CommandPale
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 const portfolioStyles = readFileSync(new URL("../app/components/PortfolioHome.module.css", import.meta.url), "utf8");
+const screenerStyles = readFileSync(new URL("../app/screener/screener.module.css", import.meta.url), "utf8");
 const globalStyles = readFileSync(new URL("../app/global-markets/global-markets.css", import.meta.url), "utf8");
 const portfolioSource = readFileSync(new URL("../app/components/PortfolioHome.tsx", import.meta.url), "utf8");
 const stockSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -38,6 +39,7 @@ test("keeps the banner geometry and search outline consistent", () => {
   assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?--site-frame-inset: 24px;/);
   assert.match(bannerStyles, /\.banner \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset, 40px\)\), var\(--site-frame-max, 1600px\)\);/);
   assert.match(portfolioStyles, /\.content \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset, 40px\)\), var\(--site-frame-max, 1600px\)\);/);
+  assert.match(screenerStyles, /\/\* Apple Design craft pass:[\s\S]*?\.shell \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset, 40px\)\), var\(--site-frame-max, 1600px\)\);/);
   assert.doesNotMatch(portfolioStyles, /\.content\s*\{[^}]*width:\s*min\(100%,/);
   assert.match(appleStyles, /@media \(min-width: 821px\)[\s\S]*?\.research-page > \.app-shell,[\s\S]*?\.global-page > \.app-shell \{[\s\S]*?width: min\(calc\(100% - var\(--site-frame-inset\)\), var\(--site-frame-max\)\);[\s\S]*?padding: 18px 0 48px !important;/);
   assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.research-page > \.app-shell,[\s\S]*?\.global-page > \.app-shell \{[\s\S]*?padding: 12px var\(--site-frame-gutter\) 24px !important;/);

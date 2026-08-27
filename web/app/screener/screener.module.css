@@ -1035,7 +1035,7 @@
 }
 
 .shell {
-  width: min(100%, var(--site-frame-max, 1600px));
+  width: min(calc(100% - var(--site-frame-inset, 40px)), var(--site-frame-max, 1600px));
   margin-inline: auto;
   padding-bottom: max(52px, env(safe-area-inset-bottom));
 }
