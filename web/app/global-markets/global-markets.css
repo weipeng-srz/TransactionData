@@ -1611,6 +1611,16 @@ body:has(.global-page-shell) {
     backdrop-filter: blur(24px) saturate(155%);
     -webkit-backdrop-filter: blur(24px) saturate(155%);
   }
+
+  .global-shanghai-panel,
+  .global-map-card,
+  .global-region-board {
+    content-visibility: auto;
+  }
+
+  .global-shanghai-panel { contain-intrinsic-size: auto 760px; }
+  .global-map-card { contain-intrinsic-size: auto 620px; }
+  .global-region-board { contain-intrinsic-size: auto 1280px; }
 }
 
 @media (max-width: 820px) {
@@ -1672,4 +1682,13 @@ body:has(.global-page-shell) {
   .global-region-card,
   .global-shanghai-chart-stage,
   .global-fear-chart-stage { border-color: color-mix(in srgb, var(--apple-text) 44%, transparent); }
+}
+
+@media print {
+  .global-shanghai-panel,
+  .global-map-card,
+  .global-region-board {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+  }
 }

@@ -1308,6 +1308,22 @@
     backdrop-filter: blur(24px) saturate(155%);
     -webkit-backdrop-filter: blur(24px) saturate(155%);
   }
+
+  .evidenceSection,
+  .stockPool,
+  .ladderCard,
+  .themeCard,
+  .scaleCard,
+  .researchPoolCard {
+    content-visibility: auto;
+  }
+
+  .evidenceSection { contain-intrinsic-size: auto 680px; }
+  .stockPool { contain-intrinsic-size: auto 1120px; }
+  .ladderCard,
+  .themeCard,
+  .scaleCard,
+  .researchPoolCard { contain-intrinsic-size: auto 420px; }
 }
 
 @media (max-width: 820px) {
@@ -1387,4 +1403,16 @@
   .compactCandidate,
   .drawer,
   .methodDialog { border-color: color-mix(in srgb, var(--apple-text) 44%, transparent); }
+}
+
+@media print {
+  .evidenceSection,
+  .stockPool,
+  .ladderCard,
+  .themeCard,
+  .scaleCard,
+  .researchPoolCard {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+  }
 }

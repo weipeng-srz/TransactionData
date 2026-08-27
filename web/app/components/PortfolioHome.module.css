@@ -1935,6 +1935,16 @@
     backdrop-filter: blur(24px) saturate(155%);
     -webkit-backdrop-filter: blur(24px) saturate(155%);
   }
+
+  .decisionBrief,
+  .globalMarketCard,
+  .watchlistCard {
+    content-visibility: auto;
+  }
+
+  .decisionBrief { contain-intrinsic-size: auto 360px; }
+  .globalMarketCard { contain-intrinsic-size: auto 440px; }
+  .watchlistCard { contain-intrinsic-size: auto 960px; }
 }
 
 @media (max-width: 820px) {
@@ -1988,5 +1998,14 @@
   .page {
     --portfolio-border: color-mix(in srgb, var(--portfolio-text) 42%, transparent);
     --portfolio-border-strong: color-mix(in srgb, var(--portfolio-text) 62%, transparent);
+  }
+}
+
+@media print {
+  .decisionBrief,
+  .globalMarketCard,
+  .watchlistCard {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
   }
 }

@@ -5,6 +5,9 @@ import test from "node:test";
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const appleStyles = read("../app/apple-refinement.css");
 const portfolioStyles = read("../app/components/PortfolioHome.module.css");
+const homePage = read("../app/page.tsx");
+const globalStyles = read("../app/global-markets/global-markets.css");
+const screenerStyles = read("../app/screener/screener.module.css");
 const financialDashboard = read("../app/components/FinancialDashboard.tsx");
 const nextDayCard = read("../app/components/NextDayPredictionCard.tsx");
 const marketChart = read("../app/components/MarketChart.tsx");
@@ -17,6 +20,20 @@ test("skips offscreen research sections and long watchlist rows", () => {
 
 test("keeps large scrolling cards off the live backdrop compositor", () => {
   assert.match(appleStyles, /@media \(min-width: 1181px\)[\s\S]*?\.research-page \.chart-card,[\s\S]*?\.research-page \.news-card \{[\s\S]*?backdrop-filter: none;/);
+});
+
+test("loads stock-only panels outside the portfolio home bundle", () => {
+  assert.match(homePage, /const MarketChart = dynamic\(loadMarketChart\);/);
+  assert.match(homePage, /const RealtimeTradingPanel = dynamic\(loadRealtimeTradingPanel\);/);
+  assert.match(homePage, /const FinancialDashboard = dynamic\(loadFinancialDashboard\);/);
+  assert.match(homePage, /const NextDayPredictionCard = dynamic\(loadNextDayPredictionCard\);/);
+  assert.match(homePage, /void preloadStockPanels\(\);/);
+});
+
+test("skips offscreen work on every top-level page", () => {
+  assert.match(portfolioStyles, /\.globalMarketCard,[\s\S]*?\.watchlistCard \{[\s\S]*?content-visibility: auto;/);
+  assert.match(globalStyles, /\.global-shanghai-panel,[\s\S]*?\.global-region-board \{[\s\S]*?content-visibility: auto;/);
+  assert.match(screenerStyles, /\.evidenceSection,[\s\S]*?\.researchPoolCard \{[\s\S]*?content-visibility: auto;/);
 });
 
 test("mounts dense financial and prediction evidence only when requested", () => {

@@ -1,15 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import MarketChart from "./components/MarketChart";
-import RealtimeTradingPanel from "./components/RealtimeTradingPanel";
-import FinancialDashboard from "./components/FinancialDashboard";
+import dynamic from "next/dynamic";
 import ResearchDock from "./components/ResearchDock";
 import SignalBacktestCard from "./components/SignalBacktestCard";
 import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import HoldingProfitCard from "./components/HoldingProfitCard";
 import StockScoreCard from "./components/StockScoreCard";
-import NextDayPredictionCard from "./components/NextDayPredictionCard";
 import BeginnerGuideCard from "./components/BeginnerGuideCard";
 import PortfolioHome from "./components/PortfolioHome";
 import SiteBanner from "./components/SiteBanner";
@@ -71,6 +68,25 @@ import {
   type StockIdentity,
   type StockMarket,
 } from "./lib/security";
+
+const loadMarketChart = () => import("./components/MarketChart");
+const loadRealtimeTradingPanel = () => import("./components/RealtimeTradingPanel");
+const loadFinancialDashboard = () => import("./components/FinancialDashboard");
+const loadNextDayPredictionCard = () => import("./components/NextDayPredictionCard");
+
+const MarketChart = dynamic(loadMarketChart);
+const RealtimeTradingPanel = dynamic(loadRealtimeTradingPanel);
+const FinancialDashboard = dynamic(loadFinancialDashboard);
+const NextDayPredictionCard = dynamic(loadNextDayPredictionCard);
+
+function preloadStockPanels() {
+  return Promise.all([
+    loadMarketChart(),
+    loadRealtimeTradingPanel(),
+    loadFinancialDashboard(),
+    loadNextDayPredictionCard(),
+  ]);
+}
 
 const timeframes: Array<{ key: Timeframe; label: string }> = [
   { key: "1d", label: "日K" },
@@ -287,6 +303,10 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const requestVersionRef = useRef(0);
   const sharedStateAppliedRef = useRef(false);
   const cloudLoadedRef = useRef(false);
+
+  useEffect(() => {
+    void preloadStockPanels();
+  }, []);
 
   useEffect(() => {
     let storedStocks: RecentStock[] = [];
