@@ -60,3 +60,14 @@ test("screener keeps the full desktop table and batches only mobile candidate ca
   assert.match(screenerStyles, /\.mobilePoolPager \{ display: none; \}/);
   assert.match(screenerStyles, /@media \(max-width: 760px\)[\s\S]*\.mobilePoolPager \{[\s\S]*display: flex;/);
 });
+
+test("screener keeps the decision path compact and progressively reveals secondary controls", () => {
+  assert.match(screenerSource, /<h1 className="sr-only">智能选股<\/h1>/);
+  assert.doesNotMatch(screenerSource, /<h1 id="screener-title">/);
+  assert.match(screenerSource, /className=\{styles\.commandBar\}[\s\S]*aria-label="智能选股视图与行情操作"/);
+  assert.match(screenerSource, /<details className=\{styles\.informationDisclosure\}>[\s\S]*数据覆盖与模型审计/);
+  assert.match(screenerSource, /<details className=\{styles\.advancedFilters\}>[\s\S]*更多筛选与方案/);
+  assert.match(screenerStyles, /\.informationDisclosure,[\s\S]*\.poolDisclosure,[\s\S]*\.advancedFilters \{/);
+  assert.match(screenerStyles, /\.informationDisclosure > summary,[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto 28px;/);
+  assert.match(screenerStyles, /\.advancedFilterGrid \{ display: flex;[\s\S]*flex-wrap: wrap;/);
+});

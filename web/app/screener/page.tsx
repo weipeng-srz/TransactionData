@@ -340,11 +340,12 @@ export default function ScreenerPage() {
       <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={isRefreshing && feed ? `正在刷新${market === "CN" ? "A股" : "美股"} · 保留上次快照` : feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : "正在连接公开行情"} />
 
       <main className={styles.shell}>
-        <section className={styles.hero} aria-labelledby="screener-title">
-          <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>SMART OPPORTUNITY RADAR</p>
-            <h1 id="screener-title">智能选股</h1>
-            <p>从真实市场行情、趋势和量价结构中，筛选值得进一步研究的交易线索。</p>
+        <h1 className="sr-only">智能选股</h1>
+        <section className={styles.commandBar} aria-label="智能选股视图与行情操作">
+          <div className={styles.commandContext}>
+            <span>智能选股</span>
+            <strong>{market === "CN" ? "A股" : "美股"} · {strategy}</strong>
+            <small>{feed ? `${visibleStocks.length} 只符合当前条件 · ${relativeFreshness(feed.fetchedAt)}` : "正在连接真实市场行情"}</small>
           </div>
           <div className={styles.heroControls}>
             <div className={styles.viewSwitch} role="group" aria-label="选择选股视图">
@@ -387,7 +388,9 @@ export default function ScreenerPage() {
             <a className={styles.jumpToPool} href="#stock-pool-title">进入完整策略池 ↓</a>
           </section>
 
-          <section className={styles.coveragePanel} aria-label="数据覆盖与模型审计">
+          <details className={styles.informationDisclosure}>
+            <summary><span><strong>数据覆盖与模型审计</strong><small>{market === "CN" ? "全市场扫描链路" : "涨幅榜采样链路"} · 规则版本 {feed.diagnostics.modelVersion}</small></span><em>{feed.diagnostics.analyzedCount} 只完成分析</em></summary>
+            <section className={styles.coveragePanel} aria-label="数据覆盖与模型审计">
             <div className={styles.coverageIntro}>
               <span>DATA COVERAGE</span>
               <strong>{market === "CN" ? "全市场覆盖链路" : "涨幅榜采样链路"}</strong>
@@ -410,7 +413,8 @@ export default function ScreenerPage() {
               <small>{market === "US" ? `其中 ${feed.diagnostics.qualityCount} 只通过标准质量门槛` : feed.diagnostics.failedHistoryCount ? `${feed.diagnostics.failedHistoryCount} 只历史数据不完整，已排除` : "候选历史数据均已通过完整性检查"}</small>
             </div>
             {coverageStage ? <div className={styles.coverageExplanation} role="status"><strong>{coverageStageLabel(coverageStage)}</strong><span>{coverageStageDescription(coverageStage, market, feed)}</span></div> : null}
-          </section>
+            </section>
+          </details>
 
           <section className={styles.strategyBrief} aria-label="今日选股建议">
             <div className={styles.briefMark} aria-hidden="true"><span /><i /></div>
@@ -493,24 +497,32 @@ export default function ScreenerPage() {
                   <label><span>板块/题材</span><select value={theme} onChange={(event) => setTheme(event.target.value)}><option>全部题材</option>{availableThemes.map((item) => <option key={item}>{item}</option>)}</select></label>
                   <label><span>最低评分</span><select value={minimumScore} onChange={(event) => setMinimumScore(Number(event.target.value))}><option value={60}>60+</option><option value={70}>70+</option><option value={80}>80+</option><option value={90}>90+</option></select></label>
                   <label><span>最高风险</span><select value={maximumRisk} onChange={(event) => setMaximumRisk(Number(event.target.value))}><option value={100}>不限</option><option value={70}>≤ 70</option><option value={55}>≤ 55</option><option value={40}>≤ 40</option></select></label>
-                  <label><span>最低成交额</span><select value={minimumAmount} onChange={(event) => setMinimumAmount(Number(event.target.value))}><option value={0}>不限</option><option value={market === "CN" ? 50_000_000 : 10_000_000}>{market === "CN" ? "0.5亿+" : "$10M+"}</option><option value={market === "CN" ? 100_000_000 : 50_000_000}>{market === "CN" ? "1亿+" : "$50M+"}</option><option value={market === "CN" ? 500_000_000 : 200_000_000}>{market === "CN" ? "5亿+" : "$200M+"}</option></select></label>
-                  <label><span>市值范围</span><select value={marketCapFilter} onChange={(event) => setMarketCapFilter(event.target.value as MarketCapFilter)}><option value="all">全部市值</option><option value="small">中小盘</option><option value="mid">中盘</option><option value="large">大盘</option></select></label>
-                  <label><span>最低盈亏比</span><select value={minimumRewardRisk} onChange={(event) => setMinimumRewardRisk(Number(event.target.value))}><option value={0}>不限</option><option value={1.2}>1.2R+</option><option value={1.5}>1.5R+</option><option value={2}>2.0R+</option></select></label>
-                  {market === "US" ? <label><span>证券类型</span><select value={securityType} onChange={(event) => setSecurityType(event.target.value as "全部" | ScreenerSecurityType)}><option>全部</option><option>股票</option><option>ETF</option><option>信托</option><option>杠杆ETF</option></select></label> : null}
                   <label><span>排序</span><select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">机会评分</option><option value="confidence">信号一致性</option><option value="relativeStrength">相对强弱</option><option value="rewardRisk">计划盈亏比</option><option value="change">涨幅</option><option value="volume">量能</option></select></label>
-                  {market === "US" ? <button className={`${styles.qualityToggle} ${qualityGate ? styles.qualityToggleActive : styles.qualityToggleRisk}`} type="button" onClick={() => setQualityGate((value) => !value)} aria-pressed={qualityGate}><i />{qualityGate ? "标准质量门槛" : "扩展池 · 含高风险证券"}</button> : null}
                   <div className={styles.filterActions}><button type="button" onClick={applyProfessionalPreset}>专业预设</button><button type="button" onClick={clearFilters}>清空条件</button></div>
                   <span className={styles.resultCount}>{visibleStocks.length} 只符合条件</span>
                 </div>
 
+                <details className={styles.advancedFilters}>
+                  <summary><span><strong>更多筛选与方案</strong><small>成交额、市值、盈亏比、证券类型与自定义方案</small></span><em>{activeFilterChips.length ? `${activeFilterChips.length} 个条件已调整` : "默认门槛"}</em></summary>
+                  <div className={styles.advancedFilterBody}>
+                    <div className={styles.advancedFilterGrid}>
+                      <label><span>最低成交额</span><select value={minimumAmount} onChange={(event) => setMinimumAmount(Number(event.target.value))}><option value={0}>不限</option><option value={market === "CN" ? 50_000_000 : 10_000_000}>{market === "CN" ? "0.5亿+" : "$10M+"}</option><option value={market === "CN" ? 100_000_000 : 50_000_000}>{market === "CN" ? "1亿+" : "$50M+"}</option><option value={market === "CN" ? 500_000_000 : 200_000_000}>{market === "CN" ? "5亿+" : "$200M+"}</option></select></label>
+                      <label><span>市值范围</span><select value={marketCapFilter} onChange={(event) => setMarketCapFilter(event.target.value as MarketCapFilter)}><option value="all">全部市值</option><option value="small">中小盘</option><option value="mid">中盘</option><option value="large">大盘</option></select></label>
+                      <label><span>最低盈亏比</span><select value={minimumRewardRisk} onChange={(event) => setMinimumRewardRisk(Number(event.target.value))}><option value={0}>不限</option><option value={1.2}>1.2R+</option><option value={1.5}>1.5R+</option><option value={2}>2.0R+</option></select></label>
+                      {market === "US" ? <label><span>证券类型</span><select value={securityType} onChange={(event) => setSecurityType(event.target.value as "全部" | ScreenerSecurityType)}><option>全部</option><option>股票</option><option>ETF</option><option>信托</option><option>杠杆ETF</option></select></label> : null}
+                      {market === "US" ? <button className={`${styles.qualityToggle} ${qualityGate ? styles.qualityToggleActive : styles.qualityToggleRisk}`} type="button" onClick={() => setQualityGate((value) => !value)} aria-pressed={qualityGate}><i />{qualityGate ? "标准质量门槛" : "扩展池 · 含高风险证券"}</button> : null}
+                    </div>
+                    <div className={styles.presetManager}>
+                      <select aria-label="已保存筛选方案" value={selectedPresetId} onChange={(event) => loadNamedPreset(event.target.value)}><option value="">选择保存方案</option>{marketPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
+                      <input aria-label="筛选方案名称" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="方案名称" />
+                      <button type="button" onClick={saveNamedPreset}>{selectedPresetId ? "更新/重命名" : "保存方案"}</button>
+                      <button type="button" onClick={deleteNamedPreset} disabled={!selectedPresetId}>删除</button>
+                    </div>
+                  </div>
+                </details>
+
                 <div className={styles.filterStateBar} aria-label="当前筛选条件">
                   <div className={styles.activeFilters}><strong>当前条件 {activeFilterChips.length ? `(${activeFilterChips.length})` : ""}</strong>{activeFilterChips.length ? activeFilterChips.map((item) => <button key={item.key} type="button" onClick={item.clear}>{item.label}<span aria-hidden="true">×</span></button>) : <span>使用默认门槛</span>}</div>
-                  <div className={styles.presetManager}>
-                    <select aria-label="已保存筛选方案" value={selectedPresetId} onChange={(event) => loadNamedPreset(event.target.value)}><option value="">选择保存方案</option>{marketPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
-                    <input aria-label="筛选方案名称" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="方案名称" />
-                    <button type="button" onClick={saveNamedPreset}>{selectedPresetId ? "更新/重命名" : "保存方案"}</button>
-                    <button type="button" onClick={deleteNamedPreset} disabled={!selectedPresetId}>删除</button>
-                  </div>
                 </div>
 
                 {market === "US" && !qualityGate ? <div className={styles.expandedPoolWarning} role="status"><strong>扩展池已开启</strong><span>结果可能包含低流动性、小市值、信托或杠杆ETF；每只扩展证券都会标记风险层级。</span><button type="button" onClick={() => setQualityGate(true)}>恢复标准门槛</button></div> : null}
