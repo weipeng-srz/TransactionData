@@ -4587,7 +4587,7 @@ select {
 @media (hover: hover) and (pointer: fine) {
   button:not(:disabled):hover,
   summary:hover {
-    transform: translateY(-1px);
+    transform: none;
     filter: saturate(1.045);
   }
 
@@ -5363,7 +5363,7 @@ body {
   .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card):hover {
     border-color: color-mix(in srgb, var(--apple-accent) 16%, var(--platform-border-color));
     box-shadow: var(--apple-shadow-hover);
-    transform: translateY(-1px);
+    transform: none;
   }
 
   .research-page :where(.table-wrap tbody tr, .finance-table tbody tr):hover {

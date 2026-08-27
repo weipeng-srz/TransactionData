@@ -478,7 +478,7 @@ canvas:focus-visible {
 }
 
 .button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: none;
   border-color: rgba(243, 183, 96, 0.5);
 }
 
@@ -4756,7 +4756,7 @@ body::before {
 
 .workspace-nav a:hover,
 .workspace-nav a:focus-visible {
-  transform: translateY(-1px);
+  transform: none;
   color: var(--text);
   background: linear-gradient(135deg, rgba(109, 211, 255, 0.15), rgba(109, 211, 255, 0.06));
 }
@@ -4998,7 +4998,7 @@ body::before {
 }
 
 .rail-card:hover {
-  transform: translateY(-1px);
+  transform: none;
   border-color: rgba(109, 211, 255, 0.22);
   box-shadow: 0 22px 52px rgba(0, 0, 0, 0.23), inset 0 1px rgba(255, 255, 255, 0.035);
 }
@@ -5158,7 +5158,7 @@ body::before {
 .research-actions button:hover,
 .retry-button:hover,
 .mobile-analysis-toggle:hover {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .research-actions button:first-child {

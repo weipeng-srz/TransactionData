@@ -206,7 +206,7 @@
 .iconButton:active { transform: translateY(1px) scale(.98); }
 .addButton:disabled { cursor: wait; opacity: .66; }
 
-.searchField > button[type="submit"]:hover:not(:disabled) { transform: translateY(-1px); background: var(--apple-accent-hover); }
+.searchField > button[type="submit"]:hover:not(:disabled) { transform: none; background: var(--apple-accent-hover); }
 .searchField > button[type="submit"]:disabled { cursor: wait; opacity: .66; }
 .mobileButtonLabel { display: none; }
 
@@ -318,7 +318,7 @@
   transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
   touch-action: manipulation;
 }
-.iconButton:hover { transform: translateY(-1px); background: var(--apple-fill); }
+.iconButton:hover { transform: none; background: var(--apple-fill); }
 
 .srOnly {
   width: 1px;

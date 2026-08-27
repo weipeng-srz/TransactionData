@@ -266,7 +266,7 @@
   .item:hover {
     border-color: color-mix(in srgb, var(--apple-accent) 16%, var(--apple-border));
     box-shadow: var(--apple-shadow-hover);
-    transform: translateY(-1px);
+    transform: none;
   }
 }
 

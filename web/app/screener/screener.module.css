@@ -365,7 +365,7 @@
 .featuredCard:hover {
   border-color: color-mix(in srgb, var(--apple-accent) 22%, var(--apple-border));
   box-shadow: 0 10px 26px color-mix(in srgb, var(--apple-accent) 7%, transparent);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .leadingCard {
@@ -1286,7 +1286,7 @@
   .coverageFunnel > button:hover {
     border-color: color-mix(in srgb, var(--apple-accent) 18%, var(--apple-border));
     box-shadow: var(--screener-panel-shadow-hover);
-    transform: translateY(-1px);
+    transform: none;
   }
 
   .tableWrap tbody tr:hover {

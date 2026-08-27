@@ -68,7 +68,7 @@ body:has(.global-page-shell) {
   transition: background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
-.global-refresh-button:hover:not(:disabled) { background: var(--apple-accent-hover); box-shadow: 0 7px 18px color-mix(in srgb, var(--apple-accent) 22%, transparent); transform: translateY(-1px); }
+.global-refresh-button:hover:not(:disabled) { background: var(--apple-accent-hover); box-shadow: 0 7px 18px color-mix(in srgb, var(--apple-accent) 22%, transparent); transform: none; }
 .global-refresh-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--apple-accent) 32%, transparent); outline-offset: 3px; }
 .global-refresh-button:disabled { cursor: wait; opacity: .62; }
 
@@ -1599,7 +1599,7 @@ body:has(.global-page-shell) {
   .global-region-card:hover {
     border-color: color-mix(in srgb, var(--apple-accent) 16%, var(--apple-border));
     box-shadow: var(--apple-shadow-hover);
-    transform: translateY(-1px);
+    transform: none;
   }
 }
 

@@ -221,7 +221,7 @@
   transition: transform 150ms ease, background 150ms ease;
 }
 
-.iconButton:hover { transform: translateY(-1px); background: var(--portfolio-muted-surface); }
+.iconButton:hover { transform: none; background: var(--portfolio-muted-surface); }
 
 .content {
   width: min(calc(100% - var(--site-frame-inset, 40px)), var(--site-frame-max, 1600px));
@@ -306,7 +306,7 @@
   transition: transform 150ms ease, filter 150ms ease;
 }
 
-.searchField > button[type="submit"]:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+.searchField > button[type="submit"]:hover:not(:disabled) { transform: none; filter: brightness(1.05); }
 .searchField > button[type="submit"]:disabled { cursor: wait; opacity: 0.65; }
 
 .suggestion {
@@ -617,7 +617,7 @@
 }
 
 .globalMetric:hover {
-  transform: translateY(-1px);
+  transform: none;
   border-color: var(--portfolio-border-strong);
   background: var(--portfolio-surface-solid);
 }
@@ -1326,7 +1326,7 @@
   transition: transform 150ms ease, border 150ms ease;
 }
 
-.exampleStocks button:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--portfolio-blue) 30%, var(--portfolio-border)); }
+.exampleStocks button:hover { transform: none; border-color: color-mix(in srgb, var(--portfolio-blue) 30%, var(--portfolio-border)); }
 .exampleStocks button:focus-visible { border-color: color-mix(in srgb, var(--portfolio-blue) 52%, var(--portfolio-border)); }
 .exampleStocks strong { font-size: 11px; font-weight: 640; }
 .exampleStocks span { grid-column: 1; color: var(--portfolio-tertiary); font-size: 11px; }
@@ -1919,7 +1919,7 @@
   .globalMetric:hover {
     border-color: color-mix(in srgb, var(--portfolio-blue) 18%, var(--portfolio-border));
     box-shadow: var(--portfolio-panel-shadow-hover);
-    transform: translateY(-1px);
+    transform: none;
   }
 
   .stockRow:hover {

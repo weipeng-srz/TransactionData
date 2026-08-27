@@ -382,7 +382,7 @@
   .ideaCard:hover {
     border-color: color-mix(in srgb, var(--portfolio-blue) 16%, var(--portfolio-border));
     box-shadow: var(--apple-shadow-hover);
-    transform: translateY(-1px);
+    transform: none;
   }
 }
 
