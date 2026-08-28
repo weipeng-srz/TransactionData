@@ -503,8 +503,24 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const indicators = useMemo(() => calculateIndicators(candles), [candles]);
   const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles), [dailyCandles]);
   const todayGuide = realtimeDailySeries.included ? dailyIndicators.guidePoints.at(-1) ?? null : null;
-  const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], { benchmark: timeframe === "1d" ? benchmarkCandles : [], roundTripCostPct, limitUpDownPct: selectedMarket === "US" ? null : 9.8 }), [benchmarkCandles, candles, indicators, roundTripCostPct, selectedMarket, timeframe]);
-  const scoreBacktest = useMemo(() => backtestGuideSignals(dailyCandles, dailyIndicators, [5, 10, 20], { benchmark: benchmarkCandles, roundTripCostPct, limitUpDownPct: selectedMarket === "US" ? null : 9.8 }), [benchmarkCandles, dailyCandles, dailyIndicators, roundTripCostPct, selectedMarket]);
+  const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], {
+    benchmark: timeframe === "1d" ? benchmarkCandles : [],
+    roundTripCostPct,
+    market: selectedMarket,
+    code: selectedCode,
+    name: dataset.stockNames[selectedCode] ?? "",
+    costModel: "liquidity",
+    positionValue: 80_000,
+  }), [benchmarkCandles, candles, dataset.stockNames, indicators, roundTripCostPct, selectedCode, selectedMarket, timeframe]);
+  const scoreBacktest = useMemo(() => backtestGuideSignals(dailyCandles, dailyIndicators, [5, 10, 20], {
+    benchmark: benchmarkCandles,
+    roundTripCostPct,
+    market: selectedMarket,
+    code: selectedCode,
+    name: dataset.stockNames[selectedCode] ?? "",
+    costModel: "liquidity",
+    positionValue: 80_000,
+  }), [benchmarkCandles, dailyCandles, dailyIndicators, dataset.stockNames, roundTripCostPct, selectedCode, selectedMarket]);
   const riskMetrics = useMemo(() => calculateRiskMetrics(dailyCandles, benchmarkCandles), [benchmarkCandles, dailyCandles]);
 
   const selectedIndex = hoverIndex ?? Math.max(0, candles.length - 1);
@@ -1120,8 +1136,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             </div>
             <div>
               <span>近期规则证据</span>
-              <strong>{latestSidebarGuide ? `${latestSidebarGuide.type === "buy" ? "+" : "!"} ${latestSidebarGuide.score}` : "—"}</strong>
-              <em className={latestSidebarGuide?.type === "buy" ? "is-buy" : latestSidebarGuide?.type === "sell" ? "is-sell" : ""}>{latestSidebarGuide ? latestSidebarGuide.type === "buy" ? "正向规则" : "风险规则" : "近 5 日无规则"}</em>
+              <strong style={latestSidebarGuide?.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}>{latestSidebarGuide ? `${latestSidebarGuide.confidence === "watch" ? "b" : latestSidebarGuide.type === "buy" ? "+" : "!"} ${latestSidebarGuide.score}` : "—"}</strong>
+              <em className={latestSidebarGuide?.confidence === "watch" ? "" : latestSidebarGuide?.type === "buy" ? "is-buy" : latestSidebarGuide?.type === "sell" ? "is-sell" : ""} style={latestSidebarGuide?.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}>{latestSidebarGuide ? latestSidebarGuide.confidence === "watch" ? "弱B观察" : latestSidebarGuide.type === "buy" ? "正向规则" : "风险规则" : "近 5 日无规则"}</em>
             </div>
           </div>
           <dl className="sidebar-preview-strip" aria-label="个股日内行情摘要">
@@ -1459,7 +1475,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                 <ul className="analysis-points">
                   {klineConclusion.points.slice(0, 5).map((point) => <li key={point}>{point}</li>)}
                 </ul>
-                <p className="method-note">B 点须由 RSI 超卖回升或 BOLL 下轨承接锚定，量能只作加分确认；S 点保留原规则。盘中信号会随当日 K 线变化，不是交易指令。</p>
+              <p className="method-note">强 B 点须由 RSI 超卖回升或 BOLL 下轨承接锚定，量能只作加分确认；黄色小写 b 为 2 分弱B观察，不进入回测、评分或组合交易；S 点保留原规则。盘中信号会随当日 K 线变化，不是交易指令。</p>
               </>
             ) : <p className="empty-note">当前周期暂无足够 K 线用于研判。</p>}
           </section>
@@ -1577,8 +1593,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               <Detail label="VWAP" value={selectedCandle ? formatNumber(selectedCandle.vwap, 3) : "—"} />
               <Detail label="ATR14" value={currentIndicator.atr == null ? "—" : formatNumber(currentIndicator.atr, 3)} />
               <Detail label="神奇九转" value={currentIndicator.nineTurn ? `${currentIndicator.nineTurn.direction === "buy" ? "下跌" : "上涨"} ${currentIndicator.nineTurn.count}${currentIndicator.nineTurn.completed ? " · 完成" : ""}` : "—"} />
-              <Detail label="买卖指引" value={currentIndicator.guide ? `${currentIndicator.guide.type === "buy" ? "B" : "S"}${currentIndicator.guide.score}` : "—"} />
-              {realtimeDailySeries.included ? <Detail label={`今日B/S（${realtimeDailySeries.provisional ? "盘中预估" : "收盘确认"}）`} value={`${todayGuide ? `${todayGuide.type === "buy" ? "B" : "S"}${todayGuide.score}` : "观察"} @ ${formatNumber(liveQuote?.price ?? dailyCandles.at(-1)?.close ?? 0, 3)} · ${realtimeDailySeries.time.slice(0, 5)}`} /> : null}
+              <Detail label="买卖指引" value={currentIndicator.guide ? `${currentIndicator.guide.confidence === "watch" ? "b" : currentIndicator.guide.type === "buy" ? "B" : "S"}${currentIndicator.guide.score}` : "—"} />
+              {realtimeDailySeries.included ? <Detail label={`今日B/S（${realtimeDailySeries.provisional ? "盘中预估" : "收盘确认"}）`} value={`${todayGuide ? `${todayGuide.confidence === "watch" ? "b" : todayGuide.type === "buy" ? "B" : "S"}${todayGuide.score}` : "观察"} @ ${formatNumber(liveQuote?.price ?? dailyCandles.at(-1)?.close ?? 0, 3)} · ${realtimeDailySeries.time.slice(0, 5)}`} /> : null}
               <Detail label="换手率" value={selectedCandle?.turnoverPct == null ? "—" : `${formatNumber(selectedCandle.turnoverPct, 2)}%`} />
             </dl>
           </section>

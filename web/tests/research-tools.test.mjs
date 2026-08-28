@@ -5,6 +5,8 @@ import {
   backtestGuideSignals,
   buildChartEvents,
   calculateRiskMetrics,
+  estimateLiquidityRoundTripCostPct,
+  resolveCnPriceLimitPct,
 } from "../app/lib/research.ts";
 
 const candles = Array.from({ length: 30 }, (_, index) => ({
@@ -30,6 +32,7 @@ const emptyNullable = () => Array(candles.length).fill(null);
 const guidePoints = Array(candles.length).fill(null);
 guidePoints[2] = { type: "buy", score: 3, reasons: ["测试"] };
 guidePoints[4] = { type: "buy", score: 2, reasons: ["连续同向信号"] };
+guidePoints[7] = { type: "buy", score: 2, reasons: ["弱B观察"], confidence: "watch" };
 guidePoints[10] = { type: "sell", score: 3, reasons: ["测试"] };
 const indicators = {
   ma5: emptyNullable(), ma10: emptyNullable(), ma20: emptyNullable(),
@@ -52,6 +55,33 @@ test("backtests de-duplicated B/S guide signals across multiple horizons", () =>
   assert.equal(result.roundTripCostPct, 0.25);
   assert.ok(result.horizons[0].winRateLow <= result.horizons[0].winRate);
   assert.ok(result.horizons[0].winRateHigh >= result.horizons[0].winRate);
+  assert.equal(result.directions.buy.signalCount, 1);
+  assert.equal(result.directions.sell.signalCount, 1);
+  assert.equal(result.directions.buy.tradable, true);
+  assert.equal(result.directions.sell.tradable, false);
+  assert.ok(result.recent.label);
+});
+
+test("uses board-aware price limits and liquidity-sensitive transaction costs", () => {
+  assert.equal(resolveCnPriceLimitPct("600000", "2026-08-01"), 9.8);
+  assert.equal(resolveCnPriceLimitPct("300001", "2026-08-01"), 19.8);
+  assert.equal(resolveCnPriceLimitPct("300001", "2020-08-01"), 9.8);
+  assert.equal(resolveCnPriceLimitPct("688001", "2026-08-01"), 19.8);
+  assert.equal(resolveCnPriceLimitPct("830001", "2026-08-01"), 29.8);
+  assert.equal(resolveCnPriceLimitPct("600000", "2025-08-01", "*ST测试"), 4.8);
+
+  const liquid = { ...candles[0], amount: 1_000_000_000, adjustedAmount: 1_000_000_000 };
+  const illiquid = { ...candles[0], amount: 5_000_000, adjustedAmount: 5_000_000 };
+  assert.ok(estimateLiquidityRoundTripCostPct(illiquid, 80_000, 0.25) > estimateLiquidityRoundTripCostPct(liquid, 80_000, 0.25));
+
+  const result = backtestGuideSignals(candles, indicators, [5], {
+    code: "300001",
+    market: "CN",
+    costModel: "liquidity",
+    positionValue: 80_000,
+  });
+  assert.equal(result.costModel, "liquidity");
+  assert.ok((result.directions.buy.horizons[0].averageCostPct ?? 0) > 0.25);
 });
 
 test("calculates portfolio-style risk and benchmark-relative metrics", () => {

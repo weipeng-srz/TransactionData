@@ -346,7 +346,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       for (let index = indicators.guidePoints.length - 1; index >= Math.max(0, indicators.guidePoints.length - 5); index -= 1) {
         const guide = indicators.guidePoints[index];
         const candle = candles[index];
-        if (!guide || !candle) continue;
+        if (!guide || guide.confidence === "watch" || !candle) continue;
         technicalSignal = {
           side: guide.type === "buy" ? "B" : "S",
           date: candle.date,
@@ -454,7 +454,11 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
         risk: calculateRiskMetrics(candles, benchmark?.candles ?? []),
         backtest: backtestGuideSignals(candles, marketResult.value.indicators, [5, 10, 20], {
           benchmark: benchmark?.candles ?? [],
-          limitUpDownPct: market === "US" ? null : 9.8,
+          market,
+          code: stock.code,
+          name: stock.name,
+          costModel: "liquidity",
+          positionValue: 80_000,
         }),
         dataQuality: marketResult.value.dataQuality,
       });

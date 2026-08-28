@@ -29,6 +29,22 @@ export type BacktestHorizon = {
   averageExcessReturn: number | null;
   winRateLow: number | null;
   winRateHigh: number | null;
+  averageCostPct?: number | null;
+};
+
+export type BacktestDirectionSummary = {
+  signalCount: number;
+  tradable: boolean;
+  horizons: BacktestHorizon[];
+};
+
+export type BacktestRecentAssessment = {
+  windowPeriods: number;
+  fromDate: string;
+  status: "active" | "watch" | "weak" | "insufficient";
+  label: string;
+  buy: BacktestDirectionSummary;
+  sell: BacktestDirectionSummary;
 };
 
 export type SignalBacktest = {
@@ -39,6 +55,24 @@ export type SignalBacktest = {
   roundTripCostPct: number;
   executionModel: string;
   horizons: BacktestHorizon[];
+  directions?: {
+    buy: BacktestDirectionSummary;
+    sell: BacktestDirectionSummary;
+  };
+  recent?: BacktestRecentAssessment;
+  costModel?: "flat" | "liquidity";
+};
+
+export type SignalBacktestOptions = {
+  benchmark?: Candle[];
+  roundTripCostPct?: number;
+  limitUpDownPct?: number | null;
+  market?: StockMarket;
+  code?: string;
+  name?: string;
+  costModel?: "flat" | "liquidity";
+  positionValue?: number;
+  recentWindowPeriods?: number;
 };
 
 export type RiskMetrics = {
@@ -85,17 +119,19 @@ export function backtestGuideSignals(
   candles: Candle[],
   indicators: IndicatorSet,
   periods: number[] = [5, 10, 20],
-  options: { benchmark?: Candle[]; roundTripCostPct?: number; limitUpDownPct?: number | null } = {},
+  options: SignalBacktestOptions = {},
 ): SignalBacktest {
   const roundTripCostPct = Number.isFinite(options.roundTripCostPct) ? Math.max(0, options.roundTripCostPct ?? 0) : 0.25;
-  const limitUpDownPct = options.limitUpDownPct === null
-    ? null
-    : Number.isFinite(options.limitUpDownPct) ? Math.max(0, options.limitUpDownPct ?? 9.8) : 9.8;
+  const costModel = options.costModel ?? "flat";
+  const positionValue = Number.isFinite(options.positionValue) ? Math.max(0, options.positionValue ?? 0) : 80_000;
   const benchmarkByDate = new Map((options.benchmark ?? []).map((candle) => [candle.date, candle]));
+  const normalizedPeriods = [...new Set(periods)]
+    .filter((value) => Number.isInteger(value) && value > 0)
+    .sort((left, right) => left - right);
   const signals: Array<{ index: number; direction: "buy" | "sell" }> = [];
   let previous: { index: number; direction: "buy" | "sell" } | null = null;
   indicators.guidePoints.forEach((guide, index) => {
-    if (!guide) return;
+    if (!guide || guide.confidence === "watch") return;
     if (previous && previous.direction === guide.type && index - previous.index <= 3) return;
     const signal = { index, direction: guide.type };
     signals.push(signal);
@@ -103,11 +139,12 @@ export function backtestGuideSignals(
   });
 
   const skippedSignalIndexes = new Set<number>();
-  const horizons = [...new Set(periods)]
-    .filter((value) => Number.isInteger(value) && value > 0)
-    .sort((left, right) => left - right)
-    .map((horizon): BacktestHorizon => {
-      const outcomes = signals.flatMap((signal) => {
+  const calculateHorizons = (
+    selectedSignals: Array<{ index: number; direction: "buy" | "sell" }>,
+    fromIndex = 0,
+  ): BacktestHorizon[] => normalizedPeriods.map((horizon): BacktestHorizon => {
+      const outcomes = selectedSignals.flatMap((signal) => {
+        if (signal.index < fromIndex) return [];
         const target = candles[signal.index + horizon];
         const signalCandle = candles[signal.index];
         const entry = candles[signal.index + 1];
@@ -116,13 +153,17 @@ export function backtestGuideSignals(
           return [];
         }
         const gapPct = signalCandle.close > 0 ? ((entry.open / signalCandle.close) - 1) * 100 : 0;
+        const limitUpDownPct = resolveBacktestPriceLimitPct(options, entry.date);
         if (limitUpDownPct != null && ((signal.direction === "buy" && gapPct >= limitUpDownPct) || (signal.direction === "sell" && gapPct <= -limitUpDownPct))) {
           skippedSignalIndexes.add(signal.index);
           return [];
         }
         const direction = signal.direction === "buy" ? 1 : -1;
         const grossReturn = ((target.close / entry.open) - 1) * 100 * direction;
-        const strategyReturn = grossReturn - roundTripCostPct;
+        const tradeCostPct = costModel === "liquidity"
+          ? estimateLiquidityRoundTripCostPct(entry, positionValue, roundTripCostPct)
+          : roundTripCostPct;
+        const strategyReturn = grossReturn - tradeCostPct;
         const path = candles.slice(signal.index + 1, signal.index + horizon + 1);
         const worstAdverseMove = signal.direction === "buy"
           ? Math.min(0, ...path.map((candle) => ((candle.low / entry.open) - 1) * 100))
@@ -135,7 +176,7 @@ export function backtestGuideSignals(
         const benchmarkReturn = benchmarkEntry && benchmarkTarget && benchmarkEntry.open > 0
           ? ((benchmarkTarget.close / benchmarkEntry.open) - 1) * 100 * direction
           : null;
-        return [{ strategyReturn, worstAdverseMove, bestFavorableMove, excessReturn: benchmarkReturn == null ? null : strategyReturn - benchmarkReturn }];
+        return [{ strategyReturn, tradeCostPct, worstAdverseMove, bestFavorableMove, excessReturn: benchmarkReturn == null ? null : strategyReturn - benchmarkReturn }];
       });
       const returns = outcomes.map((item) => item.strategyReturn);
       const wins = returns.filter((value) => value > 0).length;
@@ -159,18 +200,80 @@ export function backtestGuideSignals(
         averageExcessReturn: averageNullable(outcomes.map((item) => item.excessReturn)),
         winRateLow: winInterval?.[0] ?? null,
         winRateHigh: winInterval?.[1] ?? null,
+        averageCostPct: outcomes.length ? average(outcomes.map((item) => item.tradeCostPct)) : null,
       };
     });
 
+  const horizons = calculateHorizons(signals);
+  const buySignals = signals.filter((signal) => signal.direction === "buy");
+  const sellSignals = signals.filter((signal) => signal.direction === "sell");
+  const directions = {
+    buy: { signalCount: buySignals.length, tradable: true, horizons: calculateHorizons(buySignals) },
+    sell: { signalCount: sellSignals.length, tradable: false, horizons: calculateHorizons(sellSignals) },
+  };
+  const recentWindowPeriods = Number.isFinite(options.recentWindowPeriods)
+    ? Math.max(60, Math.round(options.recentWindowPeriods ?? 252))
+    : 252;
+  const recentFromIndex = Math.max(0, candles.length - recentWindowPeriods);
+  const recentBuy = { signalCount: buySignals.filter((signal) => signal.index >= recentFromIndex).length, tradable: true, horizons: calculateHorizons(buySignals, recentFromIndex) };
+  const recentSell = { signalCount: sellSignals.filter((signal) => signal.index >= recentFromIndex).length, tradable: false, horizons: calculateHorizons(sellSignals, recentFromIndex) };
+  const recentPrimary = recentBuy.horizons.find((item) => item.periods === 10) ?? recentBuy.horizons[0];
+  const recentStatus = assessRecentBuyStatus(recentPrimary);
+
   return {
     totalSignals: signals.length,
-    buySignals: signals.filter((signal) => signal.direction === "buy").length,
-    sellSignals: signals.filter((signal) => signal.direction === "sell").length,
+    buySignals: buySignals.length,
+    sellSignals: sellSignals.length,
     skippedSignals: skippedSignalIndexes.size,
     roundTripCostPct,
-    executionModel: "信号后一根K线开盘成交，固定观察期收盘退出",
+    executionModel: `信号后一根K线开盘成交，固定观察期收盘退出；${costModel === "liquidity" ? "流动性分层成本" : "固定交易摩擦"}；A股按板块和日期校验涨跌停可成交性`,
     horizons,
+    directions,
+    recent: {
+      windowPeriods: recentWindowPeriods,
+      fromDate: candles[recentFromIndex]?.date ?? "",
+      status: recentStatus.status,
+      label: recentStatus.label,
+      buy: recentBuy,
+      sell: recentSell,
+    },
+    costModel,
   };
+}
+
+export function resolveCnPriceLimitPct(code: string, date: string, name = ""): number | null {
+  const normalizedCode = code.trim().replace(/^(?:sh|sz|bj)/i, "").replace(/\.(?:sh|sz|bj)$/i, "");
+  if (!/^\d{6}$/.test(normalizedCode)) return 9.8;
+  if (/^[48]/.test(normalizedCode)) return 29.8;
+  if (/^(?:688|689)/.test(normalizedCode)) return 19.8;
+  if (/^(?:300|301)/.test(normalizedCode) && date >= "2020-08-24") return 19.8;
+  if (/(?:\*?ST|退)/i.test(name) && date < "2026-07-06") return 4.8;
+  return 9.8;
+}
+
+export function estimateLiquidityRoundTripCostPct(
+  candle: Candle,
+  positionValue = 80_000,
+  baseRoundTripCostPct = 0.25,
+): number {
+  const dailyAmount = Math.max(candle.amount, candle.adjustedAmount, candle.close * candle.volume, 0);
+  if (!(dailyAmount > 0) || !(positionValue > 0)) return Math.max(baseRoundTripCostPct, 1);
+  const participation = Math.max(0, positionValue / dailyAmount);
+  const liquidityPremiumPct = Math.min(0.75, Math.sqrt(participation) * 1.5);
+  return Math.min(2, Math.max(0, baseRoundTripCostPct) + liquidityPremiumPct);
+}
+
+function resolveBacktestPriceLimitPct(options: SignalBacktestOptions, entryDate: string): number | null {
+  if (options.limitUpDownPct === null || options.market === "US") return null;
+  if (Number.isFinite(options.limitUpDownPct)) return Math.max(0, options.limitUpDownPct ?? 0);
+  return resolveCnPriceLimitPct(options.code ?? "", entryDate, options.name ?? "");
+}
+
+function assessRecentBuyStatus(primary: BacktestHorizon | undefined): { status: BacktestRecentAssessment["status"]; label: string } {
+  if (!primary || primary.samples < 8) return { status: "insufficient", label: "近期样本不足" };
+  if ((primary.averageReturn ?? 0) > 0 && (primary.profitFactor ?? 0) >= 1.1) return { status: "active", label: "近期优势有效" };
+  if ((primary.averageReturn ?? 0) > 0 || (primary.profitFactor ?? 0) >= 1) return { status: "watch", label: "近期优势偏弱" };
+  return { status: "weak", label: "近期优势失效" };
 }
 
 export function calculateRiskMetrics(candles: Candle[], benchmark: Candle[] = [], periodsPerYear = 252): RiskMetrics {
@@ -301,7 +404,11 @@ export function buildResearchReport({
     "## B/S 信号历史验证",
     "",
     `共识别 ${backtest.totalSignals} 个去重信号（B ${backtest.buySignals} / S ${backtest.sellSignals}）。`,
-    ...backtest.horizons.map((item) => `- ${item.periods}期：样本 ${item.samples}，胜率 ${formatPercent(item.winRate)}，平均收益 ${formatPercent(item.averageReturn)}，最差不利波动 ${formatPercent(item.worstAdverseMove)}`),
+    `- 近期状态：${backtest.recent?.label ?? "样本不足"}${backtest.recent?.fromDate ? `（${backtest.recent.fromDate} 起）` : ""}`,
+    "- B 点（可交易方向验证）：",
+    ...(backtest.directions?.buy.horizons ?? backtest.horizons).map((item) => `  - ${item.periods}期：样本 ${item.samples}，胜率 ${formatPercent(item.winRate)}，平均收益 ${formatPercent(item.averageReturn)}，Profit Factor ${formatMultiple(item.profitFactor)}`),
+    "- S 点（仅风险提示，不按可直接做空解释）：",
+    ...(backtest.directions?.sell.horizons ?? []).map((item) => `  - ${item.periods}期：样本 ${item.samples}，方向胜率 ${formatPercent(item.winRate)}，平均方向收益 ${formatPercent(item.averageReturn)}，Profit Factor ${formatMultiple(item.profitFactor)}`),
     "",
     "## 估值与基本面",
     "",
@@ -317,7 +424,7 @@ export function buildResearchReport({
     `- 综合得分：${newsDataset.summary.averageScore.toFixed(3)}`,
     ...newsDataset.items.slice(0, 5).map((item) => `- ${item.publishedAt || "时间未知"}｜${item.sentiment}｜[${item.title}](${item.url})`),
     "",
-    "> 本报告由公开数据和规则模型生成，仅供研究参考，不构成投资建议。信号回测未计入手续费、滑点和涨跌停成交约束。",
+    `> 本报告由公开数据和规则模型生成，仅供研究参考，不构成投资建议。信号回测采用${backtest.costModel === "liquidity" ? "流动性分层" : "固定"}交易摩擦，并校验可识别的涨跌停成交约束；S 点不代表可直接建立空头仓位。`,
     "",
   ];
   return lines.join("\n");

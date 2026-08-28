@@ -141,10 +141,10 @@ export default function RealtimeTradingPanel({
               <RealtimeMetric label="成交额" value={compact(snapshot.amount)} />
             </div>
             {snapshot.minuteCandles.length ? <div className="realtime-signal-bar">
-              <div className="realtime-signal-legend"><span className="is-buy">B</span>偏多规则 <span className="is-sell">S</span>风险规则</div>
+              <div className="realtime-signal-legend"><span className="is-buy">B</span>偏多规则 <span style={{ background: "var(--apple-warning)" }}>b</span>弱B观察 <span className="is-sell">S</span>风险规则</div>
               {signalAnalysis.latestSignal ? (
-                <strong className={signalAnalysis.latestSignal.guide.type === "buy" ? "is-up" : "is-down"}>
-                  最近 {signalAnalysis.latestSignal.guide.type === "buy" ? "B" : "S"}{signalAnalysis.latestSignal.guide.score} · {signalAnalysis.latestSignal.time}{signalAnalysis.latestSignal.guide.provisional ? " · 形成中" : ""}
+                <strong className={signalAnalysis.latestSignal.guide.confidence === "watch" ? "" : signalAnalysis.latestSignal.guide.type === "buy" ? "is-up" : "is-down"} style={signalAnalysis.latestSignal.guide.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}>
+                  最近 {signalAnalysis.latestSignal.guide.confidence === "watch" ? "b" : signalAnalysis.latestSignal.guide.type === "buy" ? "B" : "S"}{signalAnalysis.latestSignal.guide.score} · {signalAnalysis.latestSignal.time}{signalAnalysis.latestSignal.guide.provisional ? " · 形成中" : ""}
                 </strong>
               ) : <span>当前交易日暂无复合 B/S 点</span>}
               <small>规则模型辅助信号，不构成投资建议</small>
@@ -310,6 +310,7 @@ function MinuteCandlestickChart({
     const grid = styles.getPropertyValue("--apple-border").trim() || "rgba(0,0,0,.08)";
     const surface = styles.getPropertyValue("--apple-elevated").trim() || "#fff";
     const accent = styles.getPropertyValue("--apple-accent").trim() || "#0071e3";
+    const warning = styles.getPropertyValue("--apple-warning").trim() || "#ff9f0a";
     if (!visibleCandles.length) {
       context.fillStyle = text;
       context.font = "13px system-ui";
@@ -470,7 +471,8 @@ function MinuteCandlestickChart({
         ? Math.min(priceBottom - 9, y(candle.low) + 16)
         : Math.max(top + 9, y(candle.high) - 16);
       context.globalAlpha = guide.provisional ? 0.58 : 1;
-      context.fillStyle = guide.type === "buy" ? up : down;
+      const weakBuy = guide.confidence === "watch";
+      context.fillStyle = weakBuy ? warning : guide.type === "buy" ? up : down;
       context.beginPath();
       context.arc(markerX, markerY, 8, 0, Math.PI * 2);
       context.fill();
@@ -478,7 +480,7 @@ function MinuteCandlestickChart({
       context.fillStyle = "#fff";
       context.textAlign = "center";
       context.font = "800 8px ui-monospace, Menlo, monospace";
-      context.fillText(guide.type === "buy" ? "B" : "S", markerX, markerY + 3);
+      context.fillText(weakBuy ? "b" : guide.type === "buy" ? "B" : "S", markerX, markerY + 3);
     });
 
     context.fillStyle = text;
@@ -720,7 +722,7 @@ function MinuteCandlestickChart({
             <header><strong>{hoveredCandle.time}</strong><span className={hoveredChange >= 0 ? "is-up" : "is-down"}>{hoveredChange >= 0 ? "+" : ""}{hoveredChange.toFixed(3)} · {hoveredChangePct >= 0 ? "+" : ""}{hoveredChangePct.toFixed(2)}%</span></header>
             <div><span>开 <b>{hoveredCandle.open.toFixed(3)}</b></span><span>高 <b>{hoveredCandle.high.toFixed(3)}</b></span><span>低 <b>{hoveredCandle.low.toFixed(3)}</b></span><span>收 <b>{hoveredCandle.close.toFixed(3)}</b></span></div>
             <footer><span>量 {compact(hoveredCandle.volume)}</span><span>额 {compact(hoveredCandle.amount)}</span></footer>
-            {hoveredGuide ? <p className={hoveredGuide.type === "buy" ? "is-up" : "is-down"}><b>{hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</b> {hoveredGuide.reasons.join(" · ")}{hoveredGuide.provisional ? " · 形成中" : ""}</p> : null}
+            {hoveredGuide ? <p className={hoveredGuide.confidence === "watch" ? "" : hoveredGuide.type === "buy" ? "is-up" : "is-down"} style={hoveredGuide.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}><b>{hoveredGuide.confidence === "watch" ? "b" : hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</b> {hoveredGuide.reasons.join(" · ")}{hoveredGuide.provisional ? " · 形成中" : ""}</p> : null}
           </div>
         ) : null}
       </div>

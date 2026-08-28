@@ -15,7 +15,7 @@ function StockScoreCard({ report, stockName }: { report: StockScoreReport; stock
         <div>
           <p className="eyebrow">EIGHT-DIMENSION RESEARCH SCORE</p>
           <h2 id="stock-score-title">八维研究评分</h2>
-          <span>基于本页已加载的行情、技术、资金、财务、估值、舆情、回测与风险数据</span>
+          <span>基于行情、资金、财务、估值、舆情与风险证据；维度权重经 1000 股历史样本校准</span>
         </div>
         <div className="stock-score-meta">
           <span>评分证据覆盖 <strong>{report.coverage}%</strong></span>
@@ -38,7 +38,7 @@ function StockScoreCard({ report, stockName }: { report: StockScoreReport; stock
             <strong>{report.signal.headline}</strong>
             <p>{report.signal.description}</p>
           </div>
-          <p className="stock-score-disclaimer">评分用于比较证据强弱，不预测收益；低覆盖维度会向 50 分收缩。交易前请核对数据时效、估值口径与自身风险承受能力。</p>
+          <p className="stock-score-disclaimer">评分用于比较证据强弱，不代表分数与收益线性成正比；低覆盖维度会向 50 分收缩，趋势与动量同时过热会触发扣分。交易前请核对数据时效、估值口径与自身风险承受能力。</p>
           <dl className="stock-score-guardrails" aria-label="交易前检查">
             <div><dt>评分证据覆盖</dt><dd>{report.coverage}%</dd></div>
             <div><dt>主要短板</dt><dd>{weakestDimension?.label ?? "待识别"} {weakestDimension?.score ?? "—"}</dd></div>

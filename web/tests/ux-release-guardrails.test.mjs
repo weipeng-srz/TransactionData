@@ -71,6 +71,9 @@ test("makes backtest costs and corporate-action price basis explicit", () => {
   assert.match(backtestSource, /手续费、税费与滑点合计假设/);
   assert.match(backtestSource, /价格口径/);
   assert.match(pageSource, /roundTripCostPct/);
+  assert.match(backtestSource, /B 点 · 可交易方向/);
+  assert.match(backtestSource, /S 点 · 仅风险提示/);
+  assert.match(backtestSource, /流动性模型/);
 });
 
 test("disables the annotation action until the user enters meaningful text", () => {

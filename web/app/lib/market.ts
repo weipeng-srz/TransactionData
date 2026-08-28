@@ -83,6 +83,12 @@ export type GuidePoint = {
   type: "buy" | "sell";
   score: number;
   reasons: string[];
+  confidence?: "watch" | "standard" | "confirmed" | "risk";
+};
+
+export type SignalGuidePolicy = {
+  minimumBuyScore?: number;
+  volumeConfirmationCanQualify?: boolean;
 };
 
 export type KlineConclusion = {
@@ -144,6 +150,32 @@ export type IntentAnalysis = {
   evidence: string[];
   warnings: string[];
 };
+
+export type DailyFlowProxyMetrics = {
+  modelReady: boolean;
+  score: number;
+  features: number[];
+  todayFlowRatio: number;
+  todayDirectionalAmount: number;
+  cmf5: number;
+  cmf20: number;
+  averageDirectionalAmount20: number;
+  obv20: number;
+  closeVsTypicalPct: number;
+  return1Pct: number;
+  return5Pct: number;
+  return20Pct: number;
+  volumeRatio20: number | null;
+};
+
+const dailyFlowProxyModel = {
+  version: "main-force-proxy-v2",
+  means: [-0.04234065470718619, -0.03971573924540135, -0.029418416312587087, 0.03236721857015064, -0.0028530635622638634, -0.0085506865899277, -0.008513339521112986, 0.04637104255919447, -0.006643748364240891],
+  standardDeviations: [0.6261994342803011, 0.27857854854523706, 0.14767845838479807, 0.23158432958964942, 0.6360709760423617, 0.5249390606361531, 0.4938474485119133, 0.4013511461022292, 0.43373442020747904],
+  weights: [-0.016836088106052364, 0.03294211436683384, -0.007042391135921132, 0.001419345363989693, 0.018574236549071498, -0.014621785062571004, -0.04228358596676944, -0.015743032580718998, -0.003717293491343216],
+  scoreScale: 0.04572344832027362,
+  activationThreshold: 1.9,
+} as const;
 
 const baseRequiredHeaders = ["交易日期", "成交时间", "成交量(股)"];
 
@@ -568,55 +600,44 @@ function analyzeDailyMarketIntent(
   candle: Candle,
   returnPct: number,
 ): IntentAnalysis {
+  const proxy = calculateDailyFlowProxy(dailyCandles, dayIndex);
   const priceRange = Math.max(candle.high - candle.low, candle.close * 0.001);
-  const moneyFlowMultiplier = Math.max(-1, Math.min(1, ((2 * candle.close) - candle.high - candle.low) / priceRange));
-  const activeNetRatio = moneyFlowMultiplier * 100;
-  const activeNetAmount = candle.amount * moneyFlowMultiplier;
+  const activeNetRatio = proxy.todayFlowRatio;
+  const activeNetAmount = proxy.todayDirectionalAmount;
   const closeLocationPct = ((candle.close - candle.low) / priceRange) * 100;
   const closeVsVwapPct = candle.vwap ? ((candle.close / candle.vwap) - 1) * 100 : 0;
   const tailNetRatio = candle.open ? ((candle.close / candle.open) - 1) * 100 : 0;
-  const priorVolumes = dailyCandles.slice(Math.max(0, dayIndex - 20), dayIndex).map((item) => item.volume);
-  const medianVolume = median(priorVolumes);
-  const volumeRatio20 = priorVolumes.length >= 5 && medianVolume > 0 ? candle.volume / medianVolume : null;
-  const volumeWeight = volumeRatio20 == null ? 0.5 : Math.max(0.35, Math.min(1.25, volumeRatio20 / 1.5));
-  const largeNetAmount = activeNetAmount * volumeWeight;
-  const largeNetRatio = activeNetRatio * volumeWeight;
+  const largeNetAmount = proxy.averageDirectionalAmount20;
+  const largeNetRatio = proxy.cmf20 * 100;
+  const score = proxy.score;
 
-  let score = thresholdScore(activeNetRatio, 16, 42, 0.7, 1.25)
-    + thresholdScore(closeVsVwapPct, 0.3, 1, 0.4, 0.8)
-    + thresholdScore(closeLocationPct - 50, 12, 32, 0.35, 0.7)
-    + thresholdScore(returnPct, 0.8, 3, 0.3, 0.65)
-    + thresholdScore(tailNetRatio, 0.6, 2.5, 0.25, 0.45);
-  if (volumeRatio20 != null && volumeRatio20 >= 1.2) score += Math.sign(activeNetRatio || returnPct) * Math.min(0.6, (volumeRatio20 - 1) * 0.4);
-  score = Number(score.toFixed(2));
-
-  let label = "量价中性 / 分歧";
+  let label = proxy.modelReady ? "多日量价中性 / 等待" : "历史样本不足 / 等待";
   let tone: IntentAnalysis["tone"] = "neutral";
-  if (volumeRatio20 != null && volumeRatio20 >= 1.6 && Math.abs(returnPct) < 1.2) {
-    label = "放量换手 / 分歧";
-  } else if (score >= 2.1) {
-    label = returnPct >= 1 ? "偏拉升（量价代理）" : "偏承接（量价代理）";
+  if (score >= 1.75) {
+    label = "多日偏吸筹 / 承接（强量价代理）";
     tone = "up";
   } else if (score >= 1) {
-    label = "偏吸筹 / 承接（量价代理）";
+    label = "多日偏吸筹 / 承接（量价代理）";
     tone = "up";
-  } else if (score <= -2.1) {
-    label = returnPct <= -1 ? "偏压制（量价代理）" : "偏派发（量价代理）";
+  } else if (score <= -1.75) {
+    label = "多日偏派发 / 压制（强量价代理）";
     tone = "down";
   } else if (score <= -1) {
-    label = "偏派发（量价代理）";
+    label = "多日偏派发 / 压制（量价代理）";
     tone = "down";
   }
 
-  const sampleConfidence = dailyCandles.length >= 60 ? 42 : dailyCandles.length >= 20 ? 36 : 28;
-  const signalConfidence = 32 + Math.min(18, Math.abs(score) * 7);
-  const confidence = Math.round(Math.min(54, sampleConfidence, signalConfidence));
+  const sampleConfidence = dailyCandles.length >= 60 ? 46 : dailyCandles.length >= 40 ? 42 : proxy.modelReady ? 38 : 24;
+  const signalConfidence = proxy.modelReady ? 32 + Math.min(14, Math.abs(score) * 7) : 24;
+  const confidence = Math.round(Math.min(48, sampleConfidence, signalConfidence));
   const evidence = [
-    `日线资金强度 ${signedPercent(activeNetRatio)}，量价方向额 ${signedCompact(activeNetAmount)}`,
-    `收盘相对VWAP ${signedPercent(closeVsVwapPct)}，日内收盘位置 ${formatNumber(closeLocationPct, 1)}%`,
-    `收盘相对开盘 ${signedPercent(tailNetRatio)}，当日涨跌 ${signedPercent(returnPct)}`,
+    `当日收盘位置资金强度 ${signedPercent(activeNetRatio)}，方向额 ${signedCompact(activeNetAmount)}`,
+    `5日资金流强度 ${signedPercent(proxy.cmf5 * 100)}，20日 ${signedPercent(proxy.cmf20 * 100)}`,
+    `20日OBV净量比 ${signedPercent(proxy.obv20 * 100)}，20日涨跌 ${signedPercent(proxy.return20Pct)}`,
+    `v2留出验证：触发覆盖8.34%，5日方向一致率56.66%；只表示统计相关`,
   ];
-  if (volumeRatio20 !== null) evidence.push(`成交量为近20日中位数的 ${formatNumber(volumeRatio20, 2)} 倍`);
+  if (proxy.volumeRatio20 !== null) evidence.push(`成交量为近20日中位数的 ${formatNumber(proxy.volumeRatio20, 2)} 倍`);
+  evidence.push(`收盘相对VWAP ${signedPercent(closeVsVwapPct)}，当日涨跌 ${signedPercent(returnPct)}`);
 
   return {
     date: candle.date,
@@ -633,15 +654,119 @@ function analyzeDailyMarketIntent(
     closeVsVwapPct,
     closeLocationPct,
     turnoverPct: candle.turnoverPct,
-    volumeRatio20,
+    volumeRatio20: proxy.volumeRatio20,
     tailNetRatio,
     evidence,
     warnings: [
+      "v2由1000只当前仍上市股票的固定样本训练和验证，存在生存者偏差；验证结果不是未来保证。",
       ...dataset.quality.warnings,
-      "当前使用日K OHLC、成交额和近20日量能构建量价代理，不含逐笔买卖方向、盘口队列或撤单数据。",
-      "量价方向额是可解释估算值，不等于真实主力净流入，也不能识别机构账户。",
+      proxy.modelReady
+        ? "当前使用日K OHLC、成交额、5/20日资金流强度、OBV和量能构建多日代理。"
+        : "历史不足21个交易日，多日模型未启用，结论保持中性。",
+      "模型不含账户身份、逐笔买卖方向、盘口队列或撤单；方向额不等于真实主力净流入。",
     ],
   };
+}
+
+export function calculateDailyFlowProxy(dailyCandles: Candle[], dayIndex: number): DailyFlowProxyMetrics {
+  const candle = dailyCandles[dayIndex];
+  if (!candle) {
+    return {
+      modelReady: false,
+      score: 0,
+      features: Array(dailyFlowProxyModel.weights.length).fill(0),
+      todayFlowRatio: 0,
+      todayDirectionalAmount: 0,
+      cmf5: 0,
+      cmf20: 0,
+      averageDirectionalAmount20: 0,
+      obv20: 0,
+      closeVsTypicalPct: 0,
+      return1Pct: 0,
+      return5Pct: 0,
+      return20Pct: 0,
+      volumeRatio20: null,
+    };
+  }
+
+  const multiplier = dailyMoneyFlowMultiplier(candle);
+  const rows5 = dailyCandles.slice(Math.max(0, dayIndex - 4), dayIndex + 1);
+  const rows20 = dailyCandles.slice(Math.max(0, dayIndex - 19), dayIndex + 1);
+  const cmf5 = dailyCmf(rows5);
+  const cmf20 = dailyCmf(rows20);
+  const averageDirectionalAmount20 = rows20.length
+    ? rows20.reduce((sum, row) => sum + dailyMoneyFlowMultiplier(row) * row.amount, 0) / rows20.length
+    : 0;
+  const obv20 = dailyObvBalance(dailyCandles, dayIndex, 20);
+  const priorVolumes = dailyCandles.slice(Math.max(0, dayIndex - 20), dayIndex).map((item) => item.volume);
+  const medianVolume = median(priorVolumes);
+  const volumeRatio20 = priorVolumes.length >= 5 && medianVolume > 0 ? candle.volume / medianVolume : null;
+  const previousClose = dailyCandles[dayIndex - 1]?.close ?? candle.open;
+  const close5 = dailyCandles[dayIndex - 5]?.close ?? previousClose;
+  const close20 = dailyCandles[dayIndex - 20]?.close ?? close5;
+  const typicalPrice = (candle.open + candle.high + candle.low + candle.close) / 4;
+  const return1Pct = previousClose > 0 ? ((candle.close / previousClose) - 1) * 100 : 0;
+  const return5Pct = close5 > 0 ? ((candle.close / close5) - 1) * 100 : 0;
+  const return20Pct = close20 > 0 ? ((candle.close / close20) - 1) * 100 : 0;
+  const return5Feature = Math.max(-2, Math.min(2, Math.log(candle.close / Math.max(close5, 0.0001)) / 0.12));
+  const return20Feature = Math.max(-2, Math.min(2, Math.log(candle.close / Math.max(close20, 0.0001)) / 0.25));
+  const volumeConfirmedClv = multiplier * Math.max(-1, Math.min(1.5, Math.log2(Math.max(volumeRatio20 ?? 1, 0.25))));
+  const priceDirection20 = Math.max(-1, Math.min(1, Math.log(candle.close / Math.max(close20, 0.0001)) / 0.2));
+  const features = [
+    Math.max(-1.15, Math.min(1.15, multiplier + Math.max(-1, Math.min(1, Math.log(candle.close / Math.max(previousClose, 0.0001)) / 0.08)) * 0.15)),
+    cmf5,
+    cmf20,
+    obv20,
+    Math.max(-2, Math.min(2, Math.log(candle.close / Math.max(typicalPrice, 0.0001)) / 0.02)),
+    return5Feature,
+    return20Feature,
+    volumeConfirmedClv,
+    Math.max(-2, Math.min(2, cmf20 - priceDirection20)),
+  ];
+  const modelReady = dayIndex >= 20 && rows20.length === 20;
+  const rawScore = modelReady
+    ? features.reduce((sum, value, index) => sum + ((value - dailyFlowProxyModel.means[index]) / dailyFlowProxyModel.standardDeviations[index]) * dailyFlowProxyModel.weights[index], 0)
+    : 0;
+  const score = Number(Math.max(-4.5, Math.min(4.5, rawScore / dailyFlowProxyModel.scoreScale / dailyFlowProxyModel.activationThreshold)).toFixed(2));
+
+  return {
+    modelReady,
+    score,
+    features,
+    todayFlowRatio: multiplier * 100,
+    todayDirectionalAmount: candle.amount * multiplier,
+    cmf5,
+    cmf20,
+    averageDirectionalAmount20,
+    obv20,
+    closeVsTypicalPct: typicalPrice > 0 ? ((candle.close / typicalPrice) - 1) * 100 : 0,
+    return1Pct,
+    return5Pct,
+    return20Pct,
+    volumeRatio20,
+  };
+}
+
+function dailyMoneyFlowMultiplier(candle: Candle): number {
+  const range = Math.max(candle.high - candle.low, candle.close * 0.001);
+  return Math.max(-1, Math.min(1, ((2 * candle.close) - candle.high - candle.low) / range));
+}
+
+function dailyCmf(candles: Candle[]): number {
+  const amount = candles.reduce((sum, candle) => sum + Math.max(0, candle.amount), 0);
+  if (amount <= 0) return 0;
+  return Math.max(-1, Math.min(1, candles.reduce((sum, candle) => sum + dailyMoneyFlowMultiplier(candle) * Math.max(0, candle.amount), 0) / amount));
+}
+
+function dailyObvBalance(candles: Candle[], dayIndex: number, window: number): number {
+  let signedVolume = 0;
+  let totalVolume = 0;
+  for (let index = Math.max(1, dayIndex - window + 1); index <= dayIndex; index += 1) {
+    const volume = Math.max(0, candles[index].volume);
+    signedVolume += Math.sign(candles[index].close - candles[index - 1].close) * volume;
+    totalVolume += volume;
+  }
+  return totalVolume > 0 ? Math.max(-1, Math.min(1, signedVolume / totalVolume)) : 0;
 }
 
 function sumAmount(rows: TickRow[], side: string): number {
@@ -706,7 +831,7 @@ function candleBucket(row: TickRow, timeframe: Timeframe): { key: string; label:
   };
 }
 
-export function calculateIndicators(candles: Candle[]): IndicatorSet {
+export function calculateIndicators(candles: Candle[], guidePolicy: SignalGuidePolicy = {}): IndicatorSet {
   const closes = candles.map((candle) => candle.close);
   const ma5 = sma(closes, 5);
   const ma10 = sma(closes, 10);
@@ -726,6 +851,7 @@ export function calculateIndicators(candles: Candle[]): IndicatorSet {
   const guidePoints = calculateGuidePoints(
     candles,
     { ma5, bollUpper, bollLower, macdHist, rsi: rsi14, k, d, nineTurn, volumeMa5 },
+    guidePolicy,
   );
 
   return {
@@ -809,13 +935,14 @@ export function analyzeKlineConclusion(
     }
   }
   const nineTurn = indicators.nineTurn[index];
-  const totalScore = trendScore + momentumScore + (latestGuide?.type === "buy" ? 1 : latestGuide?.type === "sell" ? -1 : 0);
+  const guideScore = latestGuide?.confidence === "watch" ? 0.25 : latestGuide?.type === "buy" ? 1 : latestGuide?.type === "sell" ? -1 : 0;
+  const totalScore = trendScore + momentumScore + guideScore;
   const tone: KlineConclusion["tone"] = totalScore >= 2 ? "up" : totalScore <= -2 ? "down" : "neutral";
   const label = tone === "up" ? "结构偏强" : tone === "down" ? "结构偏弱" : "震荡 / 信号分歧";
 
   const points = [trend, momentum, volatility];
   if (nineTurn) points.push(`神奇九转处于${nineTurn.direction === "buy" ? "下跌序列" : "上涨序列"}第 ${nineTurn.count} 阶段${nineTurn.completed ? "，已完成九转" : ""}`);
-  if (latestGuide) points.push(`${latestGuide.type === "buy" ? "B买入" : "S卖出"}指引评分 ${latestGuide.score}：${latestGuide.reasons.join("、")}`);
+  if (latestGuide) points.push(`${latestGuide.confidence === "watch" ? "b观察" : latestGuide.type === "buy" ? "B买入" : "S卖出"}指引评分 ${latestGuide.score}：${latestGuide.reasons.join("、")}`);
   points.push(`近20期观察区间：支撑 ${formatNumber(support, 3)}，压力 ${formatNumber(resistance, 3)}`);
 
   return {
@@ -960,9 +1087,15 @@ function calculateGuidePoints(
     nineTurn: Array<NineTurnMark | null>;
     volumeMa5: Array<number | null>;
   },
+  policy: SignalGuidePolicy,
 ): Array<GuidePoint | null> {
   const result: Array<GuidePoint | null> = Array(candles.length).fill(null);
+  const minimumBuyScore = Number.isFinite(policy.minimumBuyScore)
+    ? Math.max(2, Math.round(policy.minimumBuyScore ?? 3))
+    : 3;
+  const volumeConfirmationCanQualify = policy.volumeConfirmationCanQualify ?? true;
   let lastSignalIndex = -10;
+  let lastWeakBuyIndex = -10;
   for (let index = 1; index < candles.length; index += 1) {
     const buyReasons: string[] = [];
     const sellReasons: string[] = [];
@@ -986,20 +1119,28 @@ function calculateGuidePoints(
     if (values.bollLower[index] !== null && candles[index].low <= (values.bollLower[index] as number) && candles[index].close > candles[index].open) { buyScore += 1; buyReasons.push("BOLL下轨承接"); }
     if (values.bollUpper[index] !== null && candles[index].high >= (values.bollUpper[index] as number) && candles[index].close < candles[index].open) { sellScore += 1; sellReasons.push("BOLL上轨受压"); }
 
-    if (index - lastSignalIndex < 3) continue;
     const hasBuyQualityAnchor = buyReasons.includes("RSI超卖回升") || buyReasons.includes("BOLL下轨承接");
-    const qualifiesBuy = buyScore >= 2 && buyScore > sellScore && hasBuyQualityAnchor;
+    const previousVolumeMa5 = values.volumeMa5[index - 1];
+    const hasVolumeConfirmation = previousVolumeMa5 !== null
+      && previousVolumeMa5 > 0
+      && candles[index].volume >= previousVolumeMa5;
+    const qualificationScore = buyScore + (hasVolumeConfirmation && volumeConfirmationCanQualify ? 1 : 0);
+    const qualifiesBuy = qualificationScore >= minimumBuyScore && qualificationScore > sellScore && hasBuyQualityAnchor;
+    const qualifiesWeakBuy = buyScore >= Math.max(2, minimumBuyScore - 1) && buyScore > sellScore && hasBuyQualityAnchor;
+    if (index - lastSignalIndex < 3) continue;
     if (qualifiesBuy) {
-      const previousVolumeMa5 = values.volumeMa5[index - 1];
-      if (previousVolumeMa5 !== null && previousVolumeMa5 > 0 && candles[index].volume >= previousVolumeMa5) {
+      if (hasVolumeConfirmation) {
         buyScore += 1;
         buyReasons.push("量能确认");
       }
-      result[index] = { type: "buy", score: buyScore, reasons: buyReasons };
+      result[index] = { type: "buy", score: buyScore, reasons: buyReasons, confidence: hasVolumeConfirmation ? "confirmed" : "standard" };
       lastSignalIndex = index;
     } else if (sellScore >= 2 && sellScore > buyScore) {
-      result[index] = { type: "sell", score: sellScore, reasons: sellReasons };
+      result[index] = { type: "sell", score: sellScore, reasons: sellReasons, confidence: "risk" };
       lastSignalIndex = index;
+    } else if (qualifiesWeakBuy && index - lastWeakBuyIndex >= 3) {
+      result[index] = { type: "buy", score: buyScore, reasons: [...buyReasons, "弱B观察"], confidence: "watch" };
+      lastWeakBuyIndex = index;
     }
   }
   return result;

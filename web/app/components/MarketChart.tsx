@@ -56,6 +56,7 @@ const chartPalettes = {
   up: "#f05d5e",
   down: "#1a9c5b",
   neutral: "#8e8e93",
+  warning: "#ff9f0a",
   ma5: "#ff9f0a",
   ma10: "#0071e3",
   ma20: "#8e5bd9",
@@ -83,6 +84,7 @@ const chartPalettes = {
   up: "#ff6961",
   down: "#32d583",
   neutral: "#98989d",
+  warning: "#ffb340",
   ma5: "#ffb340",
   ma10: "#2997ff",
   ma20: "#af85e8",
@@ -405,7 +407,8 @@ function MarketChart({
         const candle = candles[index];
         const x = xFor(globalToLocal(index));
         const anchor = guide.type === "buy" ? yForPrice(candle.low) + 23 : yForPrice(candle.high) - 23;
-        context.fillStyle = guide.type === "buy" ? colors.up : colors.down;
+        const weakBuy = guide.confidence === "watch";
+        context.fillStyle = weakBuy ? colors.warning : guide.type === "buy" ? colors.up : colors.down;
         context.beginPath();
         if (guide.type === "buy") {
           context.moveTo(x, anchor - 8);
@@ -420,7 +423,7 @@ function MarketChart({
         context.fill();
         context.textAlign = "center";
         context.font = "800 8px ui-monospace, SFMono-Regular, Menlo, monospace";
-        context.fillText(guide.type === "buy" ? "B" : "S", x, guide.type === "buy" ? anchor + 10 : anchor - 4);
+        context.fillText(weakBuy ? "b" : guide.type === "buy" ? "B" : "S", x, guide.type === "buy" ? anchor + 10 : anchor - 4);
       }
     }
 
@@ -763,7 +766,7 @@ function MarketChart({
             </dl>
             {hoveredGuide || hoveredEvent ? (
               <footer className="chart-day-meta">
-                {hoveredGuide ? <span className="chart-day-guide">信号 {hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</span> : null}
+                {hoveredGuide ? <span className="chart-day-guide" style={hoveredGuide.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}>信号 {hoveredGuide.confidence === "watch" ? "b" : hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</span> : null}
                 {hoveredEvent ? <small className="chart-event-detail">{hoveredEvent.label}</small> : null}
               </footer>
             ) : null}

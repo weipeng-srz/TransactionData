@@ -7,15 +7,34 @@ const styleSource = readFileSync(new URL("../app/screener/screener.module.css", 
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 
 test("screener exposes the requested A-share and US strategy surfaces", () => {
-  for (const label of ["A股", "美股", "今日精选", "昨日涨停", "连板股", "趋势突破", "放量上涨", "Gap Up", "Momentum"]) {
+  for (const label of ["A股", "美股", "今日精选", "主升扫描", "建仓观察", "昨日涨停", "连板股", "趋势突破", "放量上涨", "Gap Up", "Momentum"]) {
     assert.match(pageSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+});
+
+test("screener explains and ranks main-uptrend and accumulation phase signals", () => {
+  for (const label of ["行情阶段扫描", "主升行情", "建仓观察", "均线多头", "平台振幅收窄", "非统计概率", "不能证明机构或所谓主力正在买入", "主升与建仓迹象"]) {
+    assert.match(pageSource, new RegExp(label));
+  }
+  assert.match(pageSource, /phaseAnalysis\.mainUptrend\.score/);
+  assert.match(pageSource, /phaseAnalysis\.accumulation\.score/);
+  assert.match(styleSource, /\.phaseScanner/);
+  assert.match(styleSource, /\.phaseAssessmentGrid/);
 });
 
 test("screener keeps scores explainable and risk-aware", () => {
   for (const label of ["因子拆解", "为什么进入候选池", "主要风险", "风险失效", "不建议当前位置追高", "信号一致性"]) {
     assert.match(pageSource, new RegExp(label));
   }
+});
+
+test("screener exposes a calibrated eight-dimension high-score reference list", () => {
+  assert.match(pageSource, /八维高分股票榜/);
+  assert.match(pageSource, /highResearchStocks/);
+  assert.match(pageSource, /researchScore\.coverage/);
+  assert.match(pageSource, /完整八维分析/);
+  assert.match(pageSource, /高分表示候选池内证据排序靠前，不是收益率或买入建议/);
+  assert.match(styleSource, /researchScoreBoard/);
 });
 
 test("screener exposes professional evidence, coverage, sizing, filters, chart and research pool", () => {

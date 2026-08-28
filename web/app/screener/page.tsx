@@ -9,7 +9,7 @@ import type { ScreenerFeed, ScreenerMarket, ScreenerOpportunity, ScreenerRecomme
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import styles from "./screener.module.css";
 
-type SortKey = "score" | "change" | "confidence" | "volume" | "relativeStrength" | "rewardRisk";
+type SortKey = "score" | "change" | "confidence" | "volume" | "relativeStrength" | "rewardRisk" | "mainUptrend" | "accumulation";
 type MarketCapFilter = "all" | "small" | "mid" | "large";
 type ResearchPoolEntry = Pick<ScreenerOpportunity, "market" | "symbol" | "name" | "sector" | "risk" | "score"> & { addedAt: string };
 type FilterSnapshot = {
@@ -31,8 +31,8 @@ const screenerModeStorageKey = "ticklens.screener-mode.v1";
 const researchRetentionDays = 30;
 
 const strategyTabs: Record<ScreenerMarket, string[]> = {
-  CN: ["今日精选", "昨日涨停", "连板股", "趋势突破", "放量上涨"],
-  US: ["今日精选", "强势股", "Gap Up", "突破新高", "放量上涨", "Momentum"],
+  CN: ["今日精选", "主升扫描", "建仓观察", "昨日涨停", "连板股", "趋势突破", "放量上涨"],
+  US: ["今日精选", "主升扫描", "建仓观察", "强势股", "Gap Up", "突破新高", "放量上涨", "Momentum"],
 };
 
 export default function ScreenerPage() {
@@ -156,10 +156,16 @@ export default function ScreenerPage() {
     .filter((stock) => stock.plan.rewardRisk >= minimumRewardRisk)
     .filter((stock) => securityType === "全部" || stock.securityType === securityType)
     .filter((stock) => matchesMarketCap(stock, marketCapFilter))
-    .sort((left, right) => sort === "score" ? right.score - left.score : sort === "change" ? right.change - left.change : sort === "confidence" ? right.confidence - left.confidence : sort === "relativeStrength" ? right.relativeStrength20 - left.relativeStrength20 : sort === "rewardRisk" ? right.plan.rewardRisk - left.plan.rewardRisk : right.volumeRatio - left.volumeRatio),
+    .sort((left, right) => sort === "score" ? right.score - left.score : sort === "change" ? right.change - left.change : sort === "confidence" ? right.confidence - left.confidence : sort === "relativeStrength" ? right.relativeStrength20 - left.relativeStrength20 : sort === "rewardRisk" ? right.plan.rewardRisk - left.plan.rewardRisk : sort === "mainUptrend" ? right.phaseAnalysis.mainUptrend.score - left.phaseAnalysis.mainUptrend.score : sort === "accumulation" ? right.phaseAnalysis.accumulation.score - left.phaseAnalysis.accumulation.score : right.volumeRatio - left.volumeRatio),
   [eligibleStocks, marketCapFilter, maximumRisk, minimumAmount, minimumRewardRisk, minimumScore, securityType, sort, strategy, theme]);
   const mobileVisibleStocks = visibleStocks.slice(0, mobileVisibleStockCount);
   const featured = eligibleStocks.filter((stock) => stock.strategies.includes("今日精选")).slice(0, 3);
+  const highResearchStocks = [...eligibleStocks]
+    .filter((stock) => stock.researchScore && stock.researchScore.coverage >= 50)
+    .sort((left, right) => (right.researchScore?.score ?? 0) - (left.researchScore?.score ?? 0) || (right.researchScore?.coverage ?? 0) - (left.researchScore?.coverage ?? 0))
+    .slice(0, 8);
+  const mainUptrendStocks = [...eligibleStocks].filter((stock) => stock.strategies.includes("主升扫描")).sort((left, right) => right.phaseAnalysis.mainUptrend.score - left.phaseAnalysis.mainUptrend.score);
+  const accumulationStocks = [...eligibleStocks].filter((stock) => stock.strategies.includes("建仓观察")).sort((left, right) => right.phaseAnalysis.accumulation.score - left.phaseAnalysis.accumulation.score);
   const availableThemes = feed?.themes.map((item) => item.name) ?? [];
   const marketResearchPool = researchPool.filter((item) => item.market === market);
   const compareStocks = compareKeys.flatMap((key) => marketStocks.find((stock) => `${stock.market}:${stock.symbol}` === key) ?? []);
@@ -337,7 +343,7 @@ export default function ScreenerPage() {
 
   return (
     <div className={styles.page}>
-      <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={isRefreshing && feed ? `正在刷新${market === "CN" ? "A股" : "美股"} · 保留上次快照` : feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : "正在连接公开行情"} />
+      <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={isRefreshing && feed ? `正在刷新${market === "CN" ? "A股" : "美股"} · 保留上次快照` : feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : "正在连接真实市场行情"} />
 
       <main className={styles.shell}>
         <h1 className="sr-only">智能选股</h1>
@@ -486,6 +492,52 @@ export default function ScreenerPage() {
                   <p>默认按机会评分排序 · 点击股票查看因子、风险与模型区间</p>
                 </header>
 
+                <details className={styles.poolDisclosure}>
+                  <summary><span><strong>更多研究视图</strong><small>八维研究榜 · 主升与建仓阶段扫描</small></span><em>{highResearchStocks.length} 只高覆盖 · {mainUptrendStocks.length + accumulationStocks.length} 条阶段线索</em></summary>
+                  <div className={styles.poolInsightStack}>
+                <section className={styles.researchScoreBoard} aria-labelledby="research-score-board-title">
+                  <header>
+                    <div><span>CALIBRATED RESEARCH SCORE</span><h3 id="research-score-board-title">八维高分股票榜</h3></div>
+                    <p>1000 股样本校准 · 按候选池研究分排序</p>
+                  </header>
+                  <div className={styles.researchScoreGrid}>
+                    {highResearchStocks.map((stock, index) => {
+                      const score = stock.researchScore!;
+                      const leaders = [...score.dimensions].filter((dimension) => dimension.coverage > 0).sort((left, right) => right.score - left.score).slice(0, 2);
+                      return <article key={`${stock.market}-${stock.symbol}-research-score`}>
+                        <div className={styles.researchScoreRank}><span>#{index + 1}</span><b>{score.score}<small>/100</small></b></div>
+                        <div className={styles.researchScoreIdentity}><strong>{stock.name}</strong><span>{stock.symbol} · {stock.sector}</span></div>
+                        <dl><div><dt>证据覆盖</dt><dd>{score.coverage}%</dd></div><div><dt>证据状态</dt><dd>{score.signal}</dd></div></dl>
+                        <p>{leaders.map((dimension) => `${dimension.label} ${dimension.score}`).join(" · ") || "等待更多研究数据"}</p>
+                        <div><button type="button" onClick={() => setSelected(stock)}>查看机会计划</button><Link href={`/?stock=${encodeURIComponent(stockRouteKey({ code: stock.symbol, market: stock.market }))}`}>完整八维分析 <span>→</span></Link></div>
+                      </article>;
+                    })}
+                    {!highResearchStocks.length ? <div className={styles.researchScoreEmpty}><strong>高分榜正在补齐研究数据</strong><span>财务或行情源暂不可用时不会用低覆盖分数凑榜。</span></div> : null}
+                  </div>
+                  <p className={styles.researchScoreNote}>实测显示原等权分与收益不成正比；当前版本提高估值、盈利与成长的有效权重，并对趋势/动量同时过热扣分。高分表示候选池内证据排序靠前，不是收益率或买入建议。</p>
+                </section>
+
+                <section className={styles.phaseScanner} aria-labelledby="phase-scanner-title">
+                  <header><div><span>MARKET PHASE SCANNER</span><h3 id="phase-scanner-title">行情阶段扫描</h3></div><p>市场门槛 + 防追高 + 分阶段横向排名</p></header>
+                  <div className={styles.phaseScannerGrid}>
+                    <article className={styles.mainPhaseCard}>
+                      <header><div><strong>主升行情</strong><span>只保留顺势且不过热的启动结构</span></div><b>{mainUptrendStocks.length}<small>只候选</small></b></header>
+                      <ul><li>短中期均线多头，A 股要求沪深300近 20 日收益为正</li><li>近 5 日涨幅、MA5 乖离与量比提前降温，风险需低于 68</li><li>仅保留本次有效主升候选的前 20%</li></ul>
+                      <div className={styles.phaseLeaders}>{mainUptrendStocks.slice(0, 3).map((stock) => <button type="button" key={`${stock.market}-${stock.symbol}-main`} onClick={() => setSelected(stock)}><span><strong>{stock.name}</strong><small>{stock.symbol} · {stock.phaseAnalysis.mainUptrend.stage} · {stock.phaseAnalysis.mainUptrend.rankLabel}</small></span><b>{stock.phaseAnalysis.mainUptrend.score}</b></button>)}{!mainUptrendStocks.length ? <p>市场门槛、过热过滤或横向排名后暂无候选。</p> : null}</div>
+                      <button className={styles.phaseAction} type="button" onClick={() => { setStrategy("主升扫描"); setSort("mainUptrend"); setMobileVisibleStockCount(4); }}>查看主升候选</button>
+                    </article>
+                    <article className={styles.accumulationPhaseCard}>
+                      <header><div><strong>建仓观察</strong><span>早期平台 → 平台确认 → 突破准备</span></div><b>{accumulationStocks.length}<small>只候选</small></b></header>
+                      <ul><li>弱市暂缓，A 股换手要求 0.3%–10%</li><li>平台振幅收窄、低点抬高与涨跌日量能共同确认</li><li>早期/确认结构且有效建仓池前 50% 才入选；突破准备只作状态提示</li></ul>
+                      <div className={styles.phaseLeaders}>{accumulationStocks.slice(0, 3).map((stock) => <button type="button" key={`${stock.market}-${stock.symbol}-accumulation`} onClick={() => setSelected(stock)}><span><strong>{stock.name}</strong><small>{stock.symbol} · {stock.phaseAnalysis.accumulation.stage} · {stock.phaseAnalysis.accumulation.rankLabel}</small></span><b>{stock.phaseAnalysis.accumulation.score}</b></button>)}{!accumulationStocks.length ? <p>环境、换手与横向排名后暂无候选。</p> : null}</div>
+                      <button className={styles.phaseAction} type="button" onClick={() => { setStrategy("建仓观察"); setSort("accumulation"); setMobileVisibleStockCount(4); }}>查看建仓观察</button>
+                    </article>
+                  </div>
+                  <p className={styles.phaseDisclaimer}>阶段分数不是上涨概率；主升前 20% / 建仓前 50%只针对本次深度分析候选，不代表全市场排名。“建仓观察”无法识别账户身份，也不能证明机构或所谓主力正在买入。</p>
+                </section>
+                  </div>
+                </details>
+
                 <div className={styles.strategyTabs} role="tablist" aria-label="选股策略">
                   {strategyTabs[market].map((tab) => {
                     const count = eligibleStocks.filter((stock) => stock.strategies.includes(tab)).length;
@@ -497,7 +549,7 @@ export default function ScreenerPage() {
                   <label><span>板块/题材</span><select value={theme} onChange={(event) => setTheme(event.target.value)}><option>全部题材</option>{availableThemes.map((item) => <option key={item}>{item}</option>)}</select></label>
                   <label><span>最低评分</span><select value={minimumScore} onChange={(event) => setMinimumScore(Number(event.target.value))}><option value={60}>60+</option><option value={70}>70+</option><option value={80}>80+</option><option value={90}>90+</option></select></label>
                   <label><span>最高风险</span><select value={maximumRisk} onChange={(event) => setMaximumRisk(Number(event.target.value))}><option value={100}>不限</option><option value={70}>≤ 70</option><option value={55}>≤ 55</option><option value={40}>≤ 40</option></select></label>
-                  <label><span>排序</span><select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">机会评分</option><option value="confidence">信号一致性</option><option value="relativeStrength">相对强弱</option><option value="rewardRisk">计划盈亏比</option><option value="change">涨幅</option><option value="volume">量能</option></select></label>
+                  <label><span>排序</span><select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">机会评分</option><option value="mainUptrend">主升迹象</option><option value="accumulation">建仓迹象</option><option value="confidence">信号一致性</option><option value="relativeStrength">相对强弱</option><option value="rewardRisk">计划盈亏比</option><option value="change">涨幅</option><option value="volume">量能</option></select></label>
                   <div className={styles.filterActions}><button type="button" onClick={applyProfessionalPreset}>专业预设</button><button type="button" onClick={clearFilters}>清空条件</button></div>
                   <span className={styles.resultCount}>{visibleStocks.length} 只符合条件</span>
                 </div>
@@ -535,7 +587,7 @@ export default function ScreenerPage() {
                     <tbody>{visibleStocks.map((stock) => (
                       <tr key={`${stock.market}-${stock.symbol}`} className={stock.qualityTier === "expanded" ? styles.expandedRow : ""}>
                         <td className={styles.stockSticky}><div className={styles.stockCell}><span>{stock.name.slice(0, 1)}</span><div><strong title={stock.name}>{shortStockName(stock)}</strong><small>{stock.symbol} · {stock.exchange} · {stock.securityType}</small>{stock.qualityTier === "expanded" ? <em>扩展池</em> : null}</div></div></td>
-                        <td><strong className={styles.signalLabel}>{stock.signal}</strong><small className={styles.sectorLabel}>{stock.sector}</small>{stock.limitDetail ? <small className={styles.limitMeta}>封 {stock.limitDetail.first} · 炸 {stock.limitDetail.burstCount} · {stock.limitDetail.shape}</small> : null}</td>
+                        <td><strong className={styles.signalLabel}>{stock.signal}</strong><small className={styles.sectorLabel}>{stock.sector}</small><div className={styles.phasePills}><span data-level={stock.phaseAnalysis.mainUptrend.level}>主升 {stock.phaseAnalysis.mainUptrend.score} · {stock.phaseAnalysis.mainUptrend.stage}</span><span data-level={stock.phaseAnalysis.accumulation.level}>建仓 {stock.phaseAnalysis.accumulation.score} · {stock.phaseAnalysis.accumulation.stage}</span></div>{stock.limitDetail ? <small className={styles.limitMeta}>封 {stock.limitDetail.first} · 炸 {stock.limitDetail.burstCount} · {stock.limitDetail.shape}</small> : null}</td>
                         <td><strong>{currencySymbol(stock)}{stock.price.toFixed(2)}</strong><small className={changeClass(stock.change, styles)}>{signedPercent(stock.change)}</small></td>
                         <td><strong>{stock.volumeRatio.toFixed(2)}x · 换手 {stock.turnover.toFixed(1)}%</strong><small>{stock.amount} · {formatMarketCap(stock.marketCap, stock.market)}</small></td>
                         <td><strong className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</strong><small>个股 {signedPercent(stock.return20)} / 基准 {signedPercent(stock.benchmarkReturn20)}</small></td>
@@ -598,7 +650,7 @@ export default function ScreenerPage() {
 
           <footer className={styles.disclaimer}>
             <strong>数据说明</strong>
-            <span>行情来自{feed.source}，采集时间 {formatFetchedAt(feed.fetchedAt)}；公开免费行情可能延时、缺失或在休市时停留于最近交易日。评分、信号一致性、历史滚动样本与机会区间由规则模型基于真实行情计算，不是上涨概率或交易指令；仓位按单笔账户风险 {defaultRiskPerTradeLabel()} 估算，不构成投资建议。 {feed.sourceLinks.map((link, index) => <span key={link.url}>{index ? " · " : ""}<a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></span>)}</span>
+            <span>行情来自{feed.source}，采集时间 {formatFetchedAt(feed.fetchedAt)}；公开免费行情可能延时、缺失或在休市时停留于最近交易日。评分、信号一致性、主升/建仓迹象、历史滚动样本与机会区间由规则模型基于真实行情计算，不是上涨概率、资金账户识别或交易指令；仓位按单笔账户风险 {defaultRiskPerTradeLabel()} 估算，不构成投资建议。 {feed.sourceLinks.map((link, index) => <span key={link.url}>{index ? " · " : ""}<a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></span>)}</span>
           </footer>
         </> : null}
       </main>
@@ -628,7 +680,7 @@ function MobileOpportunityCard({ stock, watched, observed, compared, onOpen, onW
   return <article className={`${styles.mobileOpportunityCard} ${stock.qualityTier === "expanded" ? styles.expandedRow : ""}`}>
     <header><div><strong title={stock.name}>{stock.symbol}</strong><span title={stock.name}>{shortStockName(stock)}</span></div><div><strong>{currencySymbol(stock)}{stock.price.toFixed(2)}</strong><em className={changeClass(stock.change, styles)}>{signedPercent(stock.change)}</em></div></header>
     <div className={styles.mobileBadges}><span>{stock.signal}</span><span>{stock.securityType}</span>{stock.qualityTier === "expanded" ? <span className={styles.expandedBadge}>扩展池</span> : null}<span>{stock.sector}</span></div>
-    <dl><div><dt>机会评分</dt><dd>{stock.score}</dd></div><div><dt>风险</dt><dd className={riskClass(stock.risk, styles)}>{stock.risk}</dd></div><div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div><div><dt>盈亏比</dt><dd>{stock.plan.rewardRisk.toFixed(2)}R</dd></div><div><dt>成交/量能</dt><dd>{stock.amount} · {stock.volumeRatio.toFixed(2)}x</dd></div><div><dt>建议仓位</dt><dd>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</dd></div></dl>
+    <dl><div><dt>机会评分</dt><dd>{stock.score}</dd></div><div><dt>主升阶段</dt><dd>{stock.phaseAnalysis.mainUptrend.score} · {stock.phaseAnalysis.mainUptrend.stage}</dd></div><div><dt>建仓阶段</dt><dd>{stock.phaseAnalysis.accumulation.score} · {stock.phaseAnalysis.accumulation.stage}</dd></div><div><dt>风险</dt><dd className={riskClass(stock.risk, styles)}>{stock.risk}</dd></div><div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div><div><dt>盈亏比</dt><dd>{stock.plan.rewardRisk.toFixed(2)}R</dd></div><div><dt>成交/量能</dt><dd>{stock.amount} · {stock.volumeRatio.toFixed(2)}x</dd></div><div><dt>建议仓位</dt><dd>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</dd></div></dl>
     <p><strong>{recommendationIcon(stock.recommendation)} {stock.recommendation}</strong><span>{stock.confidence}% 一致性 · {recommendationReason(stock)}</span></p>
     <footer><button type="button" onClick={onOpen}>查看详情</button><button type="button" aria-pressed={compared} onClick={onCompare}>{compared ? "移出对比" : "+ 对比"}</button><button type="button" onClick={onObserve}>{observed ? "✓ 已观察" : "+ 观察"}</button><button type="button" onClick={onWatch}>{watched ? "★ 已自选" : "☆ 自选"}</button></footer>
   </article>;
@@ -684,19 +736,23 @@ function OpportunityDrawer({ stock, watched, observed, onClose, onAdd, onObserve
 
         {activeSection === "structure" ? <>
           <MiniOpportunityChart stock={stock} />
-          {stock.risk >= 60 ? <div className={styles.chaseWarning}><strong>⚠ 强势，但不建议当前位置追高</strong><span>风险评分 {stock.risk}，等待价格回落或突破确认后再评估风险收益比。</span></div> : null}
+          {stock.risk >= 60 || stock.phaseAnalysis.mainUptrend.overheat ? <div className={styles.chaseWarning}><strong>⚠ 强势，但不建议当前位置追高</strong><span>{stock.phaseAnalysis.mainUptrend.overheat ? stock.phaseAnalysis.mainUptrend.gateReason : `风险评分 ${stock.risk}`}，等待价格回落或突破确认后再评估风险收益比。</span></div> : null}
           <section className={styles.drawerSection}><header><h3>因子拆解</h3><span>信号一致性 <strong>{stock.confidence}%</strong> · 风险 <strong className={riskClass(stock.risk, styles)}>{stock.risk}</strong></span></header><div className={styles.factorGrid}>{stock.factorScores.map((factor) => <div key={factor.label}><span>{factor.label}<strong>{factor.value}</strong></span><i><b style={{ width: `${factor.value}%` }} /></i></div>)}</div><p className={styles.recommendationExplanation}>{recommendationReason(stock)}</p></section>
           <section className={styles.drawerSection}><header><h3>相对强弱与交易参数</h3><span>基准：{stock.market === "CN" ? "沪深300" : "SPY"}</span></header><dl className={styles.professionalMetrics}><div><dt>20日个股</dt><dd className={changeClass(stock.return20, styles)}>{signedPercent(stock.return20)}</dd></div><div><dt>20日基准</dt><dd className={changeClass(stock.benchmarkReturn20, styles)}>{signedPercent(stock.benchmarkReturn20)}</dd></div><div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div><div><dt>ATR / 波幅</dt><dd>{currencySymbol(stock)}{stock.plan.atr.toFixed(2)} / {stock.plan.atrPercent.toFixed(2)}%</dd></div></dl></section>
         </> : null}
 
         {activeSection === "evidence" ? <>
+          <section className={styles.drawerSection}><header><h3>主升与建仓迹象</h3><span>规则迹象评分 · 非统计概率</span></header><div className={styles.phaseAssessmentGrid}>
+            <article><header><div><strong>主升行情 · {stock.phaseAnalysis.mainUptrend.stage}</strong><span>{stock.phaseAnalysis.mainUptrend.summary}</span></div><b>{stock.phaseAnalysis.mainUptrend.score}<small>原始 {stock.phaseAnalysis.mainUptrend.rawScore}</small></b></header><i><b style={{ width: `${stock.phaseAnalysis.mainUptrend.score}%` }} /></i><p>{stock.phaseAnalysis.mainUptrend.gateReason} · {stock.phaseAnalysis.mainUptrend.rankLabel}</p><ul>{stock.phaseAnalysis.mainUptrend.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><p>{stock.phaseAnalysis.mainUptrend.warning}</p></article>
+            <article><header><div><strong>建仓观察 · {stock.phaseAnalysis.accumulation.stage}</strong><span>{stock.phaseAnalysis.accumulation.summary}</span></div><b>{stock.phaseAnalysis.accumulation.score}<small>原始 {stock.phaseAnalysis.accumulation.rawScore}</small></b></header><i><b style={{ width: `${stock.phaseAnalysis.accumulation.score}%` }} /></i><p>{stock.phaseAnalysis.accumulation.gateReason} · {stock.phaseAnalysis.accumulation.rankLabel}</p><ul>{stock.phaseAnalysis.accumulation.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><p>{stock.phaseAnalysis.accumulation.warning}</p></article>
+          </div></section>
           {stock.limitDetail ? <section className={styles.drawerSection}><header><h3>涨停质量</h3><span>东方财富涨停池字段</span></header><dl className={styles.professionalMetrics}><div><dt>板型</dt><dd>{stock.limitDetail.shape}</dd></div><div><dt>首次 / 最终封板</dt><dd>{stock.limitDetail.first} / {stock.limitDetail.last}</dd></div><div><dt>炸板次数</dt><dd>{stock.limitDetail.burstCount}</dd></div><div><dt>封单 / 流通市值</dt><dd>{stock.limitDetail.sealFund} / {stock.limitDetail.sealFundRatio.toFixed(2)}%</dd></div><div><dt>封板强度</dt><dd>{stock.limitDetail.strength} / 100</dd></div></dl></section> : null}
           <section className={styles.drawerSection}><header><h3>为什么进入候选池</h3><span>{stock.themes.join(" · ")}</span></header><ul className={styles.reasonList}>{stock.reasons.map((reason) => <li key={reason}><i>✓</i>{reason}</li>)}</ul></section>
           <section className={styles.drawerSection}><header><h3>主要风险</h3><span>先看风险，再看空间</span></header><ul className={styles.riskList}>{stock.risks.map((risk) => <li key={risk}><i>!</i>{risk}</li>)}</ul></section>
         </> : null}
 
         {activeSection === "plan" ? <>
-          <section className={`${styles.drawerSection} ${styles.tradePlan}`}><header><h3>机会计划</h3><span>规则模型区间 · 非交易指令</span></header><dl><div><dt>建议关注</dt><dd>{stock.plan.watch}</dd></div><div><dt>突破确认</dt><dd>{stock.plan.breakout}</dd></div><div><dt>风险失效</dt><dd>{stock.plan.stop}</dd></div><div><dt>观察目标</dt><dd>{stock.plan.targets}</dd></div></dl><div className={styles.positionPlan}><span><small>计划止损距离</small><strong>{stock.plan.stopDistancePercent.toFixed(2)}%</strong></span><span><small>目标1盈亏比</small><strong>{stock.plan.rewardRisk.toFixed(2)}R</strong></span><span><small>单笔账户风险</small><strong>{stock.plan.riskPerTradePercent.toFixed(1)}%</strong></span><span><small>建议仓位上限</small><strong>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</strong></span></div></section>
+          <section className={`${styles.drawerSection} ${styles.tradePlan}`}><header><h3>机会计划</h3><span>规则模型区间 · 非交易指令</span></header><dl><div><dt>建议关注</dt><dd>{stock.plan.watch}</dd></div><div><dt>突破确认</dt><dd>{stock.plan.breakout}</dd></div><div><dt>风险失效 / 初始风险位</dt><dd>{stock.plan.stop}</dd></div><div><dt>观察目标</dt><dd>{stock.plan.targets}</dd></div><div><dt>移动保护</dt><dd>{stock.plan.trailingStop}</dd></div><div><dt>退出纪律</dt><dd>{stock.plan.exitRule}</dd></div></dl><div className={styles.positionPlan}><span><small>计划止损距离</small><strong>{stock.plan.stopDistancePercent.toFixed(2)}%</strong></span><span><small>目标1盈亏比</small><strong>{stock.plan.rewardRisk.toFixed(2)}R</strong></span><span><small>单笔账户风险</small><strong>{stock.plan.riskPerTradePercent.toFixed(1)}%</strong></span><span><small>建议仓位上限</small><strong>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</strong></span></div></section>
           <div className={styles.drawerAudit}>日K截止 {stock.audit.lastBarDate} · {stock.audit.barCount} 条样本 · 完整度 {stock.audit.completeness}% · 规则版本 {stock.audit.modelVersion}</div>
         </> : null}
 
