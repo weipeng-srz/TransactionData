@@ -260,6 +260,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const [selectedCode, setSelectedCode] = useState(initialIdentity.code);
   const [selectedMarket, setSelectedMarket] = useState<StockMarket>(initialIdentity.market);
   const [timeframe, setTimeframe] = useState<Timeframe>("1d");
+  const [bsVersion, setBsVersion] = useState<"stable" | "v2">("stable");
   const [lowerIndicator, setLowerIndicator] = useState<LowerIndicator>("VOL");
   const [overlays, setOverlays] = useState({
     ma5: true,
@@ -403,6 +404,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   useEffect(() => {
     if (!storageHydrated) return;
     const controller = new AbortController();
+    cloudLoadedRef.current = false;
     const loadCloudState = async () => {
       try {
         const stateResponse = await fetch("/api/research-state", { signal: controller.signal, cache: "no-store" });
@@ -412,10 +414,14 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         }
         if (!stateResponse.ok) throw new Error("云端研究状态暂不可用");
         const stateBody = await stateResponse.json() as { state?: unknown };
+        if (controller.signal.aborted) return;
         const state = stateBody.state && typeof stateBody.state === "object" ? stateBody.state as Record<string, unknown> : null;
         if (state) {
-          const cloudAnnotations = parseAnnotations(state.annotations);
-          if (cloudAnnotations.length) setAnnotations(cloudAnnotations);
+          if (Array.isArray(state.annotations)) {
+            const cloudAnnotations = parseAnnotations(state.annotations);
+            setAnnotations(cloudAnnotations);
+            try { localStorage.setItem(annotationsStorageKey, JSON.stringify(cloudAnnotations)); } catch { /* The cloud state still applies in memory. */ }
+          }
           if (state.viewMode === "basic" || state.viewMode === "pro") setViewMode(state.viewMode);
           if (typeof state.benchmarkCode === "string" && benchmarkMatchesMarket(state.benchmarkCode, selectedMarket)) setBenchmarkCode(state.benchmarkCode);
           if (state.workspace && typeof state.workspace === "object") {
@@ -436,6 +442,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   useEffect(() => {
     if (!storageHydrated || !cloudLoadedRef.current || cloudStatus !== "synced") return;
     const timeout = window.setTimeout(async () => {
+      if (!cloudLoadedRef.current) return;
       try {
         const response = await fetch("/api/research-state", {
           method: "PUT",
@@ -500,8 +507,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
     candleSeriesRef.current = { key, length: candles.length };
   }, [candles.length, selectedCode, timeframe]);
   const benchmarkCandles = useMemo(() => benchmarkDataset ? aggregateCandles(benchmarkDataset.rows, benchmarkDataset.codes[0], "1d") : [], [benchmarkDataset]);
-  const indicators = useMemo(() => calculateIndicators(candles), [candles]);
-  const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles), [dailyCandles]);
+  const indicators = useMemo(() => calculateIndicators(candles, { version: bsVersion }), [candles, bsVersion]);
+  const dailyIndicators = useMemo(() => calculateIndicators(dailyCandles, { version: bsVersion }), [dailyCandles, bsVersion]);
   const todayGuide = realtimeDailySeries.included ? dailyIndicators.guidePoints.at(-1) ?? null : null;
   const signalBacktest = useMemo(() => backtestGuideSignals(candles, indicators, [5, 10, 20], {
     benchmark: timeframe === "1d" ? benchmarkCandles : [],
@@ -632,14 +639,15 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       ...current,
       [selectedHoldingKey]: selectedMarket === "US" ? {
         code: selectedCode,
+        name: dataset.stockNames[selectedCode] || selectedCode,
         market: "US",
         currency: "USD",
         shares,
         cost,
         updatedAt: new Date().toISOString(),
-      } : { code: selectedCode, shares, cost, updatedAt: new Date().toISOString() },
+      } : { code: selectedCode, name: dataset.stockNames[selectedCode] || selectedCode, shares, cost, updatedAt: new Date().toISOString() },
     }));
-  }, [isDemo, selectedCode, selectedHoldingKey, selectedMarket]);
+  }, [dataset.stockNames, isDemo, selectedCode, selectedHoldingKey, selectedMarket]);
 
   const clearHolding = useCallback(() => {
     setHoldings((current) => {
@@ -1111,7 +1119,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
 
   return (
     <div className="research-page">
-      <SiteBanner activePage="stock" currentStockCode={selectedCode} currentStockMarket={selectedMarket} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} onOpenPortfolio={onBackHome} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · 研究数据已就绪`} />
+      <SiteBanner activePage="stock" currentStockCode={selectedCode} currentStockMarket={selectedMarket} appearance={appearance} onToggleAppearance={toggleAppearance} onOpenStock={onOpenStock} onOpenPortfolio={onBackHome} statusText={fetchingStock ? "行情、基本面与新闻更新中" : `${selectedName || selectedCode} · ${[marketLoad, financialLoad, newsLoad].filter((source) => source.phase === "success").length}/3 项数据已就绪${[marketLoad, financialLoad, newsLoad].some((source) => source.phase === "error") ? "，部分数据待重试" : ""}`} />
       <main className={`app-shell view-${viewMode}`}>
       <aside className="app-sidebar research-sidebar">
         <section className="sidebar-menu-summary sidebar-preview-card" aria-label="当前个股导航">
@@ -1124,7 +1132,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <em className={`sidebar-status-pill ${sidebarMarketStatus === "交易中" ? "is-live" : ""}`}><i />{sidebarMarketStatus}</em>
           </header>
           <div className="sidebar-preview-hero" aria-label="个股实时汇总">
-            <span>实时价格</span>
+            <span>{selectedMarket === "US" ? "延时报价" : "实时价格"}</span>
             <strong>{currentPrice == null ? "—" : `${currencySymbol(selectedIdentity.currency)}${formatNumber(currentPrice, currentPrice >= 100 ? 2 : 3)}`}</strong>
             <em className={directionClass}>{sidebarChangePct == null ? "等待行情" : `${sidebarChangePct >= 0 ? "+" : ""}${formatNumber(sidebarChangePct, 2)}%`}</em>
           </div>
@@ -1165,39 +1173,6 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <a href="#stock-financials"><span>财务数据</span><small>Financials</small></a>
           <a href="#stock-news"><span>新闻舆情</span><small>News</small></a>
         </nav>
-        <label className="mobile-section-jump">
-          <span>当前研究层</span>
-          <select
-            aria-label="选择研究信息层"
-            value={mobileChapter}
-            onChange={(event) => {
-              const chapter = event.target.value as typeof mobileChapter;
-              setMobileChapter(chapter);
-              const targetId = chapter === "overview" ? "stock-score"
-                : chapter === "live" ? "realtime-trading"
-                  : chapter === "chart" ? "stock-market"
-                    : chapter === "forecast" ? "next-day-prediction"
-                      : chapter === "tools" ? "advanced-research"
-                        : chapter === "financials" ? "stock-financials"
-                          : "stock-news";
-              window.requestAnimationFrame(() => {
-                const target = document.getElementById(targetId);
-                const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-                target?.scrollIntoView({ behavior, block: "start" });
-              });
-            }}
-          >
-            <option value="overview">概览与综合评分</option>
-            {viewMode === "pro" ? <option value="live">实时盘口</option> : null}
-            <option value="chart">K 线与技术分析</option>
-            {viewMode === "pro" ? <>
-              <option value="forecast">隔日预测</option>
-              <option value="tools">风险因子与研究工具</option>
-            </> : null}
-            <option value="financials">财务与基本面</option>
-            <option value="news">新闻与舆情</option>
-          </select>
-        </label>
       </aside>
 
       <div className="app-workspace-shell">
@@ -1275,7 +1250,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
         <div className="quote-price">
           <strong className={directionClass}>{liveQuote ? formatNumber(liveQuote.price, 3) : latest ? formatNumber(latest.close, 3) : "—"}</strong>
           <span className={directionClass}>
-            {liveQuote ? `${liveQuote.change >= 0 ? "+" : ""}${formatNumber(liveQuote.change, 3)}  ${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}% · 实时` : latest ? `${latest.change >= 0 ? "+" : ""}${formatNumber(latest.change, 3)}  ${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}
+            {liveQuote ? `${liveQuote.change >= 0 ? "+" : ""}${formatNumber(liveQuote.change, 3)}  ${liveQuote.changePct >= 0 ? "+" : ""}${formatNumber(liveQuote.changePct, 2)}% · ${selectedMarket === "US" ? "延时报价" : "实时"}` : latest ? `${latest.change >= 0 ? "+" : ""}${formatNumber(latest.change, 3)}  ${latest.changePct >= 0 ? "+" : ""}${formatNumber(latest.changePct, 2)}%` : "—"}
           </span>
         </div>
         <div className="quote-stats">
@@ -1287,6 +1262,44 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <Stat label="换手" value={latest?.turnoverPct == null ? "—" : `${formatNumber(latest.turnoverPct, 2)}%`} />
         </div>
       </section>
+
+      <label className="mobile-section-jump research-section-jump">
+        <span>研究章节</span>
+        <select
+          aria-label="选择研究信息层"
+          value={mobileChapter}
+          onChange={(event) => {
+            const chapter = event.target.value as typeof mobileChapter;
+            setMobileChapter(chapter);
+            const targetId = chapter === "overview" ? "stock-score"
+              : chapter === "live" ? "realtime-trading"
+                : chapter === "chart" ? "stock-market"
+                  : chapter === "forecast" ? "next-day-prediction"
+                    : chapter === "tools" ? "advanced-research"
+                      : chapter === "financials" ? "stock-financials" : "stock-news";
+            window.requestAnimationFrame(() => {
+              const target = document.getElementById(targetId);
+              const focusTarget = chapter === "chart" ? target : target?.querySelector<HTMLElement>("h2, h3") ?? target;
+              if (focusTarget) {
+                focusTarget.tabIndex = -1;
+                focusTarget.focus({ preventScroll: true });
+              }
+              const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+              target?.scrollIntoView({ behavior, block: "start" });
+            });
+          }}
+        >
+          <option value="overview">概览与综合评分</option>
+          {viewMode === "pro" ? <option value="live">实时盘口</option> : null}
+          <option value="chart">K 线与技术分析</option>
+          {viewMode === "pro" ? <>
+            <option value="forecast">隔日预测</option>
+            <option value="tools">风险因子与研究工具</option>
+          </> : null}
+          <option value="financials">财务与基本面</option>
+          <option value="news">新闻与舆情</option>
+        </select>
+      </label>
 
       {fetchingStock ? (
         <div className="stale-data-banner" role="status">
@@ -1313,7 +1326,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
       </div>
 
       <div className="platform-mobile-chapter" data-active={mobileChapter === "chart"}>
-        <section className="workspace-grid" id="stock-market">
+        <section className="workspace-grid" id="stock-market" aria-label="K 线与技术分析">
         <div className={`chart-card ${fetchingStock ? "is-stale" : ""}`}>
           <div className="chart-toolbar">
             <div className="chart-toolbar-title">
@@ -1454,6 +1467,12 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
               </div>
               <span className="calc-badge">{timeframe.toUpperCase()}</span>
             </div>
+            <label className="method-note">BS 规则
+              <select aria-label="BS 规则版本" value={bsVersion} onChange={(event) => setBsVersion(event.target.value === "v2" ? "v2" : "stable")}>
+                <option value="stable">标准版（默认）</option>
+                <option value="v2">九转降权研究版</option>
+              </select>
+            </label>
             {klineConclusion ? (
               <>
                 <div className="conclusion-hero">
@@ -1475,7 +1494,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
                 <ul className="analysis-points">
                   {klineConclusion.points.slice(0, 5).map((point) => <li key={point}>{point}</li>)}
                 </ul>
-              <p className="method-note">强 B 点须由 RSI 超卖回升或 BOLL 下轨承接锚定，量能只作加分确认；黄色小写 b 为 2 分弱B观察，不进入回测、评分或组合交易；S 点保留原规则。盘中信号会随当日 K 线变化，不是交易指令。</p>
+              <p className="method-note">B 点须由 RSI 超卖回升或 BOLL 下轨承接锚定，含量能的总分至少 3 分。{bsVersion === "v2" ? "研究版将下跌九转从3分降为1分；留出股票的信号胜率略升，但组合表现下降，尚不能认定整体改善。" : "标准版保留原评分权重。"}量能确认表示不低于前 5 根均量，不等于显著放量。黄色小写 b 为 2 分弱B观察，不进入回测、评分或组合交易；B/S 分别去重。盘中信号随当日 K 线变化，不是交易指令。</p>
               </>
             ) : <p className="empty-note">当前周期暂无足够 K 线用于研判。</p>}
           </section>
@@ -1724,7 +1743,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <div className="news-feed" aria-live="polite">
               {visibleNews.length > 0 ? (viewMode === "basic" ? visibleNews.slice(0, 3) : visibleNews).map((item) => (
                 <NewsArticle key={`${item.url}-${item.publishedAt}`} item={item} />
-              )) : <p className="news-empty-filter">当前筛选条件下没有新闻。</p>}
+              )) : <div className="news-empty-filter"><p>当前筛选条件下没有新闻。</p><button className="retry-button" type="button" onClick={() => setNewsFilter("全部")}>查看全部新闻</button></div>}
               {viewMode === "basic" && visibleNews.length > 3 ? <button className="basic-news-more" type="button" onClick={() => setViewMode("pro")}>在专业视图查看全部 {visibleNews.length} 条</button> : null}
             </div>
           </div>
@@ -1732,8 +1751,9 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
           <div className={`news-empty-state ${newsLoad.phase === "loading" ? "is-loading" : ""}`} aria-live="polite">
             <div className="news-empty-mark">{newsLoad.phase === "loading" ? <span className="loading-spinner" /> : "NEWS"}</div>
             <div>
-              <h4>{newsLoad.phase === "loading" ? "新闻数据加载中" : "输入股票名称或代码一键获取舆情"}</h4>
-              <p>{newsLoad.phase === "loading" ? "HTTPS 新闻服务完成去重后，新闻列表与情绪统计会立即显示。" : "页面会自动调用服务端新闻接口，并展示标题、来源、摘要、情绪倾向和原文链接。"}</p>
+              <h4>{newsLoad.phase === "loading" ? "新闻数据加载中" : newsLoad.phase === "error" ? "新闻暂时无法加载" : "暂无相关股票新闻"}</h4>
+              <p>{newsLoad.phase === "loading" ? "正在汇总最新报道，完成后会自动显示。" : newsLoad.phase === "error" ? "行情与财务仍可查看，可以稍后重新获取新闻。" : "当前数据源没有提供相关报道，可以继续查看行情与财务信息。"}</p>
+              {newsLoad.phase === "error" ? <button className="retry-button" type="button" disabled={busy} onClick={() => void fetchStockData(lastAttemptedQuery || selectedCode)}>重新获取数据</button> : null}
             </div>
           </div>
         )}

@@ -180,7 +180,7 @@ test("requires an RSI or BOLL quality anchor for B points", () => {
   assert.equal(indicators.guidePoints[12], null, "nine-turn alone must not bypass the B quality gate");
 });
 
-test("requires score three for B points and lets volume confirm the threshold", () => {
+test("preserves v1 score-three rules where volume can confirm the threshold", () => {
   let seed = 1;
   let previousClose = 20;
   const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -211,10 +211,10 @@ test("requires score three for B points and lets volume confirm the threshold", 
     previousClose = close;
     return candle;
   });
-  const guides = calculateIndicators(candles).guidePoints;
+  const guides = calculateIndicators(candles, { version: "v1" }).guidePoints;
   const buys = guides.filter((guide) => guide?.type === "buy" && guide.confidence !== "watch");
   const weakBuys = guides.filter((guide) => guide?.confidence === "watch");
-  const legacyBuys = calculateIndicators(candles, { minimumBuyScore: 2, volumeConfirmationCanQualify: false }).guidePoints.filter((guide) => guide?.type === "buy" && guide.confidence !== "watch");
+  const legacyBuys = calculateIndicators(candles, { version: "v1", minimumBuyScore: 2, volumeConfirmationCanQualify: false }).guidePoints.filter((guide) => guide?.type === "buy" && guide.confidence !== "watch");
 
   assert.ok(buys.length > 0);
   assert.ok(legacyBuys.length >= buys.length);

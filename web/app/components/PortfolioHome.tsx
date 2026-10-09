@@ -26,9 +26,11 @@ import {
 } from "../lib/holdings";
 import type { GlobalIndexFeed } from "../lib/globalIndexes";
 import type { RealtimeSnapshot } from "../lib/realtimeMarket";
+import { createPortfolioRealtimePoller } from "../lib/portfolioRealtimePoller";
 import { backtestGuideSignals, calculateRiskMetrics } from "../lib/research";
 import { buildStockScore, type StockScoreReport } from "../lib/stockScore";
 import {
+  buildPortfolioStocks,
   calculatePortfolioTotals,
   convertPortfolioTotalsToCny,
   parseWatchlist,
@@ -191,6 +193,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const { appearance, toggleAppearance } = useAppearance();
   const [watchlist, setWatchlist] = useState<WatchlistStock[]>([]);
   const [holdings, setHoldings] = useState<StockHoldings>({});
+  const portfolioStocks = useMemo(() => buildPortfolioStocks(watchlist, holdings), [watchlist, holdings]);
   const [quotes, setQuotes] = useState<Record<string, PortfolioQuote>>({});
   const [hydrated, setHydrated] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -202,7 +205,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   const [globalFeed, setGlobalFeed] = useState<GlobalFeedState>({ status: "loading", data: null, error: "" });
   const [fxPreference, setFxPreference] = useState<FxPreference>({ enabled: true, usdCny: "7.20", updatedAt: "" });
   const [mobileChapter, setMobileChapter] = useState<"overview" | "decisions" | "watchlist">("overview");
-  const realtimeRequestRef = useRef<AbortController | null>(null);
+  const [realtimePoller] = useState(() => createPortfolioRealtimePoller());
   const globalRequestRef = useRef<AbortController | null>(null);
   const holdingsFileRef = useRef<HTMLInputElement | null>(null);
   const positionModalRef = useRef<HTMLFormElement | null>(null);
@@ -491,58 +494,46 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   }, [loadNews]);
 
   const refreshRealtimeQuotes = useCallback(async () => {
-    if (!watchlist.length || document.hidden) return;
-    realtimeRequestRef.current?.abort();
-    const controller = new AbortController();
-    realtimeRequestRef.current = controller;
-    const results = await Promise.allSettled(watchlist.map(async (stock) => {
-      const response = await fetch(marketOf(stock) === "US" ? "/api/us-stock-realtime" : "/api/realtime-market", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: stock.code }),
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      const body = await response.json() as RealtimeSnapshot | { error?: unknown };
-      if (!response.ok) throw new Error(String((body as { error?: unknown }).error || "实时行情获取失败"));
-      return body as RealtimeSnapshot;
-    }));
-    if (controller.signal.aborted) return;
-    setQuotes((current) => {
-      const next = { ...current };
-      results.forEach((result, index) => {
-        const stock = watchlist[index];
+    if (!portfolioStocks.length || document.hidden) return;
+    await realtimePoller.refresh(portfolioStocks, {
+      onQuote: (stock, realtime) => {
         const key = stockStorageKey(stock);
-        const previous = current[key] ?? emptyQuote;
-        if (result.status === "rejected") {
-          if (previous.status === "ready") next[key] = { ...previous, error: "本次实时刷新暂不可用" };
-          return;
-        }
-        const realtime = result.value;
-        next[key] = {
-          ...previous,
-          status: "ready",
-          partial: previous.candles.length === 0,
-          price: realtime.price,
-          previousClose: realtime.previousClose,
-          change: realtime.change,
-          changePct: realtime.changePct,
-          open: realtime.open,
-          high: realtime.high,
-          low: realtime.low,
-          volume: realtime.volume,
-          amount: realtime.amount,
-          date: realtime.date,
-          time: realtime.time,
-          marketStatus: realtime.marketStatus,
-          source: realtime.source || previous.source,
-          error: "",
-        };
-      });
-      return next;
+        setQuotes((current) => {
+          const previous = current[key] ?? emptyQuote;
+          return {
+            ...current,
+            [key]: {
+              ...previous,
+              status: "ready",
+              partial: previous.candles.length === 0,
+              price: realtime.price,
+              previousClose: realtime.previousClose,
+              change: realtime.change,
+              changePct: realtime.changePct,
+              open: realtime.open,
+              high: realtime.high,
+              low: realtime.low,
+              volume: realtime.volume,
+              amount: realtime.amount,
+              date: realtime.date,
+              time: realtime.time,
+              marketStatus: realtime.marketStatus,
+              source: realtime.source || previous.source,
+              error: "",
+            },
+          };
+        });
+        setLastRealtimeRefresh(new Date().toISOString());
+      },
+      onError: (stock) => {
+        const key = stockStorageKey(stock);
+        setQuotes((current) => current[key]?.status === "ready" ? {
+          ...current,
+          [key]: { ...current[key], error: "本次实时刷新暂不可用" },
+        } : current);
+      },
     });
-    setLastRealtimeRefresh(new Date().toISOString());
-  }, [watchlist]);
+  }, [realtimePoller, portfolioStocks]);
 
   const loadGlobalFeed = useCallback(async (silent = false) => {
     if (document.hidden) return;
@@ -563,28 +554,28 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   }, []);
 
   useEffect(() => {
-    if (!hydrated || watchlist.length === 0) return;
+    if (!hydrated || portfolioStocks.length === 0) return;
     const controller = new AbortController();
     const loadInBatches = async () => {
-      for (let index = 0; index < watchlist.length && !controller.signal.aborted; index += 4) {
-        await Promise.allSettled(watchlist.slice(index, index + 4).map((stock) => loadQuote(stock, controller.signal)));
+      for (let index = 0; index < portfolioStocks.length && !controller.signal.aborted; index += 4) {
+        await Promise.allSettled(portfolioStocks.slice(index, index + 4).map((stock) => loadQuote(stock, controller.signal)));
       }
     };
     void loadInBatches();
     return () => controller.abort();
-  }, [hydrated, loadQuote, refreshVersion, watchlist]);
+  }, [hydrated, loadQuote, refreshVersion, portfolioStocks]);
 
   useEffect(() => {
-    if (!hydrated || watchlist.length === 0) return;
+    if (!hydrated || portfolioStocks.length === 0) return;
     const timer = window.setInterval(() => void refreshRealtimeQuotes(), 5_000);
     const refreshWhenVisible = () => { if (!document.hidden) void refreshRealtimeQuotes(); };
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
-      realtimeRequestRef.current?.abort();
+      realtimePoller.abort();
     };
-  }, [hydrated, refreshRealtimeQuotes, watchlist.length]);
+  }, [hydrated, realtimePoller, refreshRealtimeQuotes, portfolioStocks.length]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -640,13 +631,17 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     const key = stockStorageKey(stock);
     const index = watchlist.findIndex((item) => stockStorageKey(item) === key);
     setWatchlist((current) => current.filter((item) => stockStorageKey(item) !== key));
-    setQuotes((current) => {
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
+    if (holdings[key]) {
+      setHoldings((current) => current[key] ? { ...current, [key]: { ...current[key], name: stock.name } } : current);
+    } else {
+      setQuotes((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }
     setRemovedStock({ stock, index: Math.max(0, index) });
-    setNotice(`已从自选股移除 ${stock.name}。`);
+    setNotice(`已从自选股移除 ${stock.name}。${holdings[key] ? "持仓仍保留在组合中。" : ""}`);
   };
 
   const undoRemove = () => {
@@ -684,6 +679,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
     }
     const holding: StockHolding = {
       code: editor.stock.code,
+      name: editor.stock.name,
       ...(marketOf(editor.stock) === "US" ? { market: "US" as const, currency: "USD" as const } : {}),
       shares,
       cost,
@@ -696,11 +692,19 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
 
   const clearPosition = () => {
     if (!editor) return;
+    const key = stockStorageKey(editor.stock);
     setHoldings((current) => {
       const next = { ...current };
-      delete next[stockStorageKey(editor.stock)];
+      delete next[key];
       return next;
     });
+    if (!watchlist.some((stock) => stockStorageKey(stock) === key)) {
+      setQuotes((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }
     setNotice(`${editor.stock.name} 的持仓信息已清空。`);
     setEditor(null);
   };
@@ -734,21 +738,22 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
   };
 
   const sortedWatchlist = useMemo(
-    () => sortPortfolioWatchlist(watchlist, holdings, quotes, sortBy),
-    [holdings, quotes, sortBy, watchlist],
+    () => sortPortfolioWatchlist(portfolioStocks, holdings, quotes, sortBy),
+    [holdings, quotes, sortBy, portfolioStocks],
   );
 
   const totals = useMemo(() => calculatePortfolioTotals(
-    watchlist,
+    portfolioStocks,
     holdings,
     Object.fromEntries(Object.entries(quotes).map(([code, quote]) => [code, { price: quote.price, change: quote.change }])),
-  ), [holdings, quotes, watchlist]);
+  ), [holdings, quotes, portfolioStocks]);
   const portfolioInsights = useMemo(
-    () => buildPortfolioInsights(watchlist, holdings, quotes),
-    [holdings, quotes, watchlist],
+    () => buildPortfolioInsights(portfolioStocks, holdings, quotes),
+    [holdings, quotes, portfolioStocks],
   );
 
-  const loadingCount = Object.values(quotes).filter((quote) => quote.status === "loading").length;
+  const loadingCount = portfolioStocks.filter((stock) => quotes[stockStorageKey(stock)]?.status === "loading").length;
+  const readyCount = portfolioStocks.filter((stock) => quotes[stockStorageKey(stock)]?.status === "ready").length;
   const latestUpdate = portfolioInsights.latestUpdate;
 
   return (
@@ -763,26 +768,47 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
       />
 
       <div className={styles.content} id="portfolio-top">
-        <h1 className={styles.srOnly}>我的投资组合与市场观察</h1>
+        <header className={styles.workspaceHeading}>
+          <div>
+            <p>MY WORKSPACE</p>
+            <h1>我的自选与市场观察</h1>
+          </div>
+          <span>先核验数据，再判断机会</span>
+        </header>
+        <nav className={styles.sectionShortcuts} aria-label="投资组合章节快捷导航">
+          <a href="#portfolio-overview">收益概览</a>
+          <a href="#portfolio-decisions">决策工作台</a>
+          <a href="#watchlist">自选与持仓 <span>{portfolioStocks.length}</span></a>
+        </nav>
         <nav className="platform-mobile-section-nav" aria-label="投资组合信息分组">
           <button type="button" aria-pressed={mobileChapter === "overview"} onClick={() => setMobileChapter("overview")}>组合概览</button>
           <button type="button" aria-pressed={mobileChapter === "decisions"} onClick={() => setMobileChapter("decisions")}>决策工作台</button>
           <button type="button" aria-pressed={mobileChapter === "watchlist"} onClick={() => setMobileChapter("watchlist")}>自选与持仓</button>
         </nav>
 
-        <div className="platform-mobile-chapter" data-active={mobileChapter === "overview"}>
+        {hydrated && portfolioStocks.length === 0 ? (
+          <section className={styles.getStarted} aria-labelledby="portfolio-get-started">
+            <div>
+              <h2 id="portfolio-get-started">从一只关注的股票开始</h2>
+              <p>搜索名称或代码，查看行情并加入自选。支持沪深 A 股与美股。</p>
+            </div>
+            <button type="button" onClick={() => document.getElementById("site-stock-search-portfolio")?.focus({ preventScroll: true })}>搜索第一只股票 <span aria-hidden="true">↗</span></button>
+          </section>
+        ) : null}
+
+        <div className={`${styles.chapterAnchor} platform-mobile-chapter`} data-active={mobileChapter === "overview"} id="portfolio-overview" tabIndex={-1}>
           <FxConversionPanel
             totals={totals}
             preference={fxPreference}
             latestUpdate={latestUpdate}
-            readyCount={Object.values(quotes).filter((quote) => quote.status === "ready").length}
+            readyCount={readyCount}
             onChange={setFxPreference}
           />
         </div>
 
-        <div className="platform-mobile-chapter" data-active={mobileChapter === "decisions"}>
+        <div className={`${styles.chapterAnchor} platform-mobile-chapter`} data-active={mobileChapter === "decisions"} id="portfolio-decisions" tabIndex={-1}>
           <PortfolioWorkbenchSummary
-            watchlist={watchlist}
+            watchlist={portfolioStocks}
             holdings={holdings}
             quotes={quotes}
             onOpenStock={onOpenStock}
@@ -797,12 +823,12 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
           <GlobalMarketPulse feed={globalFeed} onRetry={() => void loadGlobalFeed()} />
         </div>
 
-        <section className={`${styles.watchlistCard} platform-mobile-visibility`} data-active={mobileChapter === "watchlist"} id="watchlist">
+        <section className={`${styles.watchlistCard} ${styles.chapterAnchor} platform-mobile-visibility`} data-active={mobileChapter === "watchlist"} id="watchlist" tabIndex={-1}>
           <header className={styles.listHeader}>
             <div>
               <p>PORTFOLIO</p>
               <h2>我的自选股</h2>
-              <span>{watchlist.length ? `${watchlist.length} 只股票 · 明日预测按行情切片计算 · 价格每 5 秒刷新` : "收藏股票后，预测结论、行情与持仓收益会集中显示在这里"}</span>
+              <span>{portfolioStocks.length ? `${portfolioStocks.length} 只股票 · 明日预测按行情切片计算 · 价格每 5 秒刷新` : "收藏股票后，预测结论、行情与持仓收益会集中显示在这里"}</span>
             </div>
             <div className={styles.listActions}>
               <label>排序
@@ -817,13 +843,13 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
               <input ref={holdingsFileRef} className={styles.srOnly} type="file" accept=".csv,text/csv" aria-label="导入持仓 CSV" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importPositions(file); }} />
               <button type="button" onClick={() => holdingsFileRef.current?.click()} title="导入持仓 CSV"><ImportIcon />导入持仓</button>
               <button type="button" onClick={exportPositions} title="导出可编辑的持仓 CSV"><ExportIcon />导出持仓</button>
-              <button type="button" onClick={() => setRefreshVersion((value) => value + 1)} disabled={!watchlist.length || loadingCount > 0}>
+              <button type="button" onClick={() => setRefreshVersion((value) => value + 1)} disabled={!portfolioStocks.length || loadingCount > 0}>
                 <RefreshIcon />{loadingCount ? "更新中" : "刷新行情"}
               </button>
             </div>
           </header>
 
-          {watchlist.length ? (
+          {portfolioStocks.length ? (
             <div className={styles.tableViewport}>
               <div className={styles.columnHeader} aria-hidden="true">
                 <span>股票</span><span>明日预测结论</span><span>最新价 / 涨跌</span><span>资金净流（本币）</span><span>持仓收益</span><span>持仓 / 市值</span><span>近 60 日趋势</span><span>今日行情</span><span>操作</span>
@@ -937,6 +963,7 @@ function FxConversionPanel({
   readyCount: number;
   onChange: (value: FxPreference) => void;
 }) {
+  const [returnMarket, setReturnMarket] = useState("TOTAL");
   const rate = Number(preference.usdCny);
   const validRate = Number.isFinite(rate) && rate > 0 && rate < 20;
   const converted = convertPortfolioTotalsToCny(totals.byCurrency, rate);
@@ -964,7 +991,7 @@ function FxConversionPanel({
         </div>
         <div className={styles.returnsHeaderMeta}>
           <span>{totals.positioned} 只持仓</span>
-          <span>{totals.tracked} 只自选</span>
+          <span>{totals.tracked} 只跟踪</span>
           <span>{readyCount} 只行情就绪</span>
         </div>
         <label className={`${styles.fxRateField} ${validRate ? "" : styles.fxRateInvalid}`}>
@@ -974,9 +1001,14 @@ function FxConversionPanel({
         </label>
       </header>
 
+      <nav className={styles.returnMarketSwitch} aria-label="收益汇总币种">
+        {[["TOTAL", "人民币总计"], ["CNY", "A 股"], ["USD", "美股"]].map(([key, label]) => (
+          <button key={key} type="button" aria-pressed={returnMarket === key} onClick={() => setReturnMarket(key)}>{label}</button>
+        ))}
+      </nav>
       <div className={styles.returnsMarkets}>
         {marketCards.map((market) => (
-          <article className={styles.marketReturnCard} key={market.key}>
+          <article className={styles.marketReturnCard} key={market.key} data-active={returnMarket === market.key}>
             <header>
               <span className={`${styles.marketBadge} ${market.currency === "USD" ? styles.marketBadgeUsd : styles.marketBadgeCny}`}>{market.badge}</span>
               <div><h3>{market.title}</h3><small>{market.subtitle}</small></div>
@@ -994,7 +1026,7 @@ function FxConversionPanel({
           </article>
         ))}
 
-        <article className={`${styles.marketReturnCard} ${styles.totalReturnCard}`}>
+        <article className={`${styles.marketReturnCard} ${styles.totalReturnCard}`} data-active={returnMarket === "TOTAL"}>
           <header>
             <span className={`${styles.marketBadge} ${styles.totalBadge}`}>¥</span>
             <div><h3>人民币总计</h3><small>A 股 + 美股折算</small></div>

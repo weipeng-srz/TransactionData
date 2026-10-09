@@ -39,7 +39,7 @@ export async function fetchRemoteMarketCsv(request: RemoteMarketRequest): Promis
   const [rows, name, factors, marketProfile] = await Promise.all([
     fetchKlines(symbol, request.days),
     resolveName(request.code, request.kind),
-    request.kind === "stock" ? fetchFactors(symbol).catch(() => [] as FactorEvent[]) : Promise.resolve([] as FactorEvent[]),
+    request.kind === "stock" ? fetchFactors(symbol) : Promise.resolve([] as FactorEvent[]),
     request.kind === "stock" ? fetchMarketProfile(symbol, request.code).catch(() => null) : Promise.resolve(null),
   ]);
   if (!rows.length) throw new Error("行情服务没有返回可用的历史数据");
@@ -148,12 +148,16 @@ async function fetchFactors(symbol: string): Promise<FactorEvent[]> {
   const body = await safeFetchText(endpoint, "https://finance.sina.com.cn/");
   const start = body.indexOf("{");
   const end = body.lastIndexOf("}");
-  if (start < 0 || end <= start) return [];
+  if (start < 0 || end <= start) throw new Error("前复权因子服务返回了异常内容，无法确认价格口径");
   const payload = JSON.parse(body.slice(start, end + 1)) as { data?: Array<{ d?: unknown; f?: unknown }> };
-  return (Array.isArray(payload.data) ? payload.data : []).flatMap((item) => {
-    const date = String(item.d ?? "");
-    const factor = finiteNumber(item.f);
-    return /^\d{4}-\d{2}-\d{2}$/.test(date) && factor != null && factor > 0 ? [{ date, factor }] : [];
+  if (!Array.isArray(payload.data)) throw new Error("前复权因子服务缺少数据，无法确认价格口径");
+  return payload.data.map((item) => {
+    const date = String(item?.d ?? "");
+    const factor = finiteNumber(item?.f);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || factor == null || factor <= 0) {
+      throw new Error("前复权因子数据不完整，无法确认价格口径");
+    }
+    return { date, factor };
   }).sort((left, right) => right.date.localeCompare(left.date));
 }
 

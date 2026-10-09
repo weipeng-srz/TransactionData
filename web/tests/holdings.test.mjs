@@ -37,7 +37,7 @@ test("exports a user-editable holdings CSV and imports it without embedded defau
   const imported = parseHoldingsCsv(csv, "2026-08-12T11:00:00.000Z");
   assert.deepEqual(imported.stocks, [{ code: "000001", name: "平安银行" }]);
   assert.deepEqual(imported.holdings["000001"], {
-    code: "000001", shares: 1000, cost: 10.25, updatedAt: "2026-08-12T11:00:00.000Z",
+    code: "000001", name: "平安银行", shares: 1000, cost: 10.25, updatedAt: "2026-08-12T11:00:00.000Z",
   });
 });
 

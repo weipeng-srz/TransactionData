@@ -56,12 +56,14 @@ test("returns a unified cross-market search error without hiding upstream outage
   assert.equal(publicStockLookupError([new Error("没有找到沪深 A 股")]).message, stockNotFoundMessage);
   assert.equal(publicStockLookupError([new Error("Failed to fetch")]).message, stockLookupUnavailableMessage);
   assert.match(bannerSource, /publicStockLookupError\(\[cnReason, usReason\]\)/);
-  assert.doesNotMatch(bannerSource, /throw cnReason/);
+  assert.match(bannerSource, /if \(signal\?\.aborted\) throw cnReason;/);
+  const activeRequestSource = bannerSource.replace(/if \(signal\?\.aborted\) throw cnReason;/g, "");
+  assert.doesNotMatch(activeRequestSource, /throw cnReason/, "only canceled requests may bypass public error mapping");
 });
 
 test("keeps a single page heading on loaded stock and global routes", () => {
   assert.match(pageSource, /<h1>\{selectedName \|\| selectedCode\}<\/h1>/);
-  assert.match(globalSource, /<h1 className="sr-only">全球市场<\/h1>/);
+  assert.match(globalSource, /<h1>全球市场<\/h1>/);
   assert.match(pageSource, /document\.title = `\$\{selectedName[\s\S]*?\$\{selectedCode\} · TrendSight`/);
   assert.match(globalSource, /document\.title = "全球市场 · TrendSight"/);
 });

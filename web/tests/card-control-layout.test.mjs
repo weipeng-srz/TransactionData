@@ -13,7 +13,7 @@ const backtestStyles = read("../app/components/SignalBacktestCard.module.css");
 
 test("keeps mobile banner controls inside a container sized for 44px touch targets", () => {
   const mobile = bannerStyles.slice(bannerStyles.indexOf("@media (max-width: 820px)"));
-  assert.match(mobile, /grid-template-rows: 48px;/);
+  assert.match(mobile, /grid-template-rows: 48px 48px;/);
   assert.match(mobile, /\.searchField \{[\s\S]*?height: 48px;[\s\S]*?min-height: 48px;/);
   assert.match(mobile, /\.searchField > button\[type="submit"\] \{[^}]*min-height: 44px;/);
   assert.match(mobile, /\.navigation a \{[^}]*min-height: 44px;/);

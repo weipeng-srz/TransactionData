@@ -47,7 +47,7 @@ function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "C
           <Metric label={`相对${benchmarkName}`} value={formatPercent(primary.averageExcessReturn)} tone={primary.averageExcessReturn} />
         </div>
       ) : null}
-      <p className="method-note">{backtest.executionModel}；输入的 {backtest.roundTripCostPct.toFixed(2)}% 为回测单次往返交易摩擦百分比基础值，流动性模型会在其上估算手续费、税费与滑点合计假设，并跳过无量{market === "CN" ? "或按板块与历史日期识别的单边涨跌停开盘" : "开盘"}样本。价格口径：{priceBasis || "未明确复权，需核对分红送转影响"}。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
+      <p className="method-note">{backtest.executionModel}；输入的 {backtest.roundTripCostPct.toFixed(2)}% 为回测单次往返交易摩擦百分比基础值，流动性模型会在其上估算手续费、税费与滑点合计假设，并跳过无量{market === "CN" ? "或按板块与历史日期识别的单边涨跌停开盘" : "开盘"}入场。主观察期 B 样本中，{primary?.delayedExits ?? 0} 笔延迟退出、{primary?.pendingExits ?? 0} 笔尚未退出；未退出不计入已完成胜率。价格口径：{priceBasis || "未明确复权，需核对分红送转影响"}。胜率区间使用 Wilson 95% 估计；重叠持有期使样本相关，区间可能偏窄，信号序列回撤不等于资金曲线回撤；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
     </section>
   );
 }

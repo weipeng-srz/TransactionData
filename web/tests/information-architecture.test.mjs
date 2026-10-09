@@ -62,7 +62,7 @@ test("screener keeps the full desktop table and batches only mobile candidate ca
 });
 
 test("screener keeps the decision path compact and progressively reveals secondary controls", () => {
-  assert.match(screenerSource, /<h1 className="sr-only">智能选股<\/h1>/);
+  assert.match(screenerSource, /<h1>智能选股<\/h1>/);
   assert.doesNotMatch(screenerSource, /<h1 id="screener-title">/);
   assert.match(screenerSource, /className=\{styles\.commandBar\}[\s\S]*aria-label="智能选股视图与行情操作"/);
   assert.match(screenerSource, /<details className=\{styles\.informationDisclosure\}>[\s\S]*数据覆盖与模型审计/);

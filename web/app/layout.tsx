@@ -6,6 +6,7 @@ import { appearanceBootstrapScript } from "./lib/appearance";
 import "./globals.css";
 import "./apple.css";
 import "./apple-refinement.css";
+import "./experience.css";
 
 const title = "TrendSight · 市场研究工作台";
 const description = "以清晰、克制的工作区同时查看行情、风险、因子、回测、财报、估值与市场新闻。";

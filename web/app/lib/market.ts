@@ -87,9 +87,14 @@ export type GuidePoint = {
 };
 
 export type SignalGuidePolicy = {
+  /** Default stable keeps v1 weights with independent cooldown; v2 is opt-in research. */
+  version?: "v1" | "stable" | "v2";
   minimumBuyScore?: number;
   volumeConfirmationCanQualify?: boolean;
 };
+
+// Frozen pre-v2 rules for like-for-like historical comparisons.
+export const LEGACY_SIGNAL_GUIDE_POLICY: SignalGuidePolicy = { version: "v1" };
 
 export type KlineConclusion = {
   label: string;
@@ -1090,11 +1095,15 @@ function calculateGuidePoints(
   policy: SignalGuidePolicy,
 ): Array<GuidePoint | null> {
   const result: Array<GuidePoint | null> = Array(candles.length).fill(null);
+  const isV2 = policy.version === "v2";
+  const independentCooldown = policy.version !== "v1";
   const minimumBuyScore = Number.isFinite(policy.minimumBuyScore)
     ? Math.max(2, Math.round(policy.minimumBuyScore ?? 3))
     : 3;
   const volumeConfirmationCanQualify = policy.volumeConfirmationCanQualify ?? true;
   let lastSignalIndex = -10;
+  let lastBuyIndex = -10;
+  let lastSellIndex = -10;
   let lastWeakBuyIndex = -10;
   for (let index = 1; index < candles.length; index += 1) {
     const buyReasons: string[] = [];
@@ -1102,7 +1111,7 @@ function calculateGuidePoints(
     let buyScore = 0;
     let sellScore = 0;
     const nine = values.nineTurn[index];
-    if (nine?.completed && nine.direction === "buy") { buyScore += 3; buyReasons.push("下跌九转完成"); }
+    if (nine?.completed && nine.direction === "buy") { buyScore += isV2 ? 1 : 3; buyReasons.push("下跌九转完成"); }
     if (nine?.completed && nine.direction === "sell") { sellScore += 3; sellReasons.push("上涨九转完成"); }
     if (values.macdHist[index - 1] <= 0 && values.macdHist[index] > 0) { buyScore += 1; buyReasons.push("MACD翻红"); }
     if (values.macdHist[index - 1] >= 0 && values.macdHist[index] < 0) { sellScore += 1; sellReasons.push("MACD翻绿"); }
@@ -1127,18 +1136,20 @@ function calculateGuidePoints(
     const qualificationScore = buyScore + (hasVolumeConfirmation && volumeConfirmationCanQualify ? 1 : 0);
     const qualifiesBuy = qualificationScore >= minimumBuyScore && qualificationScore > sellScore && hasBuyQualityAnchor;
     const qualifiesWeakBuy = buyScore >= Math.max(2, minimumBuyScore - 1) && buyScore > sellScore && hasBuyQualityAnchor;
-    if (index - lastSignalIndex < 3) continue;
-    if (qualifiesBuy) {
+    if (!independentCooldown && index - lastSignalIndex < 3) continue;
+    if (qualifiesBuy && (!independentCooldown || index - lastBuyIndex >= 3)) {
       if (hasVolumeConfirmation) {
-        buyScore += 1;
+        if (!isV2 || volumeConfirmationCanQualify) buyScore += 1;
         buyReasons.push("量能确认");
       }
       result[index] = { type: "buy", score: buyScore, reasons: buyReasons, confidence: hasVolumeConfirmation ? "confirmed" : "standard" };
       lastSignalIndex = index;
-    } else if (sellScore >= 2 && sellScore > buyScore) {
+      lastBuyIndex = index;
+    } else if (sellScore >= 2 && sellScore > buyScore && (!independentCooldown || index - lastSellIndex >= 3)) {
       result[index] = { type: "sell", score: sellScore, reasons: sellReasons, confidence: "risk" };
       lastSignalIndex = index;
-    } else if (qualifiesWeakBuy && index - lastWeakBuyIndex >= 3) {
+      lastSellIndex = index;
+    } else if (qualifiesWeakBuy && index - lastWeakBuyIndex >= 3 && (!independentCooldown || index - lastBuyIndex >= 3)) {
       result[index] = { type: "buy", score: buyScore, reasons: [...buyReasons, "弱B观察"], confidence: "watch" };
       lastWeakBuyIndex = index;
     }

@@ -1,5 +1,5 @@
 import type { FinancialDataset } from "./financials.ts";
-import type { Candle, IndicatorSet, Timeframe } from "./market.ts";
+import type { Candle, GuidePoint, IndicatorSet, Timeframe } from "./market.ts";
 import type { NewsItem, ParsedNewsDataset } from "./news.ts";
 import type { StockMarket } from "./security.ts";
 
@@ -30,6 +30,8 @@ export type BacktestHorizon = {
   winRateLow: number | null;
   winRateHigh: number | null;
   averageCostPct?: number | null;
+  pendingExits?: number;
+  delayedExits?: number;
 };
 
 export type BacktestDirectionSummary = {
@@ -73,7 +75,69 @@ export type SignalBacktestOptions = {
   costModel?: "flat" | "liquidity";
   positionValue?: number;
   recentWindowPeriods?: number;
+  exitRule?: "fixed" | "sell-signal";
 };
+
+export function collectGuideSignals(guidePoints: Array<GuidePoint | null>): Array<{ index: number; guide: GuidePoint }> {
+  const last = { buy: -Infinity, sell: -Infinity };
+  return guidePoints.flatMap((guide, index) => {
+    if (!guide || guide.confidence === "watch" || index - last[guide.type] < 3) return [];
+    last[guide.type] = index;
+    return [{ index, guide }];
+  });
+}
+
+function previousSessionClose(candles: Candle[], index: number): number | null {
+  for (let previous = index - 1; previous >= 0; previous -= 1) {
+    if (candles[previous].date !== candles[index].date) return candles[previous].close;
+  }
+  return null;
+}
+
+export function isGuideEntryTradable(candles: Candle[], index: number, direction: "buy" | "sell", options: SignalBacktestOptions = {}): boolean {
+  const entry = candles[index];
+  if (!entry || !Number.isFinite(entry.open) || entry.open <= 0 || !(entry.volume > 0)) return false;
+  const previousClose = previousSessionClose(candles, index);
+  const limit = resolveBacktestPriceLimitPct(options, entry.date);
+  if (limit == null || previousClose == null || previousClose <= 0) return true;
+  const gap = (entry.open / previousClose - 1) * 100;
+  return direction === "buy" ? gap < limit : gap > -limit;
+}
+
+// A blocked exit remains a position; it is never silently removed as a losing sample.
+// Daily-bar limit checks deliberately assume no fill at the adverse price limit.
+export function resolveGuideExit(
+  candles: Candle[], signalIndex: number, horizon: number, direction: "buy" | "sell",
+  options: SignalBacktestOptions = {}, guidePoints: Array<GuidePoint | null> = [],
+): { index: number; price: number; execution: "open" | "close"; plannedIndex: number; delayed: boolean } | null {
+  const entry = candles[signalIndex + 1];
+  if (!entry) return null;
+  let plannedIndex = signalIndex + horizon;
+  let execution: "open" | "close" = "close";
+  if (options.exitRule === "sell-signal" && direction === "buy") {
+    for (let index = signalIndex + 1; index < Math.min(plannedIndex, candles.length - 1); index += 1) {
+      if (guidePoints[index]?.type === "sell") {
+        plannedIndex = index + 1;
+        execution = "open";
+        break;
+      }
+    }
+  }
+  for (let index = plannedIndex; index < candles.length; index += 1) {
+    const candle = candles[index];
+    if (options.market !== "US" && candle.date <= entry.date) continue;
+    const price = candle[execution];
+    if (!(candle.volume > 0) || !Number.isFinite(price) || price <= 0) continue;
+    const previousClose = previousSessionClose(candles, index);
+    const limit = resolveBacktestPriceLimitPct(options, candle.date);
+    if (limit != null && previousClose != null && previousClose > 0) {
+      const move = (price / previousClose - 1) * 100;
+      if ((direction === "buy" && move <= -limit) || (direction === "sell" && move >= limit)) continue;
+    }
+    return { index, price, execution, plannedIndex, delayed: index > plannedIndex };
+  }
+  return null;
+}
 
 export type RiskMetrics = {
   samples: number;
@@ -128,43 +192,39 @@ export function backtestGuideSignals(
   const normalizedPeriods = [...new Set(periods)]
     .filter((value) => Number.isInteger(value) && value > 0)
     .sort((left, right) => left - right);
-  const signals: Array<{ index: number; direction: "buy" | "sell" }> = [];
-  let previous: { index: number; direction: "buy" | "sell" } | null = null;
-  indicators.guidePoints.forEach((guide, index) => {
-    if (!guide || guide.confidence === "watch") return;
-    if (previous && previous.direction === guide.type && index - previous.index <= 3) return;
-    const signal = { index, direction: guide.type };
-    signals.push(signal);
-    previous = signal;
-  });
+  const signals = collectGuideSignals(indicators.guidePoints).map(({ index, guide }) => ({ index, direction: guide.type }));
 
   const skippedSignalIndexes = new Set<number>();
   const calculateHorizons = (
     selectedSignals: Array<{ index: number; direction: "buy" | "sell" }>,
     fromIndex = 0,
   ): BacktestHorizon[] => normalizedPeriods.map((horizon): BacktestHorizon => {
+      let pendingExits = 0;
+      let delayedExits = 0;
       const outcomes = selectedSignals.flatMap((signal) => {
         if (signal.index < fromIndex) return [];
-        const target = candles[signal.index + horizon];
         const signalCandle = candles[signal.index];
         const entry = candles[signal.index + 1];
-        if (!signalCandle || !entry || !target || entry.open <= 0 || entry.volume <= 0) {
+        if (!signalCandle || !entry || !isGuideEntryTradable(candles, signal.index + 1, signal.direction, options)) {
           skippedSignalIndexes.add(signal.index);
           return [];
         }
-        const gapPct = signalCandle.close > 0 ? ((entry.open / signalCandle.close) - 1) * 100 : 0;
-        const limitUpDownPct = resolveBacktestPriceLimitPct(options, entry.date);
-        if (limitUpDownPct != null && ((signal.direction === "buy" && gapPct >= limitUpDownPct) || (signal.direction === "sell" && gapPct <= -limitUpDownPct))) {
-          skippedSignalIndexes.add(signal.index);
+        const exit = resolveGuideExit(candles, signal.index, horizon, signal.direction, options, indicators.guidePoints);
+        if (!exit) {
+          pendingExits += 1;
           return [];
         }
+        if (exit.delayed) delayedExits += 1;
+        const target = candles[exit.index];
         const direction = signal.direction === "buy" ? 1 : -1;
-        const grossReturn = ((target.close / entry.open) - 1) * 100 * direction;
+        const grossReturn = ((exit.price / entry.open) - 1) * 100 * direction;
         const tradeCostPct = costModel === "liquidity"
-          ? estimateLiquidityRoundTripCostPct(entry, positionValue, roundTripCostPct)
+          ? estimateLiquidityRoundTripCostPct(signalCandle, positionValue, roundTripCostPct)
           : roundTripCostPct;
         const strategyReturn = grossReturn - tradeCostPct;
-        const path = candles.slice(signal.index + 1, signal.index + horizon + 1);
+        const path = candles.slice(signal.index + 1, exit.index + (exit.execution === "close" ? 1 : 0));
+        // For an opening exit, the rest of that day's high/low was never held.
+        if (exit.execution === "open") path.push({ ...target, high: exit.price, low: exit.price });
         const worstAdverseMove = signal.direction === "buy"
           ? Math.min(0, ...path.map((candle) => ((candle.low / entry.open) - 1) * 100))
           : Math.min(0, ...path.map((candle) => ((entry.open / candle.high) - 1) * 100));
@@ -174,7 +234,7 @@ export function backtestGuideSignals(
         const benchmarkEntry = benchmarkByDate.get(entry.date);
         const benchmarkTarget = benchmarkByDate.get(target.date);
         const benchmarkReturn = benchmarkEntry && benchmarkTarget && benchmarkEntry.open > 0
-          ? ((benchmarkTarget.close / benchmarkEntry.open) - 1) * 100 * direction
+          ? ((benchmarkTarget[exit.execution] / benchmarkEntry.open) - 1) * 100 * direction
           : null;
         return [{ strategyReturn, tradeCostPct, worstAdverseMove, bestFavorableMove, excessReturn: benchmarkReturn == null ? null : strategyReturn - benchmarkReturn }];
       });
@@ -185,6 +245,8 @@ export function backtestGuideSignals(
       const winInterval = wilsonInterval(wins, outcomes.length);
       return {
         periods: horizon,
+        pendingExits,
+        delayedExits,
         samples: outcomes.length,
         wins,
         winRate: outcomes.length ? (wins / outcomes.length) * 100 : null,
@@ -226,7 +288,7 @@ export function backtestGuideSignals(
     sellSignals: sellSignals.length,
     skippedSignals: skippedSignalIndexes.size,
     roundTripCostPct,
-    executionModel: `信号后一根K线开盘成交，固定观察期收盘退出；${costModel === "liquidity" ? "流动性分层成本" : "固定交易摩擦"}；A股按板块和日期校验涨跌停可成交性`,
+    executionModel: `信号后一根K线开盘成交，${options.exitRule === "sell-signal" ? "B持仓遇S后下一根开盘退出，最迟固定观察期收盘退出" : "固定观察期收盘退出"}；受阻退出顺延，未退出单列；${costModel === "liquidity" ? "按信号K线估算流动性成本" : "固定交易摩擦"}；A股校验T+1及涨跌停成交约束`,
     horizons,
     directions,
     recent: {
@@ -271,6 +333,7 @@ function resolveBacktestPriceLimitPct(options: SignalBacktestOptions, entryDate:
 
 function assessRecentBuyStatus(primary: BacktestHorizon | undefined): { status: BacktestRecentAssessment["status"]; label: string } {
   if (!primary || primary.samples < 8) return { status: "insufficient", label: "近期样本不足" };
+  if (primary.wins === primary.samples && (primary.averageReturn ?? 0) > 0) return { status: "active", label: "近期样本全胜，仍需验证" };
   if ((primary.averageReturn ?? 0) > 0 && (primary.profitFactor ?? 0) >= 1.1) return { status: "active", label: "近期优势有效" };
   if ((primary.averageReturn ?? 0) > 0 || (primary.profitFactor ?? 0) >= 1) return { status: "watch", label: "近期优势偏弱" };
   return { status: "weak", label: "近期优势失效" };
@@ -278,14 +341,20 @@ function assessRecentBuyStatus(primary: BacktestHorizon | undefined): { status: 
 
 export function calculateRiskMetrics(candles: Candle[], benchmark: Candle[] = [], periodsPerYear = 252): RiskMetrics {
   const returns = simpleReturns(candles);
-  const benchmarkByDate = new Map(benchmark.map((candle, index) => [candle.date, { candle, index }]));
+  const benchmarkByDate = new Map(benchmark.map((candle) => [candle.date, candle]));
+  const comparableCandles = candles.flatMap((candle) => {
+    const matchingBenchmark = benchmarkByDate.get(candle.date);
+    return matchingBenchmark && [candle.close, matchingBenchmark.close].every((value) => Number.isFinite(value) && value > 0)
+      ? [{ stock: candle, benchmark: matchingBenchmark }]
+      : [];
+  });
   const paired = candles.slice(1).flatMap((candle, index) => {
     const previous = candles[index];
     const currentBenchmark = benchmarkByDate.get(candle.date);
-    if (!previous || !currentBenchmark || currentBenchmark.index < 1) return [];
-    const previousBenchmark = benchmark[currentBenchmark.index - 1];
-    if (!previous.close || !previousBenchmark?.close) return [];
-    return [[(candle.close / previous.close) - 1, (currentBenchmark.candle.close / previousBenchmark.close) - 1] as const];
+    const previousBenchmark = previous ? benchmarkByDate.get(previous.date) : undefined;
+    if (!previous || !currentBenchmark || !previousBenchmark
+      || ![candle.close, previous.close, currentBenchmark.close, previousBenchmark.close].every((value) => Number.isFinite(value) && value > 0)) return [];
+    return [[(candle.close / previous.close) - 1, (currentBenchmark.close / previousBenchmark.close) - 1] as const];
   });
   const totalReturn = candles.length > 1 && candles[0].close > 0 ? ((candles.at(-1)!.close / candles[0].close) - 1) * 100 : null;
   const years = returns.length / periodsPerYear;
@@ -296,10 +365,16 @@ export function calculateRiskMetrics(candles: Candle[], benchmark: Candle[] = []
   const drawdowns = drawdownSeries(candles.map((candle) => candle.close));
   const sorted = [...returns].sort((left, right) => left - right);
   const tailCount = Math.max(1, Math.ceil(sorted.length * 0.05));
-  const benchmarkReturn = benchmark.length > 1 && benchmark[0].close > 0 ? ((benchmark.at(-1)!.close / benchmark[0].close) - 1) * 100 : null;
+  // Keep standalone stock risk on its full history, but compare equal date ranges.
+  const comparisonStart = comparableCandles[0];
+  const comparisonEnd = comparableCandles.at(-1);
+  const hasComparisonPeriod = comparisonStart && comparisonEnd && comparisonStart.stock.date < comparisonEnd.stock.date;
+  const comparableStockReturn = hasComparisonPeriod ? ((comparisonEnd.stock.close / comparisonStart.stock.close) - 1) * 100 : null;
+  const benchmarkReturn = hasComparisonPeriod ? ((comparisonEnd.benchmark.close / comparisonStart.benchmark.close) - 1) * 100 : null;
   const covarianceValue = covariance(paired.map((item) => item[0]), paired.map((item) => item[1]));
   const benchmarkVariance = variance(paired.map((item) => item[1]));
   const beta = covarianceValue != null && benchmarkVariance != null && benchmarkVariance > 0 ? covarianceValue / benchmarkVariance : null;
+  const pairedStockMean = paired.length ? average(paired.map((item) => item[0])) : null;
   const benchmarkMean = paired.length ? average(paired.map((item) => item[1])) : null;
   return {
     samples: returns.length,
@@ -314,9 +389,9 @@ export function calculateRiskMetrics(candles: Candle[], benchmark: Candle[] = []
     valueAtRisk95: sorted.length ? sorted[Math.max(0, tailCount - 1)] * 100 : null,
     expectedShortfall95: sorted.length ? average(sorted.slice(0, tailCount)) * 100 : null,
     benchmarkReturn,
-    excessReturn: totalReturn != null && benchmarkReturn != null ? totalReturn - benchmarkReturn : null,
+    excessReturn: comparableStockReturn != null && benchmarkReturn != null ? comparableStockReturn - benchmarkReturn : null,
     beta,
-    alphaAnnualized: beta != null && dailyMean != null && benchmarkMean != null ? (dailyMean - beta * benchmarkMean) * periodsPerYear * 100 : null,
+    alphaAnnualized: beta != null && pairedStockMean != null && benchmarkMean != null ? (pairedStockMean - beta * benchmarkMean) * periodsPerYear * 100 : null,
     correlation: paired.length > 2 ? correlation(paired.map((item) => item[0]), paired.map((item) => item[1])) : null,
   };
 }

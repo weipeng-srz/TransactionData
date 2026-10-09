@@ -57,7 +57,8 @@ test("keeps compact map values visible on mobile", () => {
 });
 
 test("keeps a touch-sized manual refresh action reachable on mobile", () => {
-  assert.match(pageSource, /className="global-mobile-refresh"[\s\S]*?disabled=\{feedState === "refreshing"\}[\s\S]*?onClick=\{\(\) => void refresh\(\)\}/);
+  assert.match(pageSource, /const loading = feedState === "loading" \|\| feedState === "refreshing"/);
+  assert.match(pageSource, /className="global-mobile-refresh"[\s\S]*?disabled=\{loading\}[\s\S]*?onClick=\{\(\) => void refresh\(\)\}/);
   assert.match(globalStyles, /\.global-mobile-refresh \{ display: none; \}/);
   assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-mobile-refresh \{[\s\S]*?min-height: 44px;[\s\S]*?width: max-content;[\s\S]*?display: flex;/);
 });
@@ -86,9 +87,10 @@ test("keeps the spot index primary and reduces extended-hours proxies to directi
   assert.match(globalStyles, /\.global-us-close-row\.is-proxy/);
 });
 
-test("uses a mobile information-layer picker and a route-specific document title", () => {
+test("uses mobile information-layer buttons and a route-specific document title", () => {
   assert.match(pageSource, /document\.title = "全球市场 · TrendSight"/);
   assert.match(pageSource, /aria-label="选择全球市场信息层"/);
+  assert.match(pageSource, /aria-pressed=\{mobileChapter === chapter\.id\}/);
   assert.match(pageSource, /useState<"overview" \| "trend" \| "map" \| "regions">\("overview"\)/);
   assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-navigation-sidebar \.global-workspace-nav \{ display: none !important; \}/);
 });

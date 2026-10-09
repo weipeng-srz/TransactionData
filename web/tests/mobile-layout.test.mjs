@@ -4,6 +4,7 @@ import test from "node:test";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
+const experienceStyles = readFileSync(new URL("../app/experience.css", import.meta.url), "utf8");
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 
@@ -18,8 +19,9 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?right: var\(--site-frame-gutter, 12px\);[\s\S]*?left: var\(--site-frame-gutter, 12px\);/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?transform: none;/);
   assert.doesNotMatch(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?translate3d\(-50%/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.mobileSpacer \{[\s\S]*?height: calc\(72px \+ env\(safe-area-inset-top\)\);[\s\S]*?display: block;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 48px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.mobileSpacer \{[\s\S]*?height: calc\(126px \+ max\(8px, env\(safe-area-inset-top\)\)\);[\s\S]*?display: block;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 48px 48px;/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.search \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?grid-row: 2;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.navigation \{[\s\S]*?height: 48px;[\s\S]*?min-height: 48px;[\s\S]*?padding: 1px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?height: 48px;[\s\S]*?min-height: 48px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \.search input \{ min-height: 44px;[\s\S]*?font-size: 16px;/);
@@ -35,8 +37,11 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
 test("keeps stock loading sources compact and replaces the overflowing bottom rail with an information-layer picker", () => {
   assert.match(appleStyles, /@media \(max-width: 620px\)[\s\S]*?\.stock-initial-sources \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
   assert.match(appleStyles, /Stable mobile compositor:[\s\S]*?backdrop-filter: none;/);
-  assert.match(pageSource, /className="mobile-section-jump"/);
+  const chapterPicker = pageSource.indexOf('className="mobile-section-jump research-section-jump"');
+  const quoteHeader = pageSource.indexOf('className="quote-head"');
+  assert.ok(quoteHeader >= 0 && chapterPicker > quoteHeader, "the mobile chapter picker follows the stock identity and quote");
   assert.match(pageSource, /aria-label="选择研究信息层"/);
+  assert.match(experienceStyles, /@media \(max-width: 820px\)[\s\S]*?\.research-page \.research-section-jump \{[\s\S]*?position: sticky;/);
   assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.app-sidebar \.workspace-nav,[\s\S]*?display: none !important;/);
   assert.match(appleStyles, /\.mobile-section-jump select \{[\s\S]*?height: 44px;/);
   assert.doesNotMatch(pageSource, /滑动 ›/);

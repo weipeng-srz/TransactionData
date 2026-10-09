@@ -4,8 +4,8 @@
   --portfolio-surface-solid: #fff;
   --portfolio-muted-surface: rgba(248, 248, 250, 0.72);
   --portfolio-text: #1d1d1f;
-  --portfolio-secondary: #6e6e73;
-  --portfolio-tertiary: #8e8e93;
+  --portfolio-secondary: #596575;
+  --portfolio-tertiary: #65707c;
   --portfolio-border: var(--platform-border-color);
   --portfolio-border-strong: var(--platform-border-strong);
   --portfolio-blue: #0071e3;
@@ -27,7 +27,7 @@
   --portfolio-muted-surface: rgba(42, 42, 45, 0.72);
   --portfolio-text: #f5f5f7;
   --portfolio-secondary: #aeaeb2;
-  --portfolio-tertiary: #85858b;
+  --portfolio-tertiary: #a1a1aa;
   --portfolio-border: var(--platform-border-color);
   --portfolio-border-strong: var(--platform-border-strong);
   --portfolio-blue: #2997ff;
@@ -227,6 +227,81 @@
   width: min(calc(100% - var(--site-frame-inset, 40px)), var(--site-frame-max, 1600px));
   margin: 0 auto;
   padding: 42px 0;
+}
+
+.workspaceHeading {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.workspaceHeading p { margin: 0 0 6px; color: var(--portfolio-blue); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.workspaceHeading h1 { margin: 0; color: var(--portfolio-text); font-size: clamp(21px, 2.2vw, 28px); font-weight: 680; letter-spacing: -.035em; line-height: 1.3; }
+.workspaceHeading > span { color: var(--portfolio-secondary); font-size: 12px; }
+
+.sectionShortcuts {
+  position: sticky;
+  top: 92px;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 5px;
+  border: 1px solid var(--portfolio-border-strong);
+  border-radius: 16px;
+  background: var(--portfolio-surface-solid);
+  box-shadow: 0 4px 18px rgba(16, 24, 40, .04);
+}
+.sectionShortcuts a {
+  min-height: 42px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 11px;
+  color: var(--portfolio-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.sectionShortcuts a:hover { color: var(--portfolio-blue); background: var(--portfolio-muted-surface); }
+.sectionShortcuts a span { min-width: 22px; padding: 2px 6px; border-radius: 6px; color: var(--portfolio-blue); background: color-mix(in srgb, var(--portfolio-blue) 9%, transparent); text-align: center; font-size: 11px; }
+.chapterAnchor { scroll-margin-top: 160px; }
+
+.getStarted {
+  margin-bottom: 20px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid color-mix(in srgb, var(--portfolio-blue) 24%, var(--portfolio-border));
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--portfolio-blue) 5%, var(--portfolio-surface-solid));
+}
+.getStarted h2 { margin: 0 0 8px; font-size: 19px; font-weight: 650; letter-spacing: -.025em; }
+.getStarted p { margin: 0; color: var(--portfolio-secondary); font-size: 13px; line-height: 1.65; }
+.getStarted button { min-height: 44px; padding: 0 18px; flex-shrink: 0; border: 0; border-radius: 12px; color: #fff; background: var(--portfolio-blue); cursor: pointer; font-size: 13px; font-weight: 600; }
+.getStarted button span { margin-left: 10px; }
+
+@media (min-width: 821px) {
+  .page .chapterAnchor { display: block; }
+}
+@media (min-width: 821px) and (max-width: 1280px) {
+  .sectionShortcuts { top: 148px; }
+  .chapterAnchor { scroll-margin-top: 216px; }
+}
+@media (max-width: 820px) {
+  .workspaceHeading { margin: 4px 3px 12px; }
+  .workspaceHeading p,
+  .workspaceHeading > span,
+  .sectionShortcuts { display: none; }
+  .workspaceHeading h1 { font-size: 21px; }
+  .getStarted { padding: 20px; align-items: stretch; flex-direction: column; gap: 16px; }
+  .getStarted h2 { font-size: 18px; }
 }
 
 .listHeader p {
@@ -1973,4 +2048,85 @@
     --portfolio-border: color-mix(in srgb, var(--portfolio-text) 42%, transparent);
     --portfolio-border-strong: color-mix(in srgb, var(--portfolio-text) 62%, transparent);
   }
+}
+
+/* Keep explanatory text readable alongside financial figures. */
+.page,
+.positionModal {
+  --portfolio-secondary: var(--apple-secondary);
+  --portfolio-tertiary: var(--apple-tertiary);
+}
+
+.returnsHeader small,
+.returnPrimary > span,
+.returnDetails dt,
+.decisionGrid p,
+.decisionGrid small,
+.listHeader > div > span,
+.emptyState p,
+.positionFields label > span,
+.positionPreview span,
+.positionPreview small {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.returnsFormula,
+.returnsFormula > small,
+.marketReturnCard > header small,
+.returnPrimary > small,
+.fxRateField > small,
+.globalMetric footer small,
+.footer {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.listActions > button,
+.listActions select { font-size: 13px; }
+.returnMarketSwitch { display: none; }
+
+@media (max-width: 820px) {
+  .returnsHeader { gap: 12px; }
+  .returnsHeader h2 { font-size: 20px; }
+  .returnMarketSwitch {
+    margin: 0 12px;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    gap: 4px;
+    border: 1px solid var(--portfolio-border);
+    border-radius: 14px;
+    background: var(--portfolio-muted-surface);
+  }
+  .returnMarketSwitch button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--portfolio-secondary);
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+  .returnMarketSwitch button[aria-pressed="true"] {
+    color: var(--portfolio-blue);
+    border-color: var(--portfolio-border);
+    background: var(--portfolio-surface-solid);
+    box-shadow: var(--apple-shadow-resting);
+  }
+  .returnsMarkets { display: block; overflow: visible; scroll-snap-type: none; }
+  .marketReturnCard,
+  .marketReturnCard:nth-child(2),
+  .totalReturnCard { width: 100%; min-width: 0; min-height: 0; }
+  .marketReturnCard[data-active="false"] { display: none; }
+  .listActions > button { width: auto; padding: 8px 4px; gap: 5px; font-size: 12px; }
+  .listActions svg { flex-shrink: 0; width: 14px; height: 14px; }
+  .fxRateField input,
+  .positionFields input,
+  .listActions select { font-size: 16px; }
 }

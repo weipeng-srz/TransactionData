@@ -63,7 +63,8 @@ function equalWeightHoldings() {
   };
 }
 
-test("puts concentration risk ahead of single-day model actions", () => {
+test("puts concentration risk ahead of single-day model actions", (context) => {
+  context.mock.method(Date, "now", () => Date.parse("2026-08-25T08:00:00.000Z"));
   const holdings = {
     "600519": { code: "600519", shares: 10, cost: 110, updatedAt: "2026-08-25T00:00:00.000Z" },
   };
@@ -79,7 +80,8 @@ test("puts concentration risk ahead of single-day model actions", () => {
   assert.ok(digest.actions[0].secondaryReasons.some((reason) => reason.includes("止损候选")));
 });
 
-test("summarizes gated model candidates, technical triggers, evidence and news", () => {
+test("summarizes gated model candidates, technical triggers, evidence and news", (context) => {
+  context.mock.method(Date, "now", () => Date.parse("2026-08-25T08:00:00.000Z"));
   const news = [{
     title: "公司收到监管问询",
     summary: "风险事件",
@@ -116,7 +118,8 @@ test("summarizes gated model candidates, technical triggers, evidence and news",
   assert.equal(digest.attentionNews[0].eventType, "监管与诉讼");
 });
 
-test("gates low-confidence actions and failed news as data review", () => {
+test("gates low-confidence actions and failed news as data review", (context) => {
+  context.mock.method(Date, "now", () => Date.parse("2026-08-25T08:00:00.000Z"));
   const quotes = {
     "600519": quote({ prediction: prediction("收紧止损", "risk", 54) }),
     "000001": quote({ score: score("buy", 78), prediction: prediction("持有观察", "positive", 74), newsStatus: "error", newsError: "消息面获取失败" }),
@@ -133,7 +136,8 @@ test("gates low-confidence actions and failed news as data review", () => {
   assert.deepEqual(digest.newsCoverage.failedKeys, ["000001"]);
 });
 
-test("gates a low-confidence hold conclusion instead of hiding it as continue observing", () => {
+test("gates a low-confidence hold conclusion instead of hiding it as continue observing", (context) => {
+  context.mock.method(Date, "now", () => Date.parse("2026-08-25T08:00:00.000Z"));
   const quotes = {
     "600519": quote({ prediction: prediction("持有观察", "neutral", 40) }),
     "000001": quote(),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import { isUSStockSymbol, marketLabel, marketOf, normalizeUSSymbol, stockRouteKey, stockStorageKey, type StockIdentity, type StockMarket } from "../lib/security";
 import { publicStockLookupError } from "../lib/stockLookupError";
@@ -36,75 +36,134 @@ export default function SiteBanner({
 }) {
   const [query, setQuery] = useState("");
   const [suggestion, setSuggestion] = useState<WatchlistStock | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [phase, setPhase] = useState<SearchPhase>("idle");
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const resultButtonRef = useRef<HTMLButtonElement | null>(null);
+  const suggestionControllerRef = useRef<AbortController | null>(null);
+  const operationRef = useRef<AbortController | null>(null);
+  const composingRef = useRef(false);
+
+  const dismissSuggestions = useCallback(() => {
+    suggestionControllerRef.current?.abort();
+    setSuggestionsOpen(false);
+    setSuggestion(null);
+    setIsSearching(false);
+  }, []);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        const modalOpen = Array.from(document.querySelectorAll<HTMLElement>('[aria-modal="true"]'))
+          .some((dialog) => dialog.getClientRects().length > 0);
+        if (event.isComposing || composingRef.current) return;
         event.preventDefault();
+        if (modalOpen) return;
         searchRef.current?.focus({ preventScroll: true });
       }
-      if (event.key === "Escape") {
-        setSuggestion(null);
+      if (event.key === "Escape" && !event.isComposing && !composingRef.current && formRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        searchRef.current?.focus({ preventScroll: true });
+        dismissSuggestions();
+        setMessage("");
+      }
+    };
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !formRef.current?.contains(event.target)) {
+        dismissSuggestions();
         setMessage("");
       }
     };
     window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, []);
+    document.addEventListener("pointerdown", handleOutsidePointer);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      document.removeEventListener("pointerdown", handleOutsidePointer);
+      operationRef.current?.abort();
+    };
+  }, [dismissSuggestions]);
 
   useEffect(() => {
     const input = query.trim();
-    if (input.length < 2 || phase !== "idle") {
-      return;
-    }
+    if ((input.length < 2 && !isUSStockSymbol(input)) || phase !== "idle" || !suggestionsOpen) return;
     const controller = new AbortController();
+    suggestionControllerRef.current = controller;
     const timer = window.setTimeout(async () => {
+      if (controller.signal.aborted) return;
+      setIsSearching(true);
       try {
         const stock = await lookupStock(input, controller.signal);
+        if (controller.signal.aborted) return;
         setSuggestion({ ...stock, addedAt: new Date().toISOString() });
-      } catch {
+        setMessage("");
+      } catch (reason) {
+        if (controller.signal.aborted) return;
         setSuggestion(null);
+        setMessage(reason instanceof Error ? reason.message : "没有找到匹配的 A 股或美股");
+        setMessageIsError(true);
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false);
       }
     }, 220);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [phase, query]);
+  }, [phase, query, suggestionsOpen]);
 
-  const resolveStock = async (value = query) => {
+  const resolveStock = async (value = query, signal?: AbortSignal) => {
     const input = value.trim();
     if (!input) throw new Error("请输入股票名称或代码");
-    if (suggestion && (suggestion.code === normalizeUSSymbol(input) || suggestion.code === input || suggestion.name === input)) return suggestion;
-    const stock = await lookupStock(input);
+    if (suggestion && (stockRouteKey(suggestion) === input || suggestion.code === normalizeUSSymbol(input) || suggestion.code === input || suggestion.name === input)) return suggestion;
+    const stock = await lookupStock(input, signal);
     return { ...stock, addedAt: new Date().toISOString() };
   };
 
   const openStock = async (value = query) => {
+    if (!value.trim() || operationRef.current) return;
+    const controller = new AbortController();
+    operationRef.current = controller;
+    searchRef.current?.focus({ preventScroll: true });
+    dismissSuggestions();
     setPhase("opening");
     setMessage("");
+    setMessageIsError(false);
     try {
-      const stock = await resolveStock(value);
-      setQuery(`${stock.name} / ${stock.code}`);
-      setSuggestion(null);
+      const stock = await resolveStock(value, controller.signal);
+      if (controller.signal.aborted) return;
+      setQuery("");
       const routeKey = stockRouteKey(stock);
       if (onOpenStock) onOpenStock(routeKey);
       else window.location.assign(`/?stock=${encodeURIComponent(routeKey)}`);
+      setMessage(`已打开 ${stock.name}。`);
     } catch (reason) {
+      if (controller.signal.aborted) return;
       setMessage(reason instanceof Error ? reason.message : "没有找到匹配的 A 股或美股");
+      setMessageIsError(true);
     } finally {
-      setPhase("idle");
+      if (!controller.signal.aborted) {
+        operationRef.current = null;
+        setPhase("idle");
+      }
     }
   };
 
   const addStock = async (value = query) => {
+    if (!value.trim() || operationRef.current) return;
+    const controller = new AbortController();
+    operationRef.current = controller;
+    searchRef.current?.focus({ preventScroll: true });
+    dismissSuggestions();
     setPhase("adding");
     setMessage("");
+    setMessageIsError(false);
     try {
-      const stock = await resolveStock(value);
+      const stock = await resolveStock(value, controller.signal);
+      if (controller.signal.aborted) return;
       let current: WatchlistStock[] = [];
       try {
         current = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
@@ -116,17 +175,25 @@ export default function SiteBanner({
       window.dispatchEvent(new CustomEvent("ticklens:watchlist-change", { detail: stock }));
       onAddStock?.(stock, existed);
       setQuery("");
-      setSuggestion(null);
       setMessage(existed ? `${stock.name} 已在自选中，并已置顶。` : `${stock.name} 已加入自选。`);
     } catch (reason) {
+      if (controller.signal.aborted) return;
       setMessage(reason instanceof Error ? reason.message : "没有找到匹配的 A 股或美股");
+      setMessageIsError(true);
     } finally {
-      setPhase("idle");
+      if (!controller.signal.aborted) {
+        operationRef.current = null;
+        setPhase("idle");
+      }
     }
   };
 
   const globalHref = currentStockCode ? `/global-markets?stock=${encodeURIComponent(stockRouteKey({ code: currentStockCode, market: currentStockMarket }))}` : "/global-markets";
   const busy = phase !== "idle";
+  const showSuggestion = suggestionsOpen && Boolean(suggestion) && !busy;
+  const resultsId = `site-stock-results-${activePage}`;
+  const statusId = `site-stock-status-${activePage}`;
+  const feedback = phase === "opening" ? "正在查找并打开股票…" : phase === "adding" ? "正在添加自选…" : isSearching ? "正在搜索…" : message;
   const openPortfolioClick = activePage === "stock" && onOpenPortfolio ? (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     onOpenPortfolio();
@@ -151,40 +218,86 @@ export default function SiteBanner({
         <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球</Link>
       </nav>
 
-      <form className={styles.search} aria-label="快速搜索股票" onSubmit={(event) => { event.preventDefault(); void openStock(); }}>
+      <form
+        ref={formRef}
+        className={styles.search}
+        aria-label="快速搜索股票"
+        aria-busy={busy}
+        onSubmit={(event) => { event.preventDefault(); if (!composingRef.current) void openStock(); }}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            dismissSuggestions();
+            setMessage("");
+          }
+        }}
+      >
         <div className={styles.searchField}>
           <span className={styles.searchIcon} aria-hidden="true">⌕</span>
           <label className={styles.srOnly} htmlFor={`site-stock-search-${activePage}`}>输入股票名称或代码</label>
           <input
             ref={searchRef}
             id={`site-stock-search-${activePage}`}
+            type="search"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-haspopup="dialog"
+            aria-expanded={showSuggestion}
+            aria-controls={showSuggestion ? resultsId : undefined}
+            aria-describedby={feedback ? statusId : undefined}
             value={query}
-            onChange={(event) => { setQuery(event.target.value); setSuggestion(null); setMessage(""); }}
+            onFocus={() => setSuggestionsOpen(true)}
+            onChange={(event) => {
+              suggestionControllerRef.current?.abort();
+              setQuery(event.target.value);
+              setSuggestionsOpen(true);
+              setSuggestion(null);
+              setIsSearching(false);
+              setMessage("");
+              setMessageIsError(false);
+            }}
+            onCompositionStart={() => { composingRef.current = true; }}
+            onCompositionEnd={() => { composingRef.current = false; }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (composingRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)) {
+                event.preventDefault();
+              }
+              if (event.key === "ArrowDown" && showSuggestion && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                resultButtonRef.current?.focus();
+              }
+            }}
             placeholder="搜索名称 / 代码"
             autoComplete="off"
+            spellCheck={false}
             maxLength={40}
-            disabled={busy}
+            readOnly={busy}
           />
-          <kbd>⌘ K</kbd>
-          <button className={styles.addButton} type="button" disabled={busy} onClick={() => void addStock()} aria-label="添加自选股">{phase === "adding" ? "添加中…" : "添加自选"}</button>
-          <button type="submit" disabled={busy}>
-            <span className={styles.desktopButtonLabel}>{phase === "opening" ? "切换中…" : "切换个股"}</span>
-            <span className={styles.mobileButtonLabel}>{phase === "opening" ? "加载" : "查看"}</span>
-          </button>
-          {suggestion ? (
-            <div className={styles.suggestion} role="group" aria-label="股票搜索结果与操作">
-              <button className={styles.suggestionIdentity} type="button" onClick={() => void openStock(stockRouteKey(suggestion))}>
-                <span className={styles.stockAvatar}>{suggestion.name.slice(0, 1)}</span>
+          {showSuggestion && suggestion ? (
+            <div id={resultsId} className={styles.suggestion} role="dialog" aria-label="股票搜索结果与操作">
+              <div className={styles.suggestionIdentity}>
+                <span className={styles.stockAvatar} aria-hidden="true">{suggestion.name.slice(0, 1)}</span>
                 <span><strong>{suggestion.name}</strong><small>{suggestion.code} · {marketLabel(marketOf(suggestion))}</small></span>
-              </button>
+              </div>
               <div className={styles.suggestionActions}>
-                <button type="button" onClick={() => void openStock(stockRouteKey(suggestion))}>切换个股</button>
-                <button type="button" onClick={() => void addStock(stockRouteKey(suggestion))}>＋ 添加自选</button>
+                <button ref={resultButtonRef} type="button" disabled={busy} onClick={() => void openStock(stockRouteKey(suggestion))}>查看个股</button>
+                <button type="button" disabled={busy} onClick={() => void addStock(stockRouteKey(suggestion))}>＋ 添加自选</button>
               </div>
             </div>
           ) : null}
+          <kbd aria-hidden="true">⌘ K</kbd>
+          <button className={styles.addButton} type="button" disabled={busy || !query.trim()} onClick={() => void addStock()} aria-label="添加自选股">{phase === "adding" ? "添加中…" : "添加自选"}</button>
+          <button type="submit" disabled={busy || !query.trim()}>
+            <span className={styles.desktopButtonLabel}>{phase === "opening" ? "打开中…" : "切换个股"}</span>
+            <span className={styles.mobileButtonLabel}>{phase === "opening" ? "加载" : "查看"}</span>
+          </button>
         </div>
-        {message ? <p className={styles.searchMessage} role="status">{message}</p> : null}
+        <p
+          id={statusId}
+          className={feedback ? `${styles.searchMessage} ${messageIsError && !busy && !isSearching ? styles.searchError : ""}` : styles.srOnly}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >{feedback}</p>
       </form>
 
       <div className={styles.bannerActions}>
@@ -218,11 +331,18 @@ async function lookupStock(query: string, signal?: AbortSignal): Promise<StockId
     return { code, name, market, currency: market === "US" ? "USD" : "CNY" };
   };
   if (queryLooksUS) {
-    try { return await request("/api/us-stock-lookup"); } catch (reason) { throw publicStockLookupError([reason]); }
+    try { return await request("/api/us-stock-lookup"); } catch (reason) {
+      if (signal?.aborted) throw reason;
+      throw publicStockLookupError([reason]);
+    }
   }
   try {
     return await request("/api/local-stock-lookup");
   } catch (cnReason) {
-    try { return await request("/api/us-stock-lookup"); } catch (usReason) { throw publicStockLookupError([cnReason, usReason]); }
+    if (signal?.aborted) throw cnReason;
+    try { return await request("/api/us-stock-lookup"); } catch (usReason) {
+      if (signal?.aborted) throw usReason;
+      throw publicStockLookupError([cnReason, usReason]);
+    }
   }
 }

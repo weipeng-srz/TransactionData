@@ -94,6 +94,57 @@ test("calculates portfolio-style risk and benchmark-relative metrics", () => {
   assert.ok(risk.beta != null);
 });
 
+function riskSeries(prices) {
+  return prices.map(([date, close]) => ({ ...candles[0], key: date, date, close }));
+}
+
+test("compares stock and benchmark returns over their common dates", () => {
+  const stock = riskSeries([["2024-01-03", 100], ["2024-01-04", 110], ["2024-01-05", 121]]);
+  const benchmark = riskSeries([["2024-01-01", 50], ["2024-01-02", 80], ["2024-01-03", 100], ["2024-01-04", 110], ["2024-01-05", 121], ["2024-01-06", 150]]);
+  const risk = calculateRiskMetrics(stock, benchmark);
+  assert.ok(Math.abs(risk.totalReturn - 21) < 1e-9);
+  assert.ok(Math.abs(risk.benchmarkReturn - 21) < 1e-9);
+  assert.ok(Math.abs(risk.excessReturn) < 1e-9);
+});
+
+test("uses matched stock returns for excess return and alpha when the benchmark is shorter", () => {
+  const stock = riskSeries([["2024-01-01", 50], ["2024-01-02", 100], ["2024-01-03", 110], ["2024-01-04", 104.5], ["2024-01-05", 125.4], ["2024-01-06", 150]]);
+  const risk = calculateRiskMetrics(stock, stock.slice(1, -1));
+  assert.equal(risk.totalReturn, 200, "standalone stock return keeps the full history");
+  assert.ok(Math.abs(risk.benchmarkReturn - 25.4) < 1e-9);
+  assert.ok(Math.abs(risk.excessReturn) < 1e-9);
+  assert.ok(Math.abs(risk.beta - 1) < 1e-9);
+  assert.ok(Math.abs(risk.alphaAnnualized) < 1e-9);
+  assert.ok(Math.abs(risk.correlation - 1) < 1e-9);
+});
+
+test("returns unavailable relative metrics when there is no shared period", () => {
+  const stock = riskSeries([["2024-01-03", 100], ["2024-01-04", 110]]);
+  for (const benchmark of [[], riskSeries([["2024-01-01", 10], ["2024-01-02", 20]]), riskSeries([["2024-01-02", 20], ["2024-01-03", 100]])]) {
+    const risk = calculateRiskMetrics(stock, benchmark);
+    assert.ok(risk.totalReturn > 0);
+    for (const key of ["benchmarkReturn", "excessReturn", "beta", "alphaAnnualized", "correlation"]) assert.equal(risk[key], null, key);
+  }
+});
+
+test("matches both interval dates for beta across stock trading gaps", () => {
+  const benchmark = riskSeries([["2024-01-01", 100], ["2024-01-02", 115], ["2024-01-03", 121], ["2024-01-04", 115], ["2024-01-05", 130], ["2024-01-06", 126]]);
+  const stock = benchmark.filter((candle) => ["2024-01-01", "2024-01-03", "2024-01-04", "2024-01-06"].includes(candle.date));
+  const risk = calculateRiskMetrics(stock, benchmark);
+  assert.ok(Math.abs(risk.beta - 1) < 1e-9);
+  assert.ok(Math.abs(risk.alphaAnnualized) < 1e-9);
+  assert.ok(Math.abs(risk.correlation - 1) < 1e-9);
+});
+
+test("does not substitute a different benchmark start date when an endpoint is missing", () => {
+  const stock = riskSeries([["2024-01-01", 100], ["2024-01-02", 110], ["2024-01-03", 120], ["2024-01-04", 130], ["2024-01-05", 125]]);
+  const benchmark = stock.filter((candle) => candle.date !== "2024-01-02");
+  const risk = calculateRiskMetrics(stock, benchmark);
+  assert.ok(Math.abs(risk.beta - 1) < 1e-9);
+  assert.ok(Math.abs(risk.alphaAnnualized) < 1e-9);
+  assert.equal(risk.correlation, null, "only two complete return intervals remain");
+});
+
 test("builds news, report and dividend events for the selected stock", () => {
   const events = buildChartEvents([
     { code: "000001", stockName: "平安银行", portal: "", channel: "", media: "", publishedAt: "2026-06-10 09:00", relevance: 1, sentiment: "正面", sentimentScore: 0.5, positiveTerms: [], negativeTerms: [], title: "测试新闻", summary: "", url: "https://example.com", fetchedAt: "" },

@@ -42,6 +42,69 @@ function syntheticCandles(count = 320) {
   return candles;
 }
 
+function candlesEndingOn(endDate, count = 100) {
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  return syntheticCandles(count).map((candle, index) => {
+    const date = new Date(end - (count - 1 - index) * 86_400_000).toISOString().slice(0, 10);
+    return { ...candle, key: date, date };
+  });
+}
+
+test("enables the panel and regime calibration only after their separate training cutoffs", () => {
+  for (const [asOf, panelEnabled, calibrationEnabled] of [
+    ["2026-02-27", false, false],
+    ["2026-02-28", false, false],
+    ["2026-03-01", true, false],
+    ["2026-08-16", true, false],
+    ["2026-08-17", true, false],
+    ["2026-08-18", true, true],
+  ]) {
+    const candles = candlesEndingOn(asOf);
+    const report = buildNextDayPrediction(candles, { market: "CN", benchmarkCandles: candles });
+    assert.ok(report);
+    assert.equal(report.asOf, asOf);
+    assert.equal(report.modelValidation.panelEnabled, panelEnabled, asOf);
+    assert.equal(report.weights.panel, panelEnabled ? 0.75 : 0, asOf);
+    assert.equal(report.modelValidation.panelProbability == null, !panelEnabled, asOf);
+    assert.equal(report.modelValidation.regimeLogitAdjustment !== 0, calibrationEnabled, asOf);
+    if (panelEnabled && !calibrationEnabled) assert.match(report.modelValidation.reason, /校准在当前切片尚不可用/);
+  }
+});
+
+test("today-mode model eligibility follows the feature cutoff rather than the target date", () => {
+  const panelBoundary = candlesEndingOn("2026-03-01");
+  const today = buildNextDayPrediction(panelBoundary, { mode: "today", market: "CN", benchmarkCandles: panelBoundary });
+  assert.equal(today.asOf, "2026-02-28");
+  assert.equal(today.target.date, "2026-03-01");
+  assert.equal(today.modelValidation.panelEnabled, false);
+
+  const calibrationBoundary = candlesEndingOn("2026-08-18");
+  const calibrationToday = buildNextDayPrediction(calibrationBoundary, { mode: "today", market: "CN", benchmarkCandles: calibrationBoundary });
+  assert.equal(calibrationToday.asOf, "2026-08-17");
+  assert.equal(calibrationToday.modelValidation.panelEnabled, true);
+  assert.equal(calibrationToday.modelValidation.regimeLogitAdjustment, 0);
+});
+
+test("post-training dates still require CN, a benchmark, and a completed session", () => {
+  const candles = candlesEndingOn("2026-08-18");
+  const previousClose = candles.at(-1).close;
+  const snapshot = {
+    code: "600000", name: "测试股票", date: "2026-08-19", time: "14:00:00", marketStatus: "交易中",
+    price: previousClose, previousClose, open: previousClose, high: previousClose * 1.01, low: previousClose * 0.99,
+    volume: 7_000_000, amount: previousClose * 7_000_000,
+  };
+  for (const options of [
+    { market: "CN" },
+    { market: "US", benchmarkCandles: candles },
+    { market: "CN", benchmarkCandles: candles, realtimeSnapshot: snapshot },
+  ]) {
+    const report = buildNextDayPrediction(candles, options);
+    assert.ok(report);
+    assert.equal(report.modelValidation.panelEnabled, false);
+    assert.equal(report.modelValidation.regimeLogitAdjustment, 0);
+  }
+});
+
 test("combines rules, analogs and walk-forward validation without leaking beyond the selected window", () => {
   const report = buildNextDayPrediction(syntheticCandles(), { window: 126, neighbors: 15 });
 
@@ -152,10 +215,10 @@ test("integrates same-market history and only news available at the prediction c
   assert.ok(today && tomorrow);
   assert.equal(today.externalContext.news.itemCount, 0);
   assert.equal(today.prediction.contextAdjustment, 0);
-  assert.equal(today.modelValidation.panelEnabled, true);
-  assert.equal(today.modelValidation.panelWeight, 0.75);
-  assert.ok(today.modelValidation.panelProbability > 0 && today.modelValidation.panelProbability < 1);
-  assert.ok(Number.isFinite(today.modelValidation.regimeLogitAdjustment));
+  assert.equal(today.modelValidation.panelEnabled, false);
+  assert.equal(today.modelValidation.panelWeight, 0);
+  assert.equal(today.modelValidation.panelProbability, null);
+  assert.equal(today.modelValidation.regimeLogitAdjustment, 0);
   assert.equal(tomorrow.modelValidation.panelEnabled, false);
   assert.equal(tomorrow.modelValidation.regimeLogitAdjustment, 0);
   assert.equal(tomorrow.externalContext.market.available, true);

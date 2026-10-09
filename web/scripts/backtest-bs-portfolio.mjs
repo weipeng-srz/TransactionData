@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-import { calculateIndicators } from "../app/lib/market.ts";
-import { estimateLiquidityRoundTripCostPct, resolveCnPriceLimitPct } from "../app/lib/research.ts";
+import { calculateIndicators, LEGACY_SIGNAL_GUIDE_POLICY } from "../app/lib/market.ts";
+import { collectGuideSignals, estimateLiquidityRoundTripCostPct, isGuideEntryTradable, resolveGuideExit } from "../app/lib/research.ts";
 import { parseCNListResponse } from "../app/lib/screenerData.ts";
 
 const args = parseArgs(process.argv.slice(2));
@@ -18,162 +19,162 @@ const config = {
   minimumDailyAmount: numberArg(args, "minimum-daily-amount", 50_000_000),
   cacheDir: String(args["cache-dir"] ?? join(tmpdir(), "trendsight-bs-portfolio-cache-v1")),
   output: args.output ? String(args.output) : "",
+  exitRule: String(args["exit-rule"] ?? "fixed"),
 };
+if (!["fixed", "sell-signal"].includes(config.exitRule)) throw new Error("--exit-rule 必须为 fixed 或 sell-signal");
 
 const runAt = new Date().toISOString();
-await mkdir(config.cacheDir, { recursive: true });
+const closedBeforeDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(runAt));
+async function main() {
+  await mkdir(config.cacheDir, { recursive: true });
 
-const universe = await fetchUniverse();
-const eligible = universe
-  .filter((quote) => /^(?:sh|sz)/.test(quote.symbol) && quote.price > 0 && quote.volume > 0 && !/(?:\*?ST|退)/i.test(quote.name))
-  .sort((left, right) => hashKey(left.code).localeCompare(hashKey(right.code)));
-progress("universe", { received: universe.length, eligible: eligible.length });
+  const universe = await fetchUniverse();
+  const eligible = universe
+    .filter((quote) => /^(?:sh|sz)/.test(quote.symbol) && quote.price > 0 && quote.volume > 0 && !/(?:\*?ST|退)/i.test(quote.name))
+    .sort((left, right) => hashKey(left.code).localeCompare(hashKey(right.code)));
+  progress("universe", { received: universe.length, eligible: eligible.length });
 
-const benchmark = await loadSecurity({ code: "000300", symbol: "sh000300", name: "沪深300" });
-const securities = [];
-const failures = [];
-let cursor = 0;
-while (securities.length < config.sampleSize && cursor < eligible.length) {
-  const batch = eligible.slice(cursor, cursor + 120);
-  cursor += batch.length;
-  const loaded = await mapLimit(batch, 6, loadSecurity);
-  for (let index = 0; index < loaded.length && securities.length < config.sampleSize; index += 1) {
-    if (loaded[index].ok) securities.push(loaded[index].value);
-    else failures.push({ code: batch[index].code, error: loaded[index].error });
+  const benchmark = await loadSecurity({ code: "000300", symbol: "sh000300", name: "沪深300" });
+  const securities = [];
+  const failures = [];
+  let cursor = 0;
+  while (securities.length < config.sampleSize && cursor < eligible.length) {
+    const batch = eligible.slice(cursor, cursor + 120);
+    cursor += batch.length;
+    const loaded = await mapLimit(batch, 6, loadSecurity);
+    for (let index = 0; index < loaded.length && securities.length < config.sampleSize; index += 1) {
+      if (loaded[index].ok) securities.push(loaded[index].value);
+      else failures.push({ code: batch[index].code, error: loaded[index].error });
+    }
+    progress("history", { attempted: cursor, successes: securities.length, failures: failures.length });
   }
-  progress("history", { attempted: cursor, successes: securities.length, failures: failures.length });
-}
-if (securities.length < config.sampleSize) throw new Error(`只有 ${securities.length} 只股票满足历史数据要求`);
+  if (securities.length < config.sampleSize) throw new Error(`只有 ${securities.length} 只股票满足历史数据要求`);
 
-const endDate = benchmark.candles.at(-1)?.date ?? "";
-const startDate = oneYearBefore(endDate);
-const tradingDates = benchmark.candles.map((candle) => candle.date).filter((date) => date >= startDate && date <= endDate);
-const legacyEvents = [];
-const optimizedEvents = [];
-for (const security of securities) {
-  const legacyIndicators = calculateIndicators(security.candles, { minimumBuyScore: 2, volumeConfirmationCanQualify: false });
-  const optimizedIndicators = calculateIndicators(security.candles);
-  legacyEvents.push(...buildEvents(security, legacyIndicators, "legacy"));
-  optimizedEvents.push(...buildEvents(security, optimizedIndicators, "optimized"));
-}
+  const endDate = benchmark.candles.at(-1)?.date ?? "";
+  const startDate = oneYearBefore(endDate);
+  const tradingDates = benchmark.candles.map((candle) => candle.date).filter((date) => date >= startDate && date <= endDate);
+  const legacyEvents = [];
+  const optimizedEvents = [];
+  for (const security of securities) {
+    security.candles = security.candles.filter((candle) => candle.date <= endDate);
+    const legacyIndicators = calculateIndicators(security.candles, LEGACY_SIGNAL_GUIDE_POLICY);
+    const optimizedIndicators = calculateIndicators(security.candles, { version: "stable" });
+    legacyEvents.push(...buildEvents(security, legacyIndicators, "legacy"));
+    optimizedEvents.push(...buildEvents(security, optimizedIndicators, "optimized"));
+  }
 
-const optimizedBuyOutcomes = optimizedEvents.filter((event) => event.direction === "buy");
-const policyByDate = buildRollingPolicy(tradingDates, optimizedBuyOutcomes, benchmark.candles.map((candle) => candle.date));
-const legacyPortfolio = simulatePortfolio(
-  legacyEvents.filter((event) => event.direction === "buy" && event.entryDate >= startDate && event.targetDate <= endDate),
-  tradingDates,
-  new Map(tradingDates.map((date) => [date, { status: "active", preferredTier: "legacy" }])),
-  "legacy",
-  "legacy",
-);
-const optimizedPortfolio = simulatePortfolio(
-  optimizedEvents.filter((event) => event.direction === "buy" && event.entryDate >= startDate && event.targetDate <= endDate),
-  tradingDates,
-  policyByDate,
-  "optimized",
-  `anti-crowding-${config.maxPositions}`,
-);
-const optimizedRankingDiagnostics = Object.fromEntries(["adaptive", "confirmed-first", "standard-first", "score-first", "liquidity-first"].map((ranking) => [ranking, simulatePortfolio(
-  optimizedEvents.filter((event) => event.direction === "buy" && event.entryDate >= startDate && event.targetDate <= endDate),
-  tradingDates,
-  policyByDate,
-  "optimized",
-  ranking,
-)]));
+  const optimizedBuyOutcomes = optimizedEvents.filter((event) => event.direction === "buy");
+  const policyByDate = buildRollingPolicy(tradingDates, optimizedBuyOutcomes, benchmark.candles.map((candle) => candle.date));
+  const legacyPortfolio = simulatePortfolio(
+    legacyEvents.filter((event) => event.direction === "buy" && event.entryDate >= startDate && event.entryDate <= endDate),
+    tradingDates,
+    buildRollingPolicy(tradingDates, legacyEvents.filter((event) => event.direction === "buy"), benchmark.candles.map((candle) => candle.date)),
+    "legacy",
+    "score-first",
+  );
+  const optimizedPortfolio = simulatePortfolio(
+    optimizedEvents.filter((event) => event.direction === "buy" && event.entryDate >= startDate && event.entryDate <= endDate),
+    tradingDates,
+    policyByDate,
+    "optimized",
+    "score-first",
+  );
+  const optimizedRankingDiagnostics = Object.fromEntries(["adaptive", "confirmed-first", "standard-first", "score-first", "liquidity-first"].map((ranking) => [ranking, simulatePortfolio(
+    optimizedEvents.filter((event) => event.direction === "buy" && event.entryDate >= startDate && event.entryDate <= endDate),
+    tradingDates,
+    policyByDate,
+    "optimized",
+    ranking,
+  )]));
 
-const result = {
-  runAt,
-  period: { startDate, endDate, tradingDays: tradingDates.length },
-  sample: {
-    size: securities.length,
-    attempted: cursor,
-    failures: failures.length,
-    boards: countBy(securities, (security) => boardName(security.quote.symbol)),
-    medianBars: median(securities.map((security) => security.candles.length)),
-    survivorshipWarning: "样本来自当前存续且活跃的非ST股票，不包含历史退市证券，仍存在幸存者偏差。",
-  },
-  policy: {
-    legacy: "旧B规则（基础分>=2）、固定0.25%成本、统一9.8%涨跌停阈值、无近期状态与流动性过滤",
-    optimized: `B最终分>=3（量能作为证据而非永久优先）、S仅风险提示、板块/日期涨跌停、流动性成本、日成交额>=${config.minimumDailyAmount}、滚动63/252日无前视状态控制；同日候选达到${config.maxPositions}只时优先非放量强信号以降低拥挤追涨`,
-    portfolio: `本金${config.initialCapital}元、最多${config.maxPositions}只、每只目标仓位1/${config.maxPositions}、信号次日开盘进入、${config.holdingPeriods}期收盘退出、只做多B`,
-  },
-  eventStudy: {
-    fullHistory: compareEventStudy(legacyEvents, optimizedEvents),
-    oneYear: compareEventStudy(
-      legacyEvents.filter((event) => event.entryDate >= startDate && event.targetDate <= endDate),
-      optimizedEvents.filter((event) => event.entryDate >= startDate && event.targetDate <= endDate),
-    ),
-  },
-  portfolio: {
-    legacy: legacyPortfolio,
-    optimized: optimizedPortfolio,
-    rankingDiagnostics: optimizedRankingDiagnostics,
-    improvement: {
-      endingCapital: round(optimizedPortfolio.endingCapital - legacyPortfolio.endingCapital, 2),
-      profit: round(optimizedPortfolio.profit - legacyPortfolio.profit, 2),
-      returnPct: round(optimizedPortfolio.returnPct - legacyPortfolio.returnPct, 4),
-      maxDrawdownPct: round(optimizedPortfolio.maxDrawdownPct - legacyPortfolio.maxDrawdownPct, 4),
+  const result = {
+    runAt,
+    period: { startDate, endDate, tradingDays: tradingDates.length },
+    sample: {
+      size: securities.length,
+      attempted: cursor,
+      failures: failures.length,
+      boards: countBy(securities, (security) => boardName(security.quote.symbol)),
+      medianBars: median(securities.map((security) => security.candles.length)),
+      survivorshipWarning: "样本来自当前存续且活跃的非ST股票，不包含历史退市证券，仍存在幸存者偏差。",
     },
-    benchmark: benchmarkReturn(benchmark.candles, startDate, endDate),
-  },
-  rollingGateDays: countBy([...policyByDate.values()], (policy) => policy.status),
-  rollingPreferredTierDays: countBy([...policyByDate.values()], (policy) => policy.preferredTier),
-  failureExamples: failures.slice(0, 12),
-};
+    policy: {
+      legacy: "优化前v1：基础分加量能>=3、九转3分、共用冷却；使用与v2相同的修正后执行引擎",
+    optimized: "标准版：保留原评分权重与RSI/BOLL质量锚，B/S独立冷却；回测修正入场前成交额、T+1、涨跌停和受阻退出",
+      portfolio: `两版均本金${config.initialCapital}元、最多${config.maxPositions}只、信号日成交额>=${config.minimumDailyAmount}、相同成本/排序/滚动63与252日门槛；次日开盘进入；退出模式${config.exitRule}、观察${config.holdingPeriods}期，受阻顺延；未平仓按市值保留`,
+      validation: "同一当前存续样本的历史对照，非独立样本外验证；排名诊断不得作为已验证最优参数。当天未完成日K排除。",
+    },
+    eventStudy: {
+      fullHistory: compareEventStudy(legacyEvents, optimizedEvents),
+      oneYear: compareEventStudy(
+        legacyEvents.filter((event) => event.entryDate >= startDate && event.entryDate <= endDate),
+        optimizedEvents.filter((event) => event.entryDate >= startDate && event.entryDate <= endDate),
+      ),
+    },
+    portfolio: {
+      legacy: legacyPortfolio,
+      optimized: optimizedPortfolio,
+      rankingDiagnostics: optimizedRankingDiagnostics,
+      improvement: {
+        endingCapital: round(optimizedPortfolio.endingCapital - legacyPortfolio.endingCapital, 2),
+        profit: round(optimizedPortfolio.profit - legacyPortfolio.profit, 2),
+        returnPct: round(optimizedPortfolio.returnPct - legacyPortfolio.returnPct, 4),
+        maxDrawdownPct: round(optimizedPortfolio.maxDrawdownPct - legacyPortfolio.maxDrawdownPct, 4),
+      },
+      benchmark: benchmarkReturn(benchmark.candles, startDate, endDate),
+    },
+    rollingGateDays: countBy([...policyByDate.values()], (policy) => policy.status),
+    rollingPreferredTierDays: countBy([...policyByDate.values()], (policy) => policy.preferredTier),
+    failureExamples: failures.slice(0, 12),
+  };
 
-if (config.output) {
-  await writeFile(config.output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  if (config.output) {
+    await writeFile(config.output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  }
+  console.log(`FINAL_RESULT ${JSON.stringify(result)}`);
 }
-console.log(`FINAL_RESULT ${JSON.stringify(result)}`);
 
-function buildEvents(security, indicators, mode) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+
+export function buildEvents(security, indicators, mode) {
   const signals = deduplicateSignals(indicators.guidePoints);
   return signals.flatMap((signal) => {
     const signalCandle = security.candles[signal.index];
     const entry = security.candles[signal.index + 1];
-    const target = security.candles[signal.index + config.holdingPeriods];
-    if (!signalCandle || !entry || !target || !(entry.open > 0) || !(entry.volume > 0)) return [];
-    const gapPct = (entry.open / signalCandle.close - 1) * 100;
-    const priceLimitPct = mode === "legacy" ? 9.8 : resolveCnPriceLimitPct(security.quote.code, entry.date, security.quote.name);
-    if ((signal.guide.type === "buy" && gapPct >= priceLimitPct) || (signal.guide.type === "sell" && gapPct <= -priceLimitPct)) return [];
+    const options = { market: "CN", code: security.quote.code, name: security.quote.name, exitRule: config.exitRule };
+    if (!signalCandle || !entry || !isGuideEntryTradable(security.candles, signal.index + 1, signal.guide.type, options)) return [];
+    const exit = resolveGuideExit(security.candles, signal.index, config.holdingPeriods, signal.guide.type, options, indicators.guidePoints);
+    const target = exit ? security.candles[exit.index] : null;
     const direction = signal.guide.type === "buy" ? 1 : -1;
-    const grossReturn = (target.close / entry.open - 1) * 100 * direction;
+    const grossReturn = exit ? (exit.price / entry.open - 1) * 100 * direction : null;
     const positionValue = config.initialCapital / config.maxPositions;
-    const costPct = mode === "legacy"
-      ? config.baseRoundTripCostPct
-      : estimateLiquidityRoundTripCostPct(entry, positionValue, config.baseRoundTripCostPct);
+    const costPct = estimateLiquidityRoundTripCostPct(signalCandle, positionValue, config.baseRoundTripCostPct);
     return [{
       code: security.quote.code,
       name: security.quote.name,
       board: boardName(security.quote.symbol),
+      mode,
       direction: signal.guide.type,
       score: signal.guide.score,
       confirmed: signal.guide.confidence === "confirmed" || signal.guide.reasons.includes("量能确认"),
       signalDate: signalCandle.date,
       entryDate: entry.date,
-      targetDate: target.date,
+      targetDate: target?.date ?? null,
+      exitExecution: exit?.execution ?? null,
+      delayedExit: exit?.delayed ?? false,
       entryOpen: entry.open,
-      targetClose: target.close,
-      dailyAmount: Math.max(entry.rawAmount ?? 0, entry.amount, entry.adjustedAmount),
+      targetClose: exit?.price ?? null,
+      dailyAmount: Math.max(signalCandle.rawAmount ?? 0, signalCandle.amount, signalCandle.adjustedAmount),
       grossReturn,
       costPct,
-      netReturn: grossReturn - costPct,
+      netReturn: grossReturn == null ? null : grossReturn - costPct,
       candlesByDate: security.candlesByDate,
     }];
   });
 }
 
 function deduplicateSignals(guidePoints) {
-  const result = [];
-  let previous = null;
-  guidePoints.forEach((guide, index) => {
-    if (!guide || guide.confidence === "watch") return;
-    if (previous && previous.guide.type === guide.type && index - previous.index <= 3) return;
-    const signal = { index, guide };
-    result.push(signal);
-    previous = signal;
-  });
-  return result;
+  return collectGuideSignals(guidePoints);
 }
 
 function buildRollingPolicy(tradingDates, outcomes, allTradingDates) {
@@ -182,7 +183,7 @@ function buildRollingPolicy(tradingDates, outcomes, allTradingDates) {
     const dateIndex = indexByDate.get(date) ?? 0;
     const slowStart = allTradingDates[Math.max(0, dateIndex - 252)] ?? "";
     const fastStart = allTradingDates[Math.max(0, dateIndex - 63)] ?? "";
-    const available = outcomes.filter((event) => event.targetDate < date && event.signalDate >= slowStart);
+    const available = outcomes.filter((event) => event.targetDate != null && event.targetDate < date && event.signalDate >= slowStart && event.dailyAmount >= config.minimumDailyAmount);
     const recent = available.filter((event) => event.signalDate >= fastStart);
     const stats = eventSummary(available);
     const recentStats = eventSummary(recent);
@@ -206,7 +207,7 @@ function buildRollingPolicy(tradingDates, outcomes, allTradingDates) {
   }));
 }
 
-function simulatePortfolio(events, tradingDates, policyByDate, mode, ranking = "score-first") {
+export function simulatePortfolio(events, tradingDates, policyByDate, mode, ranking = "score-first") {
   const entriesByDate = new Map();
   for (const event of events) {
     const rows = entriesByDate.get(event.entryDate) ?? [];
@@ -220,17 +221,29 @@ function simulatePortfolio(events, tradingDates, policyByDate, mode, ranking = "
   let exposureSum = 0;
   const positions = new Map();
   const trades = [];
+  const closePositions = (date, execution) => {
+    for (const [code, position] of [...positions]) {
+      if (position.targetDate !== date || position.exitExecution !== execution) continue;
+      const exitValue = position.notional * position.targetClose / position.entryOpen;
+      const exitCost = exitValue * position.costPct / 200;
+      const pnl = exitValue - exitCost - position.notional - position.entryCost;
+      cash += exitValue - exitCost;
+      trades.push({ pnl, returnPct: pnl / (position.notional + position.entryCost) * 100, confirmed: position.confirmed });
+      positions.delete(code);
+    }
+  };
 
   for (const date of tradingDates) {
+    closePositions(date, "open");
     const policy = policyByDate.get(date) ?? { status: "insufficient", preferredTier: "confirmed" };
     const gate = typeof policy === "string" ? policy : policy.status;
     let effectiveRanking = ranking === "adaptive"
       ? policy.preferredTier === "standard" ? "standard-first" : "confirmed-first"
       : ranking;
-    const allowedPositions = mode === "legacy" ? config.maxPositions : gate === "active" ? config.maxPositions : gate === "watch" || gate === "insufficient" ? 2 : 0;
+    const allowedPositions = gate === "active" ? config.maxPositions : gate === "watch" || gate === "insufficient" ? Math.min(2, config.maxPositions) : 0;
     const candidates = (entriesByDate.get(date) ?? [])
       .filter((event) => !positions.has(event.code))
-      .filter((event) => mode === "legacy" || event.dailyAmount >= config.minimumDailyAmount);
+      .filter((event) => event.dailyAmount >= config.minimumDailyAmount);
     if (ranking.startsWith("anti-crowding-")) {
       const threshold = Number(ranking.slice("anti-crowding-".length));
       effectiveRanking = candidates.length >= threshold ? "standard-first" : "confirmed-first";
@@ -251,15 +264,7 @@ function simulatePortfolio(events, tradingDates, policyByDate, mode, ranking = "
       if (candle) position.lastValue = position.notional * candle.close / position.entryOpen;
     }
 
-    for (const [code, position] of [...positions]) {
-      if (position.targetDate !== date) continue;
-      const exitValue = position.notional * position.targetClose / position.entryOpen;
-      const exitCost = exitValue * position.costPct / 200;
-      const pnl = exitValue - exitCost - position.notional - position.entryCost;
-      cash += exitValue - exitCost;
-      trades.push({ pnl, returnPct: pnl / (position.notional + position.entryCost) * 100, confirmed: position.confirmed });
-      positions.delete(code);
-    }
+    closePositions(date, "close");
 
     const positionValue = [...positions.values()].reduce((sum, position) => sum + position.lastValue, 0);
     const equity = cash + positionValue;
@@ -274,6 +279,7 @@ function simulatePortfolio(events, tradingDates, policyByDate, mode, ranking = "
   const negative = trades.filter((trade) => trade.pnl < 0);
   const endingCapital = lastEquity;
   return {
+    mode,
     initialCapital: config.initialCapital,
     endingCapital: round(endingCapital, 2),
     profit: round(endingCapital - config.initialCapital, 2),
@@ -285,6 +291,8 @@ function simulatePortfolio(events, tradingDates, policyByDate, mode, ranking = "
     profitFactor: round(positive.length && negative.length ? sum(positive.map((trade) => trade.pnl)) / Math.abs(sum(negative.map((trade) => trade.pnl))) : null, 4),
     averageExposurePct: round(tradingDates.length ? exposureSum / tradingDates.length * 100 : 0, 4),
     confirmedTrades: trades.filter((trade) => trade.confirmed).length,
+    openPositions: positions.size,
+    unrealizedPnl: round([...positions.values()].reduce((total, position) => total + position.lastValue - position.notional - position.entryCost, 0), 2),
   };
 }
 
@@ -312,17 +320,20 @@ function compareEventStudy(legacyEvents, optimizedEvents) {
 }
 
 function eventSummary(events) {
-  const returns = events.map((event) => event.netReturn);
+  const completed = events.filter((event) => event.netReturn != null);
+  const returns = completed.map((event) => event.netReturn);
   const positive = returns.filter((value) => value > 0);
   const negative = returns.filter((value) => value < 0);
   return {
     n: returns.length,
-    stocks: new Set(events.map((event) => event.code)).size,
+    pending: events.length - completed.length,
+    delayedExits: completed.filter((event) => event.delayedExit).length,
+    stocks: new Set(completed.map((event) => event.code)).size,
     winRate: round(returns.length ? positive.length / returns.length * 100 : null, 4),
     mean: round(mean(returns), 4),
     median: round(median(returns), 4),
     profitFactor: round(positive.length && negative.length ? sum(positive) / Math.abs(sum(negative)) : null, 4),
-    averageCostPct: round(mean(events.map((event) => event.costPct)), 4),
+    averageCostPct: round(mean(completed.map((event) => event.costPct)), 4),
   };
 }
 
@@ -355,7 +366,7 @@ async function loadSecurity(quote) {
     fetchCached(`kline-${quote.symbol}-${config.bars}`, klineUrl, 5 * 1024 * 1024, 6 * 60 * 60_000),
     fetchCached(`factor-${quote.symbol}-${runAt.slice(0, 10)}`, factorUrl, 256 * 1024, 6 * 60 * 60_000),
   ]);
-  const rows = parseKlines(klineBody);
+  const rows = parseKlines(klineBody).filter((row) => row.date < closedBeforeDate);
   if (rows.length < 500) throw new Error(`只有 ${rows.length} 根日K`);
   const factors = parseFactors(factorBody);
   const candles = rows.map((row, index) => {
@@ -375,7 +386,7 @@ async function loadSecurity(quote) {
       low,
       close,
       volume: row.volume,
-      amount: close * row.volume,
+      amount: row.close * row.volume,
       adjustedAmount: close * row.volume,
       rawAmount: row.close * row.volume,
       vwap: (open + high + low + close) / 4,

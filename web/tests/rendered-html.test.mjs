@@ -66,10 +66,10 @@ test("server-renders the global realtime index map", async () => {
   const response = await render("/global-markets");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /全球股指脉动/);
+  assert.match(html, /<h1>全球市场<\/h1>/);
   assert.match(html, /全球主要市场板块/);
-  assert.match(html, /个市场数值框/);
-  assert.match(html, /数值框边缘贴近交易所坐标/);
+  assert.match(html, /个主要市场/);
+  assert.match(html, /按交易所所在位置展示 · 跨市场行情时点可能不同/);
   assert.match(html, /AMER/);
   assert.match(html, /EMEA/);
   assert.match(html, /APAC/);

@@ -1451,7 +1451,10 @@ function isCNAccumulationQuote(quote: CNQuote): boolean {
 }
 
 function isUSQualityQuote(quote: USQuote, tier: "standard" | "expanded" = "standard"): boolean {
-  const suspicious = /(?:WARRANT|RIGHT|UNIT|权证)/i.test(quote.name) || /W$|WS$|WT$|R$|U$/.test(quote.symbol);
+  // A trailing letter is also part of many ordinary tickers (UBER, PLTR, MU).
+  // Use explicit instrument labels or delimited suffixes instead.
+  const suspicious = /\b(?:WARRANTS?|RIGHTS?|UNITS?)\b|权证|认股权|配股权|单位证券/i.test(`${quote.name} ${quote.category}`)
+    || /[.-](?:W|WS|WT|R|RT|U|UN)$/.test(quote.symbol);
   if (suspicious || quote.change <= 0) return false;
   if (tier === "expanded") return quote.price >= 2 && quote.marketCap >= 100_000_000 && quote.amount >= 3_000_000;
   return quote.price >= 5

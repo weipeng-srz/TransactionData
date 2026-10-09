@@ -477,7 +477,8 @@ export function buildNextDayPrediction(
   const legacyEnsembleAgreement = clamp(1 - legacyComponentSpread / 0.45, 0, 1);
   const panelEligible = (options.market ?? "CN") === "CN"
     && currentFeature.benchmarkAvailable
-    && !prepared.isPartialSession;
+    && !prepared.isPartialSession
+    && candles[latestIndex].date > nextDayPanelArtifact.trainedThrough;
   const panelProbability = panelEligible
     ? predictNextDayPanelProbability({
       technicalState: currentFeature,
@@ -495,9 +496,13 @@ export function buildNextDayPrediction(
     0.05,
     0.95,
   );
-  const regimeLogitAdjustment = panelProbability == null
-    ? 0
-    : nextDayPanelArtifact.regimeCalibration?.logitAdjustments[currentFeature.marketRegime] ?? 0;
+  const regimeCalibration = nextDayPanelArtifact.regimeCalibration;
+  const regimeCalibrationEligible = panelProbability != null
+    && regimeCalibration != null
+    && candles[latestIndex].date > regimeCalibration.trainedThrough;
+  const regimeLogitAdjustment = regimeCalibrationEligible
+    ? regimeCalibration.logitAdjustments[currentFeature.marketRegime] ?? 0
+    : 0;
   const baseUpProbability = shiftProbabilityByLogit(blendedUpProbability, regimeLogitAdjustment);
   const weights = {
     rule: legacyWeights.rule * (1 - panelWeight),
@@ -586,8 +591,8 @@ export function buildNextDayPrediction(
     marketContext,
   });
   const panelReason = panelProbability != null
-    ? `跨股票面板模型 ${nextDayPanelArtifact.version} 已通过 ${nextDayPanelArtifact.validation.samples} 条时间外样本验证，以 ${Math.round(panelWeight * 100)}% 权重参与组合；市场状态校准使用 ${nextDayPanelArtifact.regimeCalibration?.samples ?? 0} 条独立股票样本并保守收缩。`
-    : "跨股票面板模型仅用于带同期基准的 A 股完整收盘切片，当前场景自动回退到个股模型。";
+    ? `跨股票面板模型 ${nextDayPanelArtifact.version} 已通过 ${nextDayPanelArtifact.validation.samples} 条时间外样本验证，以 ${Math.round(panelWeight * 100)}% 权重参与组合；${regimeCalibrationEligible ? `市场状态校准使用 ${regimeCalibration.samples} 条独立股票样本并保守收缩。` : "市场状态校准在当前切片尚不可用，未参与预测。"}`
+    : `跨股票面板模型仅用于晚于训练截止日 ${nextDayPanelArtifact.trainedThrough}、带同期基准的 A 股完整收盘切片，当前场景自动回退到个股模型。`;
   const validationReason = `${panelReason}${validation.mlEnabled
     ? " 个股滚动 ML 同时通过方向、AUC 与 Brier 门槛，保留其动态子权重。"
     : validation.validationSamples < 12
