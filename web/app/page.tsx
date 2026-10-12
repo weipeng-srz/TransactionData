@@ -6,6 +6,7 @@ import ResearchDock from "./components/ResearchDock";
 import SignalBacktestCard from "./components/SignalBacktestCard";
 import AdvancedResearchPanel from "./components/AdvancedResearchPanel";
 import HoldingProfitCard from "./components/HoldingProfitCard";
+import HoldingRiskSummary from "./components/HoldingRiskSummary";
 import StockScoreCard from "./components/StockScoreCard";
 import BeginnerGuideCard from "./components/BeginnerGuideCard";
 import { useAppearance } from "./components/AppearanceProvider";
@@ -53,6 +54,7 @@ import type { RealtimeSnapshot } from "./lib/realtimeMarket";
 import { mergeClosedCnRealtimeDay } from "./lib/closedMarketDay";
 import { mergeCnRealtimeDailyCandle } from "./lib/realtimeDailyCandle";
 import { parseHoldings, type StockHoldings } from "./lib/holdings";
+import { buildHoldingRiskPlan } from "./lib/holdingRisk";
 import { buildStockScore } from "./lib/stockScore";
 import { publicStockLookupError } from "./lib/stockLookupError";
 import { resolveStoredViewMode, type ViewMode } from "./lib/viewMode";
@@ -562,6 +564,19 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
   const selectedIdentity = useMemo(() => ({ code: selectedCode, market: selectedMarket, currency: selectedMarket === "US" ? "USD" as const : "CNY" as const }), [selectedCode, selectedMarket]);
   const selectedHoldingKey = useMemo(() => stockStorageKey(selectedIdentity), [selectedIdentity]);
   const currentHolding = holdings[selectedHoldingKey] ?? null;
+  const holdingRiskPlan = useMemo(() => (
+    !isDemo && marketLoad.phase === "success"
+      ? buildHoldingRiskPlan({
+        holding: currentHolding,
+        code: selectedCode,
+        market: selectedMarket,
+        candles: dailyCandles,
+        priceBasis: dataset.priceBasis,
+        chartAdjustmentFactor: lastRow?.adjustmentFactor,
+        provisionalDate: realtimeDailySeries.provisional ? realtimeDailySeries.date : undefined,
+      })
+      : null
+  ), [currentHolding, dailyCandles, dataset.priceBasis, isDemo, lastRow?.adjustmentFactor, marketLoad.phase, realtimeDailySeries.date, realtimeDailySeries.provisional, selectedCode, selectedMarket]);
   const displayChange = liveQuote?.change ?? latest?.change ?? 0;
   const directionClass = displayChange >= 0 ? "is-up" : "is-down";
   const busy = fetchingStock;
@@ -1393,6 +1408,8 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             <span>幅 <b className={(selectedCandle?.changePct ?? 0) >= 0 ? "is-up" : "is-down"}>{selectedCandle ? `${selectedCandle.changePct >= 0 ? "+" : ""}${formatNumber(selectedCandle.changePct, 2)}%` : "—"}</b></span>
           </div>
 
+          <HoldingRiskSummary plan={holdingRiskPlan} currentPrice={liveQuote?.price ?? lastRow?.rawPrice ?? null} />
+
           <MarketChart
             appearance={appearance}
             candles={candles}
@@ -1405,6 +1422,7 @@ function StockAnalysisPage({ initialStockCode, onBackHome, onOpenStock }: { init
             resetVisible={timeframe === "1d" ? 120 : 140}
             events={chartEvents}
             annotations={annotations.filter((item) => item.code === selectedCode)}
+            holdingRiskPlan={holdingRiskPlan}
             onRangeChange={setRange}
             onHover={setHoverIndex}
           />

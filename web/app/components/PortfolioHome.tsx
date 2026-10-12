@@ -48,6 +48,7 @@ import { buildPortfolioPredictionConclusion } from "../lib/portfolioPrediction";
 import { useAppearance } from "./AppearanceProvider";
 import SiteBanner from "./SiteBanner";
 import PortfolioWorkbenchSummary from "./PortfolioWorkbenchSummary";
+import PortfolioEarnings from "./PortfolioEarnings";
 import styles from "./PortfolioHome.module.css";
 import { currencyOf, marketLabel, marketOf, stockRouteKey, stockStorageKey, type StockCurrency, type StockMarket } from "../lib/security";
 
@@ -804,6 +805,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
             readyCount={readyCount}
             onChange={setFxPreference}
           />
+          <PortfolioEarnings holdings={holdings} quotes={quotes} hydrated={hydrated} />
         </div>
 
         <div className={`${styles.chapterAnchor} platform-mobile-chapter`} data-active={mobileChapter === "decisions"} id="portfolio-decisions" tabIndex={-1}>

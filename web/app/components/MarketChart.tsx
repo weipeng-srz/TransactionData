@@ -15,6 +15,7 @@ import {
 import type { Candle, IndicatorSet, LowerIndicator } from "../lib/market";
 import { compactNumber, formatNumber } from "../lib/market";
 import type { ChartAnnotation, ChartEvent } from "../lib/research";
+import type { HoldingRiskPlan } from "../lib/holdingRisk";
 
 type OverlayKey = "ma5" | "ma10" | "ma20" | "ema" | "boll" | "vwap" | "nineTurn" | "guides";
 
@@ -30,6 +31,7 @@ type Props = {
   resetVisible: number;
   events: ChartEvent[];
   annotations: ChartAnnotation[];
+  holdingRiskPlan?: HoldingRiskPlan | null;
   onRangeChange: (range: { from: number; to: number }) => void;
   onHover: (index: number | null) => void;
 };
@@ -118,6 +120,7 @@ function MarketChart({
   resetVisible,
   events,
   annotations,
+  holdingRiskPlan = null,
   onRangeChange,
   onHover,
 }: Props) {
@@ -219,6 +222,11 @@ function MarketChart({
     }
     if (overlays.vwap) addOverlayValues(indicators.vwap);
     if (normalizedBenchmark.some((value) => value != null)) addOverlayValues(normalizedBenchmark);
+    const holdingLines = (holdingRiskPlan?.lines ?? []).filter((line) => Number.isFinite(line.price) && line.price > 0);
+    const candleMin = Math.min(...priceValues);
+    const candleMax = Math.max(...priceValues);
+    const holdingScaleBuffer = Math.max(candleMax - candleMin, candleMax * 0.04) * 0.5;
+    priceValues.push(...holdingLines.map((line) => line.price).filter((price) => price >= candleMin - holdingScaleBuffer && price <= candleMax + holdingScaleBuffer));
     let priceMin = Math.min(...priceValues);
     let priceMax = Math.max(...priceValues);
     const padding = Math.max((priceMax - priceMin) * 0.09, priceMax * 0.004);
@@ -336,6 +344,42 @@ function MarketChart({
     }
     if (overlays.vwap) drawLine(indicators.vwap, colors.vwap, 1.15, true);
     if (normalizedBenchmark.some((value) => value != null)) drawLine(normalizedBenchmark, colors.benchmark, 1.45, true);
+
+    // Distant holdings get an explicit off-scale marker, never a clamped price
+    // line that could misrepresent the level or flatten the visible candles.
+    const sortedHoldingLines = [...holdingLines].sort((a, b) => b.price - a.price);
+    const labelPositions = sortedHoldingLines.map((line) => Math.min(mainBottom - 9, Math.max(mainTop + 9, yForPrice(line.price))));
+    for (let index = 1; index < labelPositions.length; index += 1) labelPositions[index] = Math.max(labelPositions[index], labelPositions[index - 1] + 22);
+    if (labelPositions.length) labelPositions[labelPositions.length - 1] = Math.min(labelPositions.at(-1)!, mainBottom - 9);
+    for (let index = labelPositions.length - 2; index >= 0; index -= 1) labelPositions[index] = Math.min(labelPositions[index], labelPositions[index + 1] - 22);
+    for (const [index, line] of sortedHoldingLines.entries()) {
+      const color = line.kind === "take-profit" ? colors.up : line.kind === "stop-loss" ? colors.down : colors.ma10;
+      const y = yForPrice(line.price);
+      context.save();
+      context.strokeStyle = color;
+      context.lineWidth = 1.3;
+      context.setLineDash(line.kind === "cost" ? [3, 5] : [8, 4]);
+      const offScale = y < mainTop ? "↑ " : y > mainBottom ? "↓ " : "";
+      if (!offScale) {
+        context.beginPath();
+        context.moveTo(left, y);
+        context.lineTo(left + plotWidth, y);
+        context.stroke();
+      }
+      context.setLineDash([]);
+      const labelY = labelPositions[index];
+      const text = `${offScale}${line.label} ${formatNumber(line.price, line.price < 1 ? 6 : 3)}${offScale ? "（区间外）" : ""}`;
+      context.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+      const labelWidth = context.measureText(text).width + 12;
+      context.fillStyle = colors.contrast;
+      context.globalAlpha = 0.92;
+      context.fillRect(left + 3, labelY - 9, labelWidth, 18);
+      context.globalAlpha = 1;
+      context.fillStyle = color;
+      context.textAlign = "left";
+      context.fillText(text, left + 9, labelY + 3.5);
+      context.restore();
+    }
 
     const renderedEventDates = new Set<string>();
     visible.forEach((candle, localIndex) => {
@@ -555,7 +599,7 @@ function MarketChart({
     }
 
     layoutRef.current = { left, plotWidth, candleWidth, from: range.from, to: range.to, mainTop, mainBottom, priceMin, priceMax };
-  }, [annotations, candles, colors, eventsByDate, hover, indicators, lowerIndicator, normalizedBenchmark, overlays, range, rangeEpoch, size, visible]);
+  }, [annotations, candles, colors, eventsByDate, holdingRiskPlan, hover, indicators, lowerIndicator, normalizedBenchmark, overlays, range, rangeEpoch, size, visible]);
 
   useEffect(() => {
     draw();
@@ -627,7 +671,7 @@ function MarketChart({
         ref={canvasRef}
         role="img"
         aria-describedby={hoveredCandle ? "chart-accessible-summary chart-day-tooltip" : "chart-accessible-summary"}
-        aria-label={`K线图，共 ${candles.length} 根，${candles.length ? `当前显示第 ${range.from + 1} 到 ${range.to + 1} 根` : "暂无可显示 K 线"}；悬停或使用左右方向键可逐根查看开高低收、成交量与成交额，按 Escape 清除明细；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，双击复位；叠加 ${events.length} 个新闻或财务事件、${annotations.length} 个研究标注`}
+        aria-label={`K线图，共 ${candles.length} 根，${candles.length ? `当前显示第 ${range.from + 1} 到 ${range.to + 1} 根` : "暂无可显示 K 线"}；悬停或使用左右方向键可逐根查看开高低收、成交量与成交额，按 Escape 清除明细；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，双击复位；叠加 ${events.length} 个新闻或财务事件、${annotations.length} 个研究标注${holdingRiskPlan?.lines.length ? `；${holdingRiskPlan.lines.map((line) => `${line.label} ${formatNumber(line.price, 3)}`).join("，")}` : ""}`}
         tabIndex={0}
         style={{ touchAction: "pan-y pinch-zoom" }}
         onPointerDown={(event) => {
@@ -791,6 +835,7 @@ function marketChartPropsEqual(previous: Props, next: Props): boolean {
     && previous.range.to === next.range.to
     && previous.resetVisible === next.resetVisible
     && previous.events === next.events
+    && previous.holdingRiskPlan === next.holdingRiskPlan
     && annotationsMatch
     && previous.onRangeChange === next.onRangeChange
     && previous.onHover === next.onHover;
