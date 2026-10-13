@@ -1,5 +1,7 @@
 "use client";
 
+import { accountStorage, subscribeAccountStorageChanges } from "../lib/accountStorage";
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { appearanceStorageKey, type Appearance } from "../lib/appearance";
 
@@ -17,7 +19,7 @@ function systemAppearance(): Appearance {
 
 function storedAppearance(): Appearance | null {
   try {
-    const stored = localStorage.getItem(appearanceStorageKey);
+    const stored = accountStorage.getItem(appearanceStorageKey);
     return stored === "light" || stored === "dark" ? stored : null;
   } catch {
     return null;
@@ -37,9 +39,9 @@ function applyAppearance(appearance: Appearance, persist: boolean) {
   root.style.colorScheme = appearance;
   if (!persist) return;
   try {
-    localStorage.setItem(appearanceStorageKey, appearance);
+    accountStorage.setItem(appearanceStorageKey, appearance);
   } catch {
-    // The selected appearance remains active when browser storage is unavailable.
+    // The selected appearance remains active while database synchronization is pending.
   }
 }
 
@@ -58,14 +60,14 @@ export default function AppearanceProvider({ children }: { children: ReactNode }
   }, []);
 
   useEffect(() => {
-    const initial = currentAppearance();
+    const initial = storedAppearance() ?? systemAppearance();
     applyAppearance(initial, false);
     const syncFrame = window.requestAnimationFrame(() => setAppearanceState(initial));
 
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const syncStoredAppearance = (event: StorageEvent) => {
-      if (event.key !== appearanceStorageKey) return;
-      const next = event.newValue === "light" || event.newValue === "dark" ? event.newValue : systemAppearance();
+    const syncStoredAppearance = (key: string) => {
+      if (key !== appearanceStorageKey) return;
+      const next = storedAppearance() ?? systemAppearance();
       applyAppearance(next, false);
       setAppearanceState(next);
     };
@@ -76,11 +78,11 @@ export default function AppearanceProvider({ children }: { children: ReactNode }
       setAppearanceState(next);
     };
 
-    window.addEventListener("storage", syncStoredAppearance);
+    const unsubscribe = subscribeAccountStorageChanges(syncStoredAppearance);
     media.addEventListener("change", syncSystemAppearance);
     return () => {
       window.cancelAnimationFrame(syncFrame);
-      window.removeEventListener("storage", syncStoredAppearance);
+      unsubscribe();
       media.removeEventListener("change", syncSystemAppearance);
     };
   }, []);

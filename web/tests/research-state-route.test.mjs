@@ -143,8 +143,9 @@ test("migration set initializes a fresh D1-compatible SQLite database idempotent
     const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((row) => row.name);
     assert.ok(tables.includes("research_states"));
     assert.ok(tables.includes("telemetry_daily"));
+    for (const table of ["users", "auth_sessions", "auth_rate_limits", "account_data"]) assert.ok(tables.includes(table));
     assert.ok(!tables.includes("price_alerts"));
-    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM d1_migrations").get().count, 3);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM d1_migrations").get().count, 4);
   } finally {
     database.close();
   }
@@ -161,8 +162,9 @@ test("migration set reconciles a legacy local database without a migration journ
     const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
     assert.ok(tables.includes("research_states"));
     assert.ok(tables.includes("telemetry_daily"));
+    for (const table of ["users", "auth_sessions", "auth_rate_limits", "account_data"]) assert.ok(tables.includes(table));
     assert.ok(!tables.includes("price_alerts"));
-    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM d1_migrations").get().count, 3);
+    assert.equal(database.prepare("SELECT COUNT(*) AS count FROM d1_migrations").get().count, 4);
   } finally {
     database.close();
   }

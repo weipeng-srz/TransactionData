@@ -65,7 +65,7 @@ export default function HoldingProfitCard({
           <p className="eyebrow">MY POSITION</p>
           <h3 id="holding-profit-title">持仓收益</h3>
         </div>
-        <span className="holding-sync is-local">{holding ? "本机已存" : "未记录"}</span>
+        <span className="holding-sync is-local">{holding ? "账户记录" : "未记录"}</span>
       </div>
 
       <div className="holding-symbol">
@@ -100,7 +100,7 @@ export default function HoldingProfitCard({
       <div className="holding-actions">
         <button type="button" onClick={save}>保存持仓</button>
         {holding ? <button className="secondary" type="button" onClick={clear}>清除</button> : null}
-        <span role="status">{notice || (holding ? "仅保存在当前浏览器" : isDemo ? "演示行情不可保存" : "按股票代码保存在当前浏览器")}</span>
+        <span role="status">{notice || (holding ? "持仓按账户同步至数据库" : isDemo ? "演示行情不可保存" : "按股票代码保存到个人账户")}</span>
       </div>
     </section>
   );

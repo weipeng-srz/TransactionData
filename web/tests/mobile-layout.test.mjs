@@ -4,7 +4,8 @@ import test from "node:test";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
-const experienceStyles = readFileSync(new URL("../app/experience.css", import.meta.url), "utf8");
+const researchNotesStyles = readFileSync(new URL("../app/features/stock/ResearchNotes.module.css", import.meta.url), "utf8");
+const workspaceStyles = readFileSync(new URL("../app/components/WorkspaceTabs.module.css", import.meta.url), "utf8");
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 
@@ -34,17 +35,16 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.suggestionActions button \{[^}]*min-height: 44px;[^}]*flex: 1;/);
 });
 
-test("keeps stock loading sources compact and replaces the overflowing bottom rail with an information-layer picker", () => {
+test("keeps stock loading compact with one accessible all-screen research navigation", () => {
   assert.match(appleStyles, /@media \(max-width: 620px\)[\s\S]*?\.stock-initial-sources \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
-  assert.match(appleStyles, /Stable mobile compositor:[\s\S]*?backdrop-filter: none;/);
-  const chapterPicker = pageSource.indexOf('className="mobile-section-jump research-section-jump"');
-  const quoteHeader = pageSource.indexOf('className="quote-head"');
-  assert.ok(quoteHeader >= 0 && chapterPicker > quoteHeader, "the mobile chapter picker follows the stock identity and quote");
-  assert.match(pageSource, /aria-label="选择研究信息层"/);
-  assert.match(experienceStyles, /@media \(max-width: 820px\)[\s\S]*?\.research-page \.research-section-jump \{[\s\S]*?position: sticky;/);
-  assert.match(appleStyles, /@media \(max-width: 820px\)[\s\S]*?\.app-sidebar \.workspace-nav,[\s\S]*?display: none !important;/);
-  assert.match(appleStyles, /\.mobile-section-jump select \{[\s\S]*?height: 44px;/);
-  assert.doesNotMatch(pageSource, /滑动 ›/);
+  const tabs = pageSource.indexOf('<WorkspaceTabs id="stock"');
+  const header = pageSource.indexOf('<StockWorkspaceHeader');
+  assert.ok(header >= 0 && tabs > header);
+  assert.match(pageSource, /label="个股研究视图"/);
+  assert.match(workspaceStyles, /overflow-x: auto/);
+  assert.match(workspaceStyles, /min-height: 44px/);
+  assert.match(workspaceStyles, /top: max\(136px/);
+  assert.doesNotMatch(pageSource, /research-section-jump|滑动 ›/);
 });
 
 test("adds touch-friendly horizontal tracks only within mobile media rules", () => {
@@ -71,7 +71,7 @@ test("keeps mobile touch targets large and closed action menus non-interactive",
   assert.match(mobileTouchGuard, /^\/\* Mobile touch target and spacing guard\. \*\/[\s\S]*?@media \(max-width: 820px\)/);
   assert.match(mobileTouchGuard, /button,\s+summary,\s+select,[\s\S]*?min-height: 44px;/);
   assert.match(mobileTouchGuard, /\.appearance-toggle,[\s\S]*?min-width: 44px;/);
-  assert.match(mobileTouchGuard, /\.research-more-actions:not\(\[open\]\) > div \{\s+display: none !important;/);
+  assert.match(researchNotesStyles, /\.moreActions:not\(\[open\]\) > div \{\s*display: none;/);
   assert.match(mobileTouchGuard, /\.app-sidebar \{\s+pointer-events: none;/);
   assert.match(mobileTouchGuard, /\.app-sidebar \.workspace-nav \{[\s\S]*?pointer-events: auto;/);
   assert.match(mobileTouchGuard, /\.table-wrap > table \{\s+min-width: 680px;/);
@@ -87,7 +87,7 @@ test("keeps late mobile component overrides at a 44px interactive minimum", () =
   assert.ok(marker >= 0);
   assert.ok(end > marker);
   assert.match(finalHitAreaGuard, /\.realtime-header-meta button:not\(\.icon-button\) \{\s+min-height: 44px;/);
-  assert.match(finalHitAreaGuard, /\.research-page \.mobile-analysis-toggle \{[\s\S]*?min-height: 44px;[\s\S]*?display: inline-flex !important;/);
+  assert.match(researchNotesStyles, /@media \(max-width: 820px\)[\s\S]*?\.workspace button, \.moreActions summary \{ min-height: 44px;/);
   assert.match(finalHitAreaGuard, /\.kline-viewport-controls button,[\s\S]*?min-width: 44px;\s+min-height: 44px;/);
   assert.match(finalHitAreaGuard, /\.kline-viewport-controls button\.is-reset,[\s\S]*?min-width: 48px;/);
   assert.match(finalHitAreaGuard, /\.next-day-controls select \{\s+min-height: 44px;/);

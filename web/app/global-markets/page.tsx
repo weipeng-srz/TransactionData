@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "../components/AppearanceProvider";
 import KlineViewportControls from "../components/KlineViewportControls";
 import SiteBanner from "../components/SiteBanner";
@@ -17,31 +17,27 @@ import {
   type KlineDragIntent,
   type KlineRange,
 } from "../lib/klineViewport";
-import { projectRobinsonPoint } from "../lib/robinsonProjection";
 import { US_INDEXES, type USIndexSessionQuote, type USMarketPhase } from "../lib/usMarketIndexes";
+import { WorkspacePanel, WorkspaceTabs } from "../components/WorkspaceTabs";
+import { useWorkspaceView } from "../hooks/useWorkspaceView";
+import MarketMap from "../features/global-markets/MarketMap";
+import MarketOverview from "../features/global-markets/MarketOverview";
+import { fearTone, formatPrice, signedPercent, tone } from "../features/global-markets/format";
+import styles from "../features/global-markets/GlobalWorkspace.module.css";
 import "./global-markets.css";
 
-type FeedState = "loading" | "live" | "refreshing" | "error";
-const mapLabelOffsets: Record<string, { x: number; y: number }> = {
-  tsx: { x: -116, y: -52 },
-  dow: { x: 17, y: 13 },
-  bovespa: { x: 18, y: -18 },
-  ftse: { x: -126, y: -48 },
-  dax: { x: 18, y: -52 },
-  cac: { x: 20, y: 17 },
-  sensex: { x: -150, y: 30 },
-  shanghai: { x: 18, y: 19 },
-  hsi: { x: 18, y: 41 },
-  kospi: { x: -66, y: -58 },
-  nikkei: { x: 17, y: -13 },
-  sti: { x: -126, y: 15 },
-  asx: { x: -124, y: 13 },
-};
-const mapTickerLabels: Record<string, string> = {
-  tsx: "TSX", dow: "DOW", bovespa: "BVSP", ftse: "FTSE", dax: "DAX", cac: "CAC", sensex: "SENSEX",
-  shanghai: "上证", hsi: "恒指", kospi: "KOSPI", nikkei: "日经", sti: "STI", asx: "ASX",
-};
+const globalViews = ["overview", "regions", "trend", "map"] as const;
+const globalAnchors = {
+  "global-overview": "overview", "global-regions": "regions", "a-share-indexes": "regions",
+  "us-indexes": "regions", "americas-indexes": "regions", "europe-indexes": "regions", "asia-indexes": "regions",
+  "shanghai-index": "trend", "global-map": "map",
+} as const;
+const globalTabs = [
+  { id: "overview", label: "市场概览" }, { id: "regions", label: "区域行情" },
+  { id: "trend", label: "上证趋势" }, { id: "map", label: "市场地图" },
+] as const;
 
+type FeedState = "loading" | "live" | "refreshing" | "error";
 export default function GlobalMarketsPage() {
   const { appearance, toggleAppearance } = useAppearance();
   const [quotes, setQuotes] = useState<GlobalIndexQuote[]>([]);
@@ -52,7 +48,7 @@ export default function GlobalMarketsPage() {
   const [fetchedAt, setFetchedAt] = useState("");
   const [error, setError] = useState("");
   const [preservedStock, setPreservedStock] = useState("");
-  const [mobileChapter, setMobileChapter] = useState<"overview" | "trend" | "map" | "regions">("overview");
+  const [globalView, setGlobalView] = useWorkspaceView(globalViews, "overview", "view", globalAnchors);
   const requestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -148,23 +144,8 @@ export default function GlobalMarketsPage() {
       changePct: usQuoteById.get(definition.id)?.cashChangePct ?? undefined,
     })),
   ];
-  const mappedMarketCount = mappedMarkets.length;
   const hasMarketData = quotes.length + usQuotes.length > 0;
   const loading = feedState === "loading" || feedState === "refreshing";
-  const chapters = [
-    { id: "overview", label: "市场概览", target: "global-overview" },
-    { id: "trend", label: "上证趋势", target: "shanghai-index" },
-    { id: "map", label: "市场地图", target: "global-map" },
-    { id: "regions", label: "区域行情", target: "global-regions" },
-  ] as const;
-  const navigateChapter = (chapter: typeof chapters[number]) => {
-    setMobileChapter(chapter.id);
-    window.requestAnimationFrame(() => {
-      const target = document.getElementById(chapter.target);
-      target?.focus({ preventScroll: true });
-      target?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-    });
-  };
 
   return (
     <div className="global-page">
@@ -175,59 +156,10 @@ export default function GlobalMarketsPage() {
         onToggleAppearance={toggleAppearance}
         statusText={fetchedAt ? `${feedLabel(feedState)} · ${formatFetchedAt(fetchedAt)}` : feedLabel(feedState)}
       />
-      <main className="app-shell global-page-shell">
-      <aside className="app-sidebar global-sidebar global-navigation-sidebar">
-        <section className="sidebar-menu-summary sidebar-preview-card global-sidebar-summary" aria-label="全球市场汇总">
-          <header className="sidebar-preview-header">
-            <div>
-              <span>全球市场</span>
-              <strong>{!hasMarketData ? loading ? "正在连接行情" : "行情暂不可用" : openMarkets ? "实时交易中" : "主要市场休市"}</strong>
-              <small>{fetchedAt ? `更新于 ${formatFetchedAt(fetchedAt)}` : loading ? "正在连接全球行情" : "等待有效行情"}</small>
-            </div>
-            <em className={`sidebar-status-pill ${openMarkets ? "is-live" : ""}`}><i />{!hasMarketData ? "待更新" : openMarkets ? `${openMarkets} 开盘` : "休市"}</em>
-          </header>
-          <div className="sidebar-preview-hero" aria-label="全球股指实时汇总">
-            <span>当前开市广度</span>
-            <strong>{openBreadthTotal ? `${openBreadthPct}%` : "—"}</strong>
-            <em className={openBreadthTotal ? openBreadthPct >= 55 ? "is-up" : openBreadthPct <= 45 ? "is-down" : "is-flat" : "is-flat"}>{openBreadthTotal ? `${openRising} 涨 / ${openFalling} 跌` : hasMarketData ? "当前无开市样本" : "等待有效行情"}</em>
-            <div className="sidebar-breadth-track" aria-hidden="true"><i style={{ width: `${openBreadthPct}%` }} /></div>
-            <small>跨市场最近快照 {snapshotBreadthTotal ? `${snapshotBreadthPct}% · ${snapshotRising} 涨/${snapshotFalling} 跌` : "等待行情"}</small>
-          </div>
-          <div className="sidebar-preview-metrics global-sidebar-snapshot">
-            <div>
-              <span>上证指数</span>
-              <strong>{shanghaiQuote ? formatPrice(shanghaiQuote.price) : "—"}</strong>
-              <em className={tone(shanghaiQuote?.changePct)}>{shanghaiQuote ? signedPercent(shanghaiQuote.changePct) : "行情连接中"}</em>
-            </div>
-            <div>
-              <span>美股波动</span>
-              <strong>{usFearGauge ? formatPrice(usFearGauge.value) : "—"}</strong>
-              <em className={fearTone(usFearGauge?.value)}>{usFearGauge?.level ?? "VIX 等待更新"}</em>
-            </div>
-          </div>
-          <dl className="sidebar-preview-strip" aria-label="全球市场覆盖摘要">
-            <div><dt>覆盖指数</dt><dd>{coveredIndexes}</dd></div>
-            <div><dt>交易中</dt><dd>{hasMarketData ? openMarkets : "—"}</dd></div>
-            <div><dt>波动焦点</dt><dd className={tone(leader?.changePct)} title={leader?.name}>{leader ? signedPercent(leader.changePct) : "—"}</dd></div>
-          </dl>
-          <small className="sidebar-preview-source">焦点 · {leader?.name ?? "等待实时数据"}</small>
-        </section>
-        <nav className="workspace-nav global-workspace-nav" aria-label="全球股指快速导航">
-          <p className="sidebar-nav-heading">快速定位</p>
-          <a href="#global-overview"><span>市场概览</span><small>Overview</small></a>
-          <a href="#a-share-indexes"><span>A股核心</span><small>A Share</small></a>
-          <a href="#shanghai-index"><span>上证指数</span><small>Shanghai</small></a>
-          <a href="#global-map"><span>全球地图</span><small>Map</small></a>
-          <a href="#us-indexes"><span>美股指数</span><small>US</small></a>
-          <a href="#americas-indexes"><span>美洲市场</span><small>Americas</small></a>
-          <a href="#europe-indexes"><span>欧洲市场</span><small>Europe</small></a>
-          <a href="#asia-indexes"><span>亚太市场</span><small>Asia</small></a>
-        </nav>
-      </aside>
-
+      <main className={`app-shell global-page-shell ${styles.shell}`}>
       <div className="app-workspace-shell global-main">
         <header className="global-workspace-heading">
-          <div><p>GLOBAL MARKETS</p><h1>全球市场</h1><span>先看市场广度，再看量价趋势与区域表现。</span></div>
+          <div><p>GLOBAL MARKETS</p><h1>全球市场</h1></div>
           <div className="global-heading-actions">
             <div className={`global-heading-status ${error ? "has-error" : ""}`} role="status">
               <strong><i aria-hidden="true" />{loading ? "正在更新行情" : error ? hasMarketData ? "暂用上次行情" : "行情连接异常" : hasMarketData ? "行情已更新" : "暂无可用行情"}</strong>
@@ -243,66 +175,38 @@ export default function GlobalMarketsPage() {
             </button>
           </div>
         </header>
-        <nav className="global-chapter-nav" aria-label="选择全球市场信息层">
-          {chapters.map((chapter) => <button key={chapter.id} type="button" aria-pressed={mobileChapter === chapter.id} aria-controls={chapter.target} onClick={() => navigateChapter(chapter)}>{chapter.label}</button>)}
-        </nav>
+        <WorkspaceTabs id="global" label="全球市场视图" tabs={globalTabs} value={globalView} onChange={setGlobalView} />
         {error ? <div className="global-error" role="status"><strong>{hasMarketData ? "本次刷新未成功" : "暂时无法获取行情"}</strong><span>{error}。{hasMarketData ? "已保留上一份有效行情，" : ""}页面将在下一个刷新周期自动重试，也可点击“刷新行情”。</span></div> : null}
 
-        <div className="platform-mobile-chapter" data-active={mobileChapter === "overview"}>
-          <section id="global-overview" className="global-summary" aria-label="全球市场概览" tabIndex={-1} aria-busy={loading}>
-            <article><span>覆盖指数</span><strong>{quotes.length + usQuotes.length || GLOBAL_INDEXES.length + US_INDEXES.length}</strong><small>美股 · A股 · 美洲 · 欧洲 · 亚太</small></article>
-            <article><span>当前开市广度 · 涨 / 跌</span><strong><em className="is-up">{hasMarketData ? openRising : "—"}</em><b>/</b><em className="is-down">{hasMarketData ? openFalling : "—"}</em></strong><small>{openBreadthTotal ? `上涨占比 ${openBreadthPct}% · 仅统计交易中市场` : hasMarketData ? "当前没有交易中样本" : "等待有效行情"}</small></article>
-            <article><span>跨市场最近快照 · 涨 / 跌</span><strong><em className="is-up">{hasMarketData ? snapshotRising : "—"}</em><b>/</b><em className="is-down">{hasMarketData ? snapshotFalling : "—"}</em></strong><small>各市场时点不同，不视为同步收盘比较</small></article>
-            <article><span>交易中市场</span><strong>{hasMarketData ? openMarkets : "—"}</strong><small>依据各交易所当地时段</small></article>
-            <article><span>波动焦点</span><strong className={tone(leader?.changePct)}>{leader ? signedPercent(leader.changePct) : "—"}</strong><small>{leader?.name ?? "等待实时数据"}</small></article>
-          </section>
+        <WorkspacePanel id="global" view="overview" active={globalView}>
+          <MarketOverview loading={loading} hasMarketData={hasMarketData} coveredIndexes={coveredIndexes}
+            openRising={openRising} openFalling={openFalling} openBreadthTotal={openBreadthTotal} openBreadthPct={openBreadthPct}
+            snapshotRising={snapshotRising} snapshotFalling={snapshotFalling} snapshotBreadthPct={snapshotBreadthPct}
+            openMarkets={openMarkets} leader={leader} shanghaiQuote={shanghaiQuote} usFearGauge={usFearGauge} />
+        </WorkspacePanel>
 
+        <WorkspacePanel id="global" view="regions" active={globalView}>
+        <section id="global-regions" className={`global-region-board ${styles.regions}`} aria-label="全球指数行情列表" tabIndex={-1}>
+          <nav className="global-region-jumps" aria-label="选择市场区域"><span>按区域查看</span><a href="#a-share-indexes">A 股</a><a href="#us-indexes">美股核心</a><a href="#americas-indexes">美洲</a><a href="#europe-indexes">欧洲</a><a href="#asia-indexes">亚太</a></nav>
           <section id="a-share-indexes" className="global-a-share-board" aria-label="A股核心指数行情" tabIndex={-1}>
             <RegionPanel region="A股" definitions={GLOBAL_INDEXES.filter((item) => item.region === "A股")} quoteById={quoteById} fearGauge={fearGaugeByMarket.get("A股")} feedState={feedState} onRetry={() => void refresh()} />
           </section>
-        </div>
-
-        <div className="platform-mobile-chapter" data-active={mobileChapter === "trend"}>
-          <ShanghaiIndexPanel key={`shanghai-${shanghaiHistory.length}`} candles={shanghaiHistory} feedState={feedState} onRetry={() => void refresh()} />
-        </div>
-
-        <section id="global-map" className="global-map-card platform-mobile-visibility" data-active={mobileChapter === "map"} aria-label="全球主要股指地图" tabIndex={-1}>
-          <header>
-            <div><p>MARKET REGIONS</p><h2>全球主要市场板块</h2></div>
-            <div className="global-map-header-meta">
-              <span className="global-map-count">{mappedMarketCount} 个主要市场</span>
-              <div className="global-legend"><span className="is-up">上涨</span><span className="is-down">下跌</span><span>平盘</span></div>
-            </div>
-          </header>
-          <div className="global-map-stage">
-            <div className="global-map-viewport">
-              {/* The land silhouette and every market use the exact same Robinson viewBox. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="global-map-land" src="/world-map-robinson.svg" alt="" aria-hidden="true" />
-              {mappedMarkets.map((market) => <MarketMapMarker key={market.id} {...market} />)}
-            </div>
-            <div className="global-map-mobile-list" aria-label="全球主要市场行情列表">
-              {mappedMarkets.map((market) => {
-                const changeLabel = market.changePct == null ? "等待行情" : signedPercent(market.changePct);
-                return (
-                  <article key={market.id} className={tone(market.changePct)} aria-label={`${market.city}，${market.name}，${changeLabel}`}>
-                    <span><small>{market.city}</small><strong>{compactIndexName(market.name)}</strong></span>
-                    <b>{market.changePct == null ? "—" : changeLabel}</b>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-          <footer><span>按交易所所在位置展示 · 跨市场行情时点可能不同</span><span>红涨绿跌 · 行情每 10 秒刷新</span></footer>
-        </section>
-
-        <section id="global-regions" className="global-region-board platform-mobile-visibility" data-active={mobileChapter === "regions"} aria-label="全球指数行情列表" tabIndex={-1}>
-          <nav className="global-region-jumps" aria-label="选择市场区域"><span>按区域查看</span><a href="#us-indexes">美股核心</a><a href="#americas-indexes">美洲</a><a href="#europe-indexes">欧洲</a><a href="#asia-indexes">亚太</a></nav>
           <USMarketPanel quotes={usQuotes} fearGauge={fearGaugeByMarket.get("美股")} feedState={feedState} onRetry={() => void refresh()} />
           {(["美洲", "欧洲", "亚太"] as GlobalRegion[]).map((region) => (
             <RegionPanel key={region} region={region} definitions={GLOBAL_INDEXES.filter((item) => item.region === region)} quoteById={quoteById} feedState={feedState} onRetry={() => void refresh()} />
           ))}
         </section>
+        </WorkspacePanel>
+
+        <WorkspacePanel id="global" view="trend" active={globalView}>
+          <ShanghaiIndexPanel key={`shanghai-${shanghaiHistory.length}`} candles={shanghaiHistory} feedState={feedState} onRetry={() => void refresh()} />
+        </WorkspacePanel>
+
+        <WorkspacePanel id="global" view="map" active={globalView}>
+          <MarketMap mappedMarkets={mappedMarkets} />
+        </WorkspacePanel>
+
+
       </div>
       </main>
     </div>
@@ -596,28 +500,6 @@ function ShanghaiIndexPanel({ candles, feedState, onRetry }: { candles: Shanghai
         <button type="button" disabled={feedState === "loading" || feedState === "refreshing"} onClick={onRetry}>{feedState === "loading" || feedState === "refreshing" ? "加载中…" : "重新加载行情"}</button>
       </div>}
     </section>
-  );
-}
-
-function MarketMapMarker({ id, city, name, longitude, latitude, changePct }: { id: string; city: string; name: string; longitude: number; latitude: number; changePct?: number }) {
-  const projected = projectRobinsonPoint(longitude, latitude);
-  const offset = mapLabelOffsets[id] ?? { x: 14, y: -18 };
-  const style = {
-    left: `${projected.left.toFixed(3)}%`,
-    top: `${projected.top.toFixed(3)}%`,
-    "--marker-label-x": `${offset.x}px`,
-    "--marker-label-y": `${offset.y}px`,
-  } as CSSProperties;
-  const changeLabel = changePct == null ? "等待行情" : signedPercent(changePct);
-
-  return (
-    <article className={`global-map-marker ${tone(changePct)}`} style={style} title={`${city} · ${name} · ${changeLabel}`} data-map-id={id} aria-label={`${city}，${name}，${changeLabel}`}>
-      <div className="global-marker-label">
-        <small>{city}</small>
-        <span className="global-marker-desktop-value"><strong>{compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
-        <span className="global-marker-mobile-value"><strong>{mapTickerLabels[id] ?? compactIndexName(name)}</strong><b>{changePct == null ? "—" : changeLabel}</b></span>
-      </div>
-    </article>
   );
 }
 
@@ -970,12 +852,7 @@ function FearKlineChart({ candles, feedState, onRetry }: { candles: FearGaugeCan
 function feedLabel(state: FeedState) { return state === "loading" ? "连接中" : state === "refreshing" ? "刷新中" : state === "error" ? "自动重试" : "实时行情"; }
 function regionCode(region: GlobalRegion) { return region === "美洲" ? "AMER" : region === "欧洲" ? "EMEA" : region === "亚太" ? "APAC" : "CN-A"; }
 function phaseTone(phase: USMarketPhase | undefined) { return phase === "盘中" ? "is-regular" : phase === "盘前" ? "is-pre" : phase === "盘后" ? "is-post" : phase === "夜盘" ? "is-night" : "is-closed"; }
-function fearTone(value: number | undefined) { return (value ?? 0) >= 40 ? "is-high" : (value ?? 0) >= 30 ? "is-watch" : "is-calm"; }
-function tone(value: number | undefined) { return (value ?? 0) > 0 ? "is-up" : (value ?? 0) < 0 ? "is-down" : "is-flat"; }
-function signedPercent(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`; }
 function volumeState(value: number) { return value > 5 ? "放量" : value < -5 ? "缩量" : "量能平稳"; }
 function volumeStateTone(value: string | undefined) { return value === "放量" ? "is-volume-up" : value === "缩量" ? "is-volume-down" : "is-flat"; }
-function compactIndexName(value: string) { return value.replace("加拿大 ", "").replace("澳大利亚 ", "").replace("巴西 ", "").replace("英国", "").replace("德国 ", "").replace("法国 ", "").replace("印度 ", ""); }
-function formatPrice(value: number) { return new Intl.NumberFormat("zh-CN", { minimumFractionDigits: value >= 10_000 ? 0 : 2, maximumFractionDigits: 2 }).format(value); }
 function formatAmountHundredMillion(value: number) { return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value / 100_000_000); }
 function formatFetchedAt(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "刚刚" : date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }); }

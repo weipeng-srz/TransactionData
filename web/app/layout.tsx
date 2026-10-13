@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import AuthProvider from "./components/AuthProvider";
 import AppearanceProvider from "./components/AppearanceProvider";
 import ThemeIconSync from "./components/ThemeIconSync";
 import { appearanceBootstrapScript } from "./lib/appearance";
@@ -51,10 +52,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script id="appearance-bootstrap" dangerouslySetInnerHTML={{ __html: appearanceBootstrapScript }} />
       </head>
       <body>
+        <AuthProvider>
         <AppearanceProvider>
           <ThemeIconSync />
           {children}
         </AppearanceProvider>
+        </AuthProvider>
       </body>
     </html>
   );

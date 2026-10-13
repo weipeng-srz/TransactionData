@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const pageSource = readFileSync(new URL("../app/screener/page.tsx", import.meta.url), "utf8");
+const pageSource = ["../app/screener/page.tsx", "../app/features/screener/ResearchPoolView.tsx", "../app/features/screener/StrategyEvidenceView.tsx"]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
 const styleSource = readFileSync(new URL("../app/screener/screener.module.css", import.meta.url), "utf8");
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 

@@ -273,23 +273,15 @@ test("returns no prediction when daily history cannot support labels and indicat
   assert.equal(buildNextDayPrediction(syntheticCandles(28)), null);
 });
 
-test("keeps next-day analysis independent and directly after the daily B/S backtest", () => {
-  const workspaceIndex = pageSource.indexOf('<section className="workspace-grid"');
-  const analysisRailIndex = pageSource.indexOf("<aside", workspaceIndex);
-  const backtestIndex = pageSource.indexOf("<SignalBacktestCard", workspaceIndex);
-  const analysisRailEndIndex = pageSource.indexOf("</aside>", backtestIndex);
-  const workspaceEndIndex = pageSource.indexOf("</section>", analysisRailEndIndex);
-  const predictionIndex = pageSource.indexOf("<NextDayPredictionCard", workspaceIndex);
-
-  assert.ok(workspaceIndex >= 0);
-  assert.ok(analysisRailIndex > workspaceIndex);
-  assert.ok(backtestIndex > analysisRailIndex);
-  assert.ok(analysisRailEndIndex > backtestIndex);
-  assert.ok(workspaceEndIndex > analysisRailEndIndex);
-  assert.ok(predictionIndex > workspaceEndIndex);
+test("keeps independent prediction and daily backtest together in the models workspace", () => {
+  const models = pageSource.slice(pageSource.indexOf('<WorkspacePanel id="stock" view="models"'), pageSource.indexOf('<WorkspacePanel id="stock" view="financials"'));
+  assert.match(models, /<NextDayPredictionCard[\s\S]*candles=\{dailyCandles\}/);
+  assert.match(models, /onInspectDate=\{inspectPredictionDate\}/);
+  assert.match(models, /<SignalBacktestCard backtest=\{signalBacktest\}/);
+  assert.match(models, /onCostChange=\{setRoundTripCostPct\}/);
+  assert.match(models, /<AdvancedResearchPanel/);
   assert.doesNotMatch(pageSource, /className="recent-card"/);
   assert.doesNotMatch(pageSource, /RECENT BARS|最近 K 线/);
-  assert.match(globalStyles, /\.backtest-card\s*\{[^}]*grid-row:\s*4/s);
   assert.doesNotMatch(globalStyles, /\.next-day-card\s*\{[^}]*grid-row:/s);
 });
 

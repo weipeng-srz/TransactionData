@@ -583,3 +583,21 @@
   .searchField,
   .suggestion { border-color: color-mix(in srgb, var(--apple-text) 44%, transparent); }
 }
+
+@media print { .banner, .mobileSpacer { display: none; } }
+
+.accountLink, .registerLink { flex-shrink: 0; min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; color: var(--apple-accent); text-decoration: none; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.registerLink { background: var(--apple-accent); color: white; }
+.accountLink:focus-visible, .registerLink:focus-visible { outline: 2px solid var(--apple-accent); outline-offset: 3px; }
+
+/* Keep account actions and the full navigation readable on narrow phones. */
+@media (max-width: 520px) {
+  .banner { min-height: 168px; grid-template-rows: 48px 48px 48px; row-gap: 6px; }
+  .brand { grid-column: 1; grid-row: 1; }
+  .bannerActions { grid-column: 2 / -1; grid-row: 1; justify-self: end; }
+  .navigation { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; width: 100%; }
+  .navigation a { flex: 1; }
+  .search { grid-column: 1 / -1; grid-row: 3; }
+  .mobileSpacer { height: calc(176px + max(8px, env(safe-area-inset-top))); }
+  .accountLink, .registerLink { min-height: 44px; }
+}

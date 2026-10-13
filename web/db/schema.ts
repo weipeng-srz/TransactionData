@@ -14,3 +14,28 @@ export const telemetryDaily = sqliteTable("telemetry_daily", {
   count: integer("count").notNull().default(0),
   totalMs: integer("total_ms").notNull().default(0),
 }, (table) => [index("telemetry_daily_date_idx").on(table.date)]);
+
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  bio: text("bio").notNull().default(""),
+  passwordHash: text("password_hash").notNull(),
+  sessionVersion: integer("session_version").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const authSessions = sqliteTable("auth_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sessionVersion: integer("session_version").notNull(),
+  createdAt: text("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => [index("auth_sessions_user_idx").on(table.userId), index("auth_sessions_expiry_idx").on(table.expiresAt)]);
+
+export const authRateLimits = sqliteTable("auth_rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => [index("auth_rate_limits_expiry_idx").on(table.expiresAt)]);

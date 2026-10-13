@@ -5,7 +5,6 @@ import test from "node:test";
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 const globalStyles = readFileSync(new URL("../app/global-markets/global-markets.css", import.meta.url), "utf8");
 const appleGlassBlock = appleStyles.slice(appleStyles.indexOf("/* Desktop liquid-glass surface system."));
-const globalGlassBlock = globalStyles.slice(globalStyles.indexOf("/* Desktop liquid-glass refinement."));
 
 test("defines readable liquid-glass surfaces for light and dark appearances", () => {
   assert.match(appleStyles, /--apple-glass: rgba\(255, 255, 255, 0\.66\)/);
@@ -14,7 +13,7 @@ test("defines readable liquid-glass surfaces for light and dark appearances", ()
   assert.match(appleStyles, /--platform-border-color: rgba\(207, 216, 229, 0\.22\)/);
   assert.match(appleStyles, /--apple-glass-border: var\(--platform-border-color\)/);
   assert.match(appleStyles, /backdrop-filter: blur\(26px\) saturate\(175%\)/);
-  assert.match(appleStyles, /\.quote-head,/);
+  assert.match(appleStyles, /\.chart-card,/);
   assert.match(appleStyles, /\.stock-score-card \{/);
   assert.match(appleStyles, /body::before \{/);
   assert.match(appleStyles, /@keyframes apple-ambient-scroll/);
@@ -24,11 +23,17 @@ test("defines readable liquid-glass surfaces for light and dark appearances", ()
   assert.doesNotMatch(appleGlassBlock, /inset 0 1px/);
 });
 
-test("applies the shared glass treatment to global-market containers", () => {
+test("keeps global-market containers on restrained surfaces without decorative glass shadows", () => {
   assert.match(globalStyles, /\.global-summary,/);
   assert.match(globalStyles, /\.global-map-card,/);
   assert.match(globalStyles, /\.global-region-card \{/);
   assert.match(globalStyles, /\.global-fear-card \{/);
-  assert.match(globalStyles, /var\(--apple-glass-shadow\)/);
-  assert.doesNotMatch(globalGlassBlock, /inset 0 1px/);
+  assert.match(globalStyles, /background: var\(--apple-material-panel\)/);
+  assert.doesNotMatch(globalStyles, /var\(--apple-glass-shadow\)|var\(--apple-hover-lift\)|inset 0 1px/);
+});
+
+test("stock workspace uses a plain background without ambient layers or floating panels", () => {
+  assert.match(appleStyles, /body:has\(\.research-page\) \{ background: var\(--apple-page\); \}/);
+  assert.match(appleStyles, /body:has\(\.research-page\)::before, body:has\(\.research-page\)::after \{ content: none; \}/);
+  assert.match(appleStyles, /\.research-page :where\(\.app-sidebar[^}]*?\) \{[^}]*box-shadow: none;[^}]*border-radius: 12px;[^}]*background: var\(--apple-surface\);/);
 });

@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useAuth } from "./AuthProvider";
+import { accountStorage } from "../lib/accountStorage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import { isUSStockSymbol, marketLabel, marketOf, normalizeUSSymbol, stockRouteKey, stockStorageKey, type StockIdentity, type StockMarket } from "../lib/security";
 import { publicStockLookupError } from "../lib/stockLookupError";
 import styles from "./SiteBanner.module.css";
 
-type BannerPage = "portfolio" | "stock" | "global" | "screener";
+type BannerPage = "portfolio" | "stock" | "global" | "screener" | "review" | "account";
 type Appearance = "light" | "dark";
 type SearchPhase = "idle" | "opening" | "adding";
 
@@ -34,6 +36,7 @@ export default function SiteBanner({
   onAddStock?: (stock: WatchlistStock, existed: boolean) => void;
   onOpenPortfolio?: () => void;
 }) {
+  const { user, syncStatus } = useAuth();
   const [query, setQuery] = useState("");
   const [suggestion, setSuggestion] = useState<WatchlistStock | null>(null);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -153,6 +156,7 @@ export default function SiteBanner({
   };
 
   const addStock = async (value = query) => {
+    if (!user) { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`); return; }
     if (!value.trim() || operationRef.current) return;
     const controller = new AbortController();
     operationRef.current = controller;
@@ -166,12 +170,12 @@ export default function SiteBanner({
       if (controller.signal.aborted) return;
       let current: WatchlistStock[] = [];
       try {
-        current = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
+        current = parseWatchlist(JSON.parse(accountStorage.getItem(watchlistStorageKey) ?? "[]"));
       } catch {
-        localStorage.removeItem(watchlistStorageKey);
+        accountStorage.removeItem(watchlistStorageKey);
       }
       const existed = current.some((item) => stockStorageKey(item) === stockStorageKey(stock));
-      localStorage.setItem(watchlistStorageKey, JSON.stringify(upsertWatchlistStock(current, stock)));
+      accountStorage.setItem(watchlistStorageKey, JSON.stringify(upsertWatchlistStock(current, stock)));
       window.dispatchEvent(new CustomEvent("ticklens:watchlist-change", { detail: stock }));
       onAddStock?.(stock, existed);
       setQuery("");
@@ -202,7 +206,7 @@ export default function SiteBanner({
   return (
     <>
     <header className={styles.banner} data-site-banner>
-      <Link className={styles.brand} href="/" aria-label="TrendSight 自选股首页" onClick={openPortfolioClick}>
+      <Link className={styles.brand} href="/" aria-label="TrendSight 工作台首页" onClick={openPortfolioClick}>
         <span className={styles.brandMark} aria-hidden="true" />
         <span><strong>TrendSight</strong><small>市场研究工作台</small></span>
       </Link>
@@ -213,9 +217,12 @@ export default function SiteBanner({
           href="/"
           aria-current={activePage === "portfolio" ? "page" : undefined}
           onClick={openPortfolioClick}
-        >自选</Link>
+        >{user ? "工作台" : "股票查询"}</Link>
+        {user && <>
         <Link className={activePage === "screener" ? styles.activeNav : ""} href="/screener" aria-current={activePage === "screener" ? "page" : undefined}>选股</Link>
         <Link className={activePage === "global" ? styles.activeNav : ""} href={globalHref} aria-current={activePage === "global" ? "page" : undefined}>全球</Link>
+        <Link className={activePage === "review" ? styles.activeNav : ""} href="/review" aria-current={activePage === "review" ? "page" : undefined}>复盘</Link>
+        </>}
       </nav>
 
       <form
@@ -280,12 +287,12 @@ export default function SiteBanner({
               </div>
               <div className={styles.suggestionActions}>
                 <button ref={resultButtonRef} type="button" disabled={busy} onClick={() => void openStock(stockRouteKey(suggestion))}>查看个股</button>
-                <button type="button" disabled={busy} onClick={() => void addStock(stockRouteKey(suggestion))}>＋ 添加自选</button>
+                {user && <button type="button" disabled={busy} onClick={() => void addStock(stockRouteKey(suggestion))}>＋ 添加自选</button>}
               </div>
             </div>
           ) : null}
           <kbd aria-hidden="true">⌘ K</kbd>
-          <button className={styles.addButton} type="button" disabled={busy || !query.trim()} onClick={() => void addStock()} aria-label="添加自选股">{phase === "adding" ? "添加中…" : "添加自选"}</button>
+          {user && <button className={styles.addButton} type="button" disabled={busy || !query.trim()} onClick={() => void addStock()} aria-label="添加自选股">{phase === "adding" ? "添加中…" : "添加自选"}</button>}
           <button type="submit" disabled={busy || !query.trim()}>
             <span className={styles.desktopButtonLabel}>{phase === "opening" ? "打开中…" : "切换个股"}</span>
             <span className={styles.mobileButtonLabel}>{phase === "opening" ? "加载" : "查看"}</span>
@@ -301,7 +308,9 @@ export default function SiteBanner({
       </form>
 
       <div className={styles.bannerActions}>
-        <span className={styles.dataState}><i />{statusText}</span>
+        <span className={styles.dataState} title={statusText} aria-live="polite"><i />{user ? syncStatus === "saving" ? "保存中…" : syncStatus === "error" ? "保存失败，请重试" : "账户数据已同步" : statusText}</span>
+        <Link className={styles.accountLink} href={user ? "/account" : "/login"}>{user ? "个人中心" : "登录"}</Link>
+        {!user && <Link className={styles.registerLink} href="/register">注册</Link>}
         <button className={styles.iconButton} type="button" onClick={onToggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
           <span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span>
         </button>

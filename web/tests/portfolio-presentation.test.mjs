@@ -7,7 +7,10 @@ import {
   sortPortfolioWatchlist,
 } from "../app/lib/portfolioPresentation.ts";
 
-const portfolioSource = readFileSync(new URL("../app/components/PortfolioHome.tsx", import.meta.url), "utf8");
+const portfolioSource = [
+  "../app/components/PortfolioHome.tsx",
+  "../app/features/portfolio/PortfolioStockList.tsx",
+].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
 
 const cnStock = { code: "600519", name: "贵州茅台", addedAt: "2026-08-18T00:00:00.000Z" };
 const usStock = { code: "AAPL", name: "Apple", market: "US", currency: "USD", addedAt: "2026-08-17T00:00:00.000Z" };

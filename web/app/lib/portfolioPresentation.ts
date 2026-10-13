@@ -216,7 +216,7 @@ export function buildPortfolioInsights(
     const reviewNames = validation.reviewStocks.slice(0, 2).join("、");
     nextAction = `先复核 ${reviewNames} 的行情时点、来源与涨跌复算，再使用收益结论。`;
   }
-  else if (!positioned) nextAction = "如需组合分析，先记录持股数与成本价；数据仍仅保存在本机。";
+  else if (!positioned) nextAction = "如需组合分析，先记录持股数与成本价；数据按账户保存到数据库。";
   else if (highestConcentration && highestConcentration.topWeightPct >= 60) {
     nextAction = `核验 ${highestConcentration.topStockName} 在${currencyName(highestConcentration.currency)}子组合中的集中风险。`;
   } else if (strongestMove && Math.abs(strongestMove.valuePct) >= 3) {

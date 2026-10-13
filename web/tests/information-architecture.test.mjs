@@ -19,40 +19,44 @@ test("uses one Apple-style mobile chapter control without removing desktop conte
   assert.match(appleStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.platform-mobile-section-nav button/);
 });
 
-test("portfolio groups overview, decisions, and watchlist while keeping workbench evidence reachable", () => {
-  assert.match(portfolioSource, /useState<"overview" \| "decisions" \| "watchlist">\("overview"\)/);
-  assert.match(portfolioSource, /aria-label="投资组合信息分组"/);
-  assert.match(portfolioSource, /data-active=\{mobileChapter === "watchlist"\}/);
-  assert.match(workbenchSource, /useState<"priority" \| "evidence" \| "discovery">\("priority"\)/);
+test("portfolio defaults to watchlist and keeps independent holdings and earnings collection", () => {
+  assert.match(portfolioSource, /useWorkspaceView\(portfolioViews, "watchlist"/);
+  assert.match(portfolioSource, /label="工作台视图"/);
+  for (const view of ["watchlist", "holdings", "earnings", "review"]) assert.match(portfolioSource, new RegExp(`id: "${view}"`));
+  assert.match(portfolioSource, /usePortfolioEarningsRecorder\(holdings, quotes, hydrated\)/);
+  assert.match(portfolioSource, /portfolioStocks.filter\(\(stock\) => holdings\[stockStorageKey\(stock\)\]\)/);
   assert.match(workbenchSource, /aria-label="决策工作台信息分组"/);
-  assert.match(workbenchSource, /data-active=\{mobileChapter === "evidence"\}/);
 });
 
-test("stock research splits long professional content into focused mobile layers", () => {
-  assert.match(stockSource, /useState<"overview" \| "live" \| "chart" \| "forecast" \| "tools" \| "financials" \| "news">\("overview"\)/);
-  assert.match(stockSource, /aria-label="选择研究信息层"/);
-  for (const chapter of ["overview", "live", "chart", "forecast", "tools", "financials", "news"]) {
-    assert.match(stockSource, new RegExp(`data-active=\\{mobileChapter === "${chapter}"\\}|value="${chapter}"`));
+test("stock research keeps all six views mounted and reachable in both depth modes", () => {
+  assert.match(stockSource, /useWorkspaceView\(stockViews, "overview", "tab"/);
+  assert.match(stockSource, /label="个股研究视图"/);
+  for (const view of ["overview", "market", "financials", "news", "models", "notes"]) assert.match(stockSource, new RegExp(`view="${view}" active=\{stockView\}`));
+  for (const component of ["RealtimeTradingPanel", "NextDayPredictionCard", "StockReviewEntry", "AdvancedResearch", "SignalBacktestCard"]) {
+    assert.match(stockSource, new RegExp(`<${component}`));
+    assert.doesNotMatch(stockSource, new RegExp(`viewMode === "pro" \\? <${component}`));
   }
-  assert.match(stockSource, /prefers-reduced-motion: reduce/);
 });
 
-test("financial dashboard progressively reveals summary, trends, and detailed conclusions", () => {
-  assert.match(financialSource, /useState<"summary" \| "trends" \| "details">\("summary"\)/);
-  assert.match(financialSource, /aria-label="财务信息分组"/);
-  assert.match(financialSource, /finance-chart-grid platform-mobile-visibility/);
-  assert.match(financialSource, /data-active=\{mobileChapter === "details"\}/);
+test("financial views are reachable at every viewport and evidence reveals its owning view", () => {
+  assert.match(financialSource, /useWorkspaceView\(financialViews, "summary", "finance"/);
+  assert.match(financialSource, /label="财务信息分组"/);
+  for (const view of ["summary", "trends", "details"]) assert.match(financialSource, new RegExp(`view="${view}" active=\{financialView\}`));
+  assert.match(financialSource, /setFinancialView\(item.target === "finance-valuation" \? "summary" : "trends"\)/);
+  assert.match(financialSource, /requestAnimationFrame/);
 });
 
-test("global markets groups overview, trend, map, and regions on compact screens", () => {
-  assert.match(globalSource, /useState<"overview" \| "trend" \| "map" \| "regions">\("overview"\)/);
-  assert.match(globalSource, /aria-label="选择全球市场信息层"/);
-  assert.match(globalSource, /data-active=\{mobileChapter === "map"\}/);
-  assert.match(globalSource, /data-active=\{mobileChapter === "regions"\}/);
+test("global markets shares four persistent views across screen sizes", () => {
+  assert.match(globalSource, /useWorkspaceView\(globalViews, "overview", "view", globalAnchors\)/);
+  assert.match(globalSource, /label="全球市场视图"/);
+  for (const view of ["overview", "regions", "trend", "map"]) assert.match(globalSource, new RegExp(`view="${view}" active=\\{globalView\\}`));
+  assert.doesNotMatch(globalSource, /mobileChapter|platform-mobile-(chapter|visibility)/);
 });
 
 test("screener keeps the full desktop table and batches only mobile candidate cards", () => {
-  assert.match(screenerSource, /useState<"shortlist" \| "pool" \| "structure">\("shortlist"\)/);
+  assert.match(screenerSource, /useWorkspaceView\(screenerViews, "candidates", "view", screenerAnchors\)/);
+  for (const view of ["candidates", "pool", "evidence"]) assert.match(screenerSource, new RegExp(`view="${view}" active=\\{screenerView\\}`));
+  assert.doesNotMatch(screenerSource, /platform-mobile-(chapter|visibility|section-nav)/);
   assert.match(screenerSource, /const mobileVisibleStocks = visibleStocks\.slice\(0, mobileVisibleStockCount\)/);
   assert.match(screenerSource, /<tbody>\{visibleStocks\.map/);
   assert.match(screenerSource, /\{mobileVisibleStocks\.map/);

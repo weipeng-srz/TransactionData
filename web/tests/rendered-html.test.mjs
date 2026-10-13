@@ -22,66 +22,31 @@ async function render(pathname = "/") {
   );
 }
 
-test("server-renders the TrendSight watchlist homepage", async () => {
+test("server renders the account loading boundary without private portfolio contents", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
   const html = await response.text();
-  assert.match(html, /<title>TrendSight · 市场研究工作台<\/title>/i);
-  assert.match(html, /manifest\.webmanifest/);
-  assert.match(html, /favicon\.png/);
-  assert.match(html, /apple-touch-icon\.png/);
-  assert.match(html, /trendsight-icon-512\.png/);
-  assert.match(html, /TrendSight/);
-  assert.match(html, /市场研究工作台/);
-  assert.doesNotMatch(html, /自选股，一目了然/);
-  assert.doesNotMatch(html, /集中查看行情、持仓与收益/);
-  assert.match(html, /平安银行/);
-  assert.match(html, /搜索名称 \/ 代码/);
-  assert.match(html, /切换个股/);
-  assert.match(html, /<header[^>]*>[\s\S]*aria-label="快速搜索股票"/);
-  assert.match(html, />自选<\/a>/);
-  assert.match(html, />全球<\/a>/);
-  assert.doesNotMatch(html, />个股研究<\/a>/);
-  assert.match(html, /切换到深色外观/);
-  assert.match(html, /持仓市值/);
-  assert.match(html, /累计收益/);
-  assert.match(html, /今日持仓盈亏/);
-  assert.match(html, /我的自选股/);
-  assert.match(html, /建立你的第一份自选列表/);
-  assert.match(html, /明日预测结论、上涨概率、迷你 K 线、实时行情与持仓收益/);
-  assert.match(html, /全球市场/);
-  assert.match(html, /全球市场脉动/);
-  assert.match(html, /上证指数/);
-  assert.match(html, /创业板指/);
-  assert.match(html, /纳斯达克综指/);
-  assert.match(html, /A股市场压力温度/);
-  assert.match(html, /美股恐慌指数/);
-  assert.match(html, /10 秒自动刷新/);
-  assert.doesNotMatch(html, /\[object Object\]/);
+  assert.match(html, /<title>TrendSight · 市场研究工作台<\/title>/);
+  assert.match(html, /appearance-bootstrap/);
+  assert.match(html, /正在打开你的工作台/);
+  assert.doesNotMatch(html, /<h[12][^>]*>我的自选/);
 });
 
-test("server-renders the global realtime index map", async () => {
-  const response = await render("/global-markets");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /<h1>全球市场<\/h1>/);
-  assert.match(html, /全球主要市场板块/);
-  assert.match(html, /个主要市场/);
-  assert.match(html, /按交易所所在位置展示 · 跨市场行情时点可能不同/);
-  assert.match(html, /AMER/);
-  assert.match(html, /EMEA/);
-  assert.match(html, /APAC/);
-  assert.match(html, /A股核心指数/);
-  assert.match(html, /A股市场压力温度/);
-  assert.match(html, /沪深 300/);
-  assert.match(html, /创业板指/);
-  assert.match(html, /北证 50/);
-  assert.match(html, /标普 500/);
-  assert.match(html, /日经 225/);
-  assert.match(html, /行情每 10 秒刷新/);
-  assert.match(html, /恐慌指数日 K/);
-  assert.doesNotMatch(html, /B\/S 信号回测/);
-  assert.doesNotMatch(html, /行情监控|\/alerts/);
+test("protected pages redirect unauthenticated direct and nested requests to login", async () => {
+  for (const path of ["/global-markets", "/screener", "/review", "/account"]) {
+    const response = await render(path);
+    assert.equal(response.status, 307, path);
+    const location = new URL(response.headers.get("location"));
+    assert.equal(location.pathname, "/login");
+    assert.equal(location.searchParams.get("next"), path);
+  }
+});
+
+test("protected APIs reject guests before loading research or personal data", async () => {
+  for (const path of ["/api/account-data", "/api/research-state", "/api/screener", "/api/global-indexes"]) {
+    const response = await render(path);
+    assert.equal(response.status, 401, path);
+    assert.equal((await response.json()).code, "AUTH_REQUIRED");
+  }
 });

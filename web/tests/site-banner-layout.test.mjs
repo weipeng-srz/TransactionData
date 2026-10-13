@@ -5,6 +5,7 @@ import test from "node:test";
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 const commandPaletteSource = readFileSync(new URL("../app/components/CommandPalette.tsx", import.meta.url), "utf8");
 const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.css", import.meta.url), "utf8");
+const workspaceStyles = readFileSync(new URL("../app/components/WorkspaceTabs.module.css", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 const portfolioStyles = readFileSync(new URL("../app/components/PortfolioHome.module.css", import.meta.url), "utf8");
 const screenerStyles = readFileSync(new URL("../app/screener/screener.module.css", import.meta.url), "utf8");
@@ -17,13 +18,13 @@ test("uses one shared banner for portfolio, stock and global pages", () => {
   assert.match(portfolioSource, /<SiteBanner[\s\S]*?activePage="portfolio"/);
   assert.match(stockSource, /<SiteBanner[\s\S]*?activePage="stock"/);
   assert.match(globalSource, /<SiteBanner[\s\S]*?activePage="global"/);
-  assert.match(bannerSource, />自选<\/Link>/);
+  assert.match(bannerSource, /user \? "工作台" : "股票查询"/);
   assert.match(bannerSource, />全球<\/Link>/);
   assert.doesNotMatch(bannerSource, />个股研究<\/Link>/);
   assert.match(bannerSource, /aria-label="添加自选股"/);
   assert.match(bannerSource, /切换个股/);
   assert.match(bannerSource, /activePage === "stock" && onOpenPortfolio/);
-  assert.match(bannerSource, /aria-label="TrendSight 自选股首页"[\s\S]*?onClick=\{openPortfolioClick\}/);
+  assert.match(bannerSource, /aria-label="TrendSight 工作台首页"[\s\S]*?onClick=\{openPortfolioClick\}/);
   assert.match(stockSource, /onOpenPortfolio=\{onBackHome\}/);
 });
 
@@ -65,29 +66,26 @@ test("keeps the fixed search outside the document flow while preserving its spac
   assert.match(commandPaletteSource, /previousFocusRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
-test("limits sidebars to in-page stock and global index navigation", () => {
-  assert.match(stockSource, /className="app-sidebar research-sidebar"/);
-  assert.match(stockSource, /aria-label="个股信息章节导航"/);
+test("uses stock workspace tabs and keeps global navigation within its market context", () => {
+  assert.match(stockSource, /label="个股研究视图"/);
+  for (const view of ["overview", "market", "financials", "news", "models", "notes"]) assert.match(stockSource, new RegExp(`view="${view}"`));
+  assert.doesNotMatch(stockSource, /className="app-sidebar research-sidebar"/);
   assert.doesNotMatch(stockSource, /<MarketScopeSwitch/);
   assert.doesNotMatch(stockSource, /sidebar-recents/);
 
-  assert.match(globalSource, /aria-label="全球市场汇总"/);
-  assert.match(globalSource, /aria-label="全球股指快速导航"/);
+  assert.match(globalSource, /<MarketOverview/);
+  assert.match(globalSource, /label="全球市场视图"/);
+  assert.doesNotMatch(globalSource, /global-navigation-sidebar/);
   for (const anchor of ["global-overview", "a-share-indexes", "shanghai-index", "global-map", "us-indexes", "americas-indexes", "europe-indexes", "asia-indexes"]) {
     assert.match(globalSource, new RegExp(anchor));
   }
   assert.doesNotMatch(globalSource, /<MarketScopeSwitch/);
 });
 
-test("uses a unified liquid-glass sidebar instead of stacked hard outlines", () => {
-  const marker = appleStyles.indexOf("/* Unified liquid-glass sidebars shared by stock and global pages. */");
-  const end = appleStyles.indexOf("@media (min-width: 821px) and (max-width: 1180px)", marker);
-  const sidebarStyles = appleStyles.slice(marker, end);
-
-  assert.ok(marker >= 0);
-  assert.ok(end > marker);
-  assert.match(sidebarStyles, /\.research-sidebar\.app-sidebar,[\s\S]*?border-radius: 22px;[\s\S]*?var\(--apple-glass-shadow\)/);
-  assert.match(sidebarStyles, /\.sidebar-preview-card \{[\s\S]*?border-color: transparent;[\s\S]*?border-radius: 17px;/);
-  assert.match(sidebarStyles, /\.sidebar-preview-metrics \{[\s\S]*?gap: 0;[\s\S]*?border-radius: 13px;/);
-  assert.match(sidebarStyles, /\.workspace-nav \{[\s\S]*?border-radius: 17px;[\s\S]*?var\(--apple-glass-soft\)/);
+test("uses shared workspace navigation without obsolete quote sidebar surfaces", () => {
+  assert.doesNotMatch(appleStyles, /\.research-sidebar|\.sidebar-preview-/);
+  assert.match(workspaceStyles, /\.navigation \{[^}]*position: sticky/);
+  assert.match(workspaceStyles, /\.tabs \{[^}]*overflow-x: auto/);
+  assert.match(workspaceStyles, /@media\(max-width: 820px\)[\s\S]*?min-height: 44px/);
+  assert.match(workspaceStyles, /\.tabs button:focus-visible/);
 });

@@ -3,25 +3,27 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const pageSource = readFileSync(new URL("../app/global-markets/page.tsx", import.meta.url), "utf8");
+const mapSource = readFileSync(new URL("../app/features/global-markets/MarketMap.tsx", import.meta.url), "utf8");
+const overviewSource = readFileSync(new URL("../app/features/global-markets/MarketOverview.tsx", import.meta.url), "utf8");
 const globalStyles = readFileSync(new URL("../app/global-markets/global-markets.css", import.meta.url), "utf8");
 
-test("renders the A-share board before the global map and loads the map as an image", () => {
+test("keeps A-share quotes in regions and the complete map in its own view", () => {
   const aSharePosition = pageSource.indexOf('className="global-a-share-board"');
   const shanghaiChartPosition = pageSource.indexOf("<ShanghaiIndexPanel");
-  const mapPosition = pageSource.indexOf('id="global-map"');
+  const mapPosition = pageSource.indexOf('<MarketMap');
 
   assert.ok(aSharePosition >= 0);
   assert.ok(shanghaiChartPosition > aSharePosition);
   assert.ok(mapPosition > shanghaiChartPosition);
   assert.ok(mapPosition > aSharePosition);
-  assert.match(pageSource, /<img className="global-map-land" src="\/world-map-robinson\.svg"/);
-  assert.match(pageSource, /<MarketMapMarker/);
-  assert.doesNotMatch(pageSource, /global-map-region-label/);
-  assert.doesNotMatch(pageSource, /<button[^>]+global-map-marker/);
-  assert.doesNotMatch(pageSource, /global-marker-dot/);
-  assert.match(pageSource, /className="global-map-mobile-list"/);
-  assert.match(pageSource, /mappedMarkets\.map/);
-  assert.match(pageSource, /global-marker-mobile-value/);
+  assert.match(mapSource, /<img className="global-map-land" src="\/world-map-robinson\.svg"/);
+  assert.match(mapSource, /<MarketMapMarker/);
+  assert.doesNotMatch(mapSource, /global-map-region-label/);
+  assert.doesNotMatch(mapSource, /<button[^>]+global-map-marker/);
+  assert.doesNotMatch(mapSource, /global-marker-dot/);
+  assert.match(mapSource, /className="global-map-mobile-list"/);
+  assert.match(mapSource, /mappedMarkets\.map/);
+  assert.match(mapSource, /global-marker-mobile-value/);
   assert.match(globalStyles, /@media \(max-width: 520px\)[\s\S]*?\.global-marker-label > \.global-marker-desktop-value \{ display: none; \}[\s\S]*?\.global-marker-label > \.global-marker-mobile-value \{ display: flex;[\s\S]*?\.global-map-mobile-list \{[\s\S]*?display: grid;/);
   assert.match(globalStyles, /\.global-map-mobile-list article \{[\s\S]*?min-height: 44px;/);
 });
@@ -64,8 +66,8 @@ test("keeps a touch-sized manual refresh action reachable on mobile", () => {
 });
 
 test("separates current-open breadth from the asynchronous cross-market snapshot", () => {
-  assert.match(pageSource, /当前开市广度/);
-  assert.match(pageSource, /跨市场最近快照/);
+  assert.match(overviewSource, /当前开市广度/);
+  assert.match(overviewSource, /跨市场最近快照/);
   assert.match(pageSource, /openMarketMoves/);
   assert.match(pageSource, /snapshotBreadthPct/);
   assert.match(globalStyles, /\.global-summary strong em \{[\s\S]*?flex: 0 0 auto;[\s\S]*?overflow: visible;/);
@@ -87,10 +89,15 @@ test("keeps the spot index primary and reduces extended-hours proxies to directi
   assert.match(globalStyles, /\.global-us-close-row\.is-proxy/);
 });
 
-test("uses mobile information-layer buttons and a route-specific document title", () => {
+test("uses URL-backed views on every screen and retains legacy anchor access", () => {
   assert.match(pageSource, /document\.title = "全球市场 · TrendSight"/);
-  assert.match(pageSource, /aria-label="选择全球市场信息层"/);
-  assert.match(pageSource, /aria-pressed=\{mobileChapter === chapter\.id\}/);
-  assert.match(pageSource, /useState<"overview" \| "trend" \| "map" \| "regions">\("overview"\)/);
-  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-navigation-sidebar \.global-workspace-nav \{ display: none !important; \}/);
+  assert.match(pageSource, /useWorkspaceView\(globalViews, "overview", "view", globalAnchors\)/);
+  assert.match(pageSource, /label="全球市场视图"/);
+  for (const view of ["overview", "regions", "trend", "map"]) {
+    assert.match(pageSource, new RegExp(`view="${view}" active=\\{globalView\\}`));
+  }
+  assert.match(pageSource, /"a-share-indexes": "regions"/);
+  assert.match(pageSource, /"shanghai-index": "trend"/);
+  assert.match(pageSource, /"global-map": "map"/);
+  assert.doesNotMatch(pageSource, /mobileChapter|platform-mobile-(chapter|visibility)|global-navigation-sidebar/);
 });

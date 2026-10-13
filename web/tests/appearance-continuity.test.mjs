@@ -18,7 +18,7 @@ test("restores appearance before the page is painted", () => {
   assert.match(layout, /<html lang="zh-CN" suppressHydrationWarning>/);
   assert.match(layout, /<head>[\s\S]*?<script id="appearance-bootstrap"[\s\S]*?<\/head>/);
   assert.ok(layout.indexOf("appearance-bootstrap") < layout.indexOf("<AppearanceProvider>"));
-  assert.match(appearance, /localStorage\.getItem\(key\)/);
+  assert.doesNotMatch(appearance, /localStorage|sessionStorage/);
   assert.match(appearance, /window\.matchMedia\("\(prefers-color-scheme: dark\)"\)/);
   assert.match(appearance, /root\.dataset\.appearance = appearance;/);
   assert.match(appearance, /root\.style\.colorScheme = appearance;/);
@@ -32,13 +32,13 @@ test("keeps one appearance owner across every top-level page", () => {
     assert.doesNotMatch(page, /useState<Appearance>/);
   }
   assert.match(provider, /const next = currentAppearance\(\) === "dark" \? "light" : "dark";/);
-  assert.match(provider, /localStorage\.setItem\(appearanceStorageKey, appearance\)/);
+  assert.match(provider, /accountStorage\.setItem\(appearanceStorageKey, appearance\)/);
 });
 
-test("synchronizes cross-tab and system appearance changes", () => {
-  assert.match(provider, /window\.addEventListener\("storage", syncStoredAppearance\)/);
+test("synchronizes account and system appearance changes", () => {
+  assert.match(provider, /subscribeAccountStorageChanges\(syncStoredAppearance\)/);
   assert.match(provider, /media\.addEventListener\("change", syncSystemAppearance\)/);
   assert.match(provider, /if \(storedAppearance\(\)\) return;/);
-  assert.match(provider, /window\.removeEventListener\("storage", syncStoredAppearance\)/);
+  assert.match(provider, /unsubscribe\(\)/);
   assert.match(provider, /media\.removeEventListener\("change", syncSystemAppearance\)/);
 });

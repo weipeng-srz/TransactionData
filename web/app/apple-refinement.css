@@ -512,7 +512,6 @@ body {
   padding-top: 18px !important;
 }
 
-.research-sidebar,
 .global-navigation-sidebar {
   top: 96px;
   height: auto;
@@ -593,13 +592,11 @@ body {
 .sidebar-snapshot-grid em.is-hold,
 .sidebar-snapshot-grid em.is-flat { color: var(--apple-accent); }
 
-.research-sidebar .workspace-nav,
 .global-navigation-sidebar .workspace-nav {
   margin: 0;
   gap: 2px;
 }
 
-.research-sidebar .workspace-nav a,
 .global-navigation-sidebar .workspace-nav a {
   min-height: 37px;
   padding: 0 11px;
@@ -607,7 +604,6 @@ body {
   font-size: 12px;
 }
 
-.research-sidebar .workspace-nav a small,
 .global-navigation-sidebar .workspace-nav a small {
   font-size: 11px;
 }
@@ -646,7 +642,6 @@ body {
 }
 
 @media (min-width: 821px) and (max-width: 1280px) {
-  .research-sidebar,
   .global-navigation-sidebar {
     top: 144px;
     max-height: calc(100vh - 160px);
@@ -680,12 +675,10 @@ body {
     padding-top: 12px !important;
   }
 
-  .research-sidebar,
   .global-navigation-sidebar {
     overflow-y: hidden;
   }
 
-  .research-sidebar .sidebar-menu-summary,
   .global-navigation-sidebar .sidebar-menu-summary {
     display: none;
   }
@@ -851,22 +844,20 @@ body {
   .realtime-quote-strip > div:last-child { border-right: 0; }
 
   .stock-score-header,
-  .finance-dashboard-header,
-  .research-dock-heading,
-  .section-heading,
-  .finance-detail-card > header,
-  .finance-conclusion-card > header {
+.finance-dashboard-header,
+.section-heading,
+.finance-detail-card > header,
+.finance-conclusion-card > header {
     align-items: flex-start;
     flex-direction: column;
     gap: 10px;
   }
 
   .stock-score-header > div,
-  .finance-dashboard-header > div,
-  .research-dock-heading > div,
-  .section-heading > div,
-  .finance-detail-card > header > div,
-  .finance-conclusion-card > header > div {
+.finance-dashboard-header > div,
+.section-heading > div,
+.finance-detail-card > header > div,
+.finance-conclusion-card > header > div {
     min-width: 0;
     max-width: 100%;
   }
@@ -989,39 +980,36 @@ body {
   }
 
   .query-source,
-  .quote-identity,
-  .realtime-header > div,
-  .realtime-header-meta,
-  .rail-heading > div,
-  .chart-toolbar-title,
-  .finance-chart-card header > div,
-  .finance-signal > div,
-  .news-item,
-  .research-panel,
-  .stock-score-copy {
+.realtime-header > div,
+.realtime-header-meta,
+.rail-heading > div,
+.chart-toolbar-title,
+.finance-chart-card header > div,
+.finance-signal > div,
+.news-item,
+.stock-score-copy {
     min-width: 0;
   }
 
   .query-source p,
-  .stale-data-banner,
-  .stock-score-header span,
-  .stock-score-meta small,
-  .stock-score-copy p,
-  .stock-score-dimension li span,
-  .realtime-header h3,
-  .realtime-signal-bar > *,
-  .rail-card p,
-  .rail-card li,
-  .finance-dashboard p,
-  .finance-chart-card h4,
-  .finance-chart-card header p,
-  .finance-signal p,
-  .finance-detail-card header span,
-  .finance-conclusion-card p,
-  .news-item h4,
-  .news-item p,
-  .research-panel p,
-  .section-heading > span {
+.stale-data-banner,
+.stock-score-header span,
+.stock-score-meta small,
+.stock-score-copy p,
+.stock-score-dimension li span,
+.realtime-header h3,
+.realtime-signal-bar > *,
+.rail-card p,
+.rail-card li,
+.finance-dashboard p,
+.finance-chart-card h4,
+.finance-chart-card header p,
+.finance-signal p,
+.finance-detail-card header span,
+.finance-conclusion-card p,
+.news-item h4,
+.news-item p,
+.section-heading > span {
     overflow-wrap: anywhere;
     word-break: normal;
   }
@@ -1312,62 +1300,9 @@ select:disabled {
   border-radius: 10px;
 }
 
-.quote-head {
-  margin-bottom: 28px;
-  padding: 8px 4px 26px;
-  align-items: center;
-  grid-template-columns: minmax(230px, 1fr) auto minmax(440px, 1.25fr) !important;
-  gap: clamp(20px, 2vw, 32px);
-}
-
-.quote-identity {
-  align-content: center;
-  row-gap: 8px;
-}
-
-.quote-identity h1,
-.quote-identity select {
-  font-size: clamp(30px, 2.35vw, 40px);
-  font-weight: 680;
-}
-
-.quote-price {
-  min-width: 224px;
-  padding: 3px clamp(20px, 2vw, 30px);
-}
-
-.quote-price strong {
-  font-size: clamp(36px, 3vw, 46px);
-  font-weight: 620;
-  letter-spacing: -0.04em;
-}
-
-.quote-price span {
-  margin-top: 2px;
-  font-weight: 590;
-}
-
-.quote-stats {
-  min-width: 0;
-  grid-template-columns: repeat(6, minmax(64px, 1fr));
-}
-
-.quote-stats .stat {
-  min-width: 0;
-  padding: 7px clamp(8px, 1vw, 14px);
-}
-
-.quote-stats .stat strong {
-  max-width: none;
-  overflow: visible;
-  font-size: 13px;
-  text-overflow: clip;
-}
-
 .realtime-panel,
 .chart-card,
 .rail-card,
-.research-dock,
 .finance-dashboard,
 .fundamentals-card,
 .financial-card,
@@ -1385,8 +1320,6 @@ select:disabled {
 }
 
 .realtime-panel,
-.workspace-grid,
-.research-dock,
 .finance-dashboard,
 .advanced-research-panel,
 .recent-card,
@@ -1436,21 +1369,6 @@ select:disabled {
 
 .orderbook-card {
   background: var(--apple-surface-soft);
-}
-
-.workspace-grid {
-  margin-top: 18px !important;
-  align-items: start !important;
-  gap: 16px !important;
-}
-
-.workspace-grid .chart-card {
-  height: auto;
-  align-self: start;
-}
-
-.workspace-grid .rail-card {
-  height: auto;
 }
 
 .chart-card {
@@ -1615,7 +1533,6 @@ select:disabled {
   background: color-mix(in srgb, var(--apple-accent) 3%, var(--apple-surface));
 }
 
-.research-dock,
 .finance-dashboard,
 .advanced-research-panel,
 .recent-card,
@@ -1628,7 +1545,6 @@ select:disabled {
 }
 
 .finance-dashboard-header,
-.research-dock-heading,
 .section-heading,
 .fundamentals-heading {
   min-height: 78px;
@@ -1715,7 +1631,6 @@ select:disabled {
   padding: 24px;
 }
 
-.research-panel,
 .factor-card,
 .event-study-card {
   border-color: var(--apple-border);
@@ -1962,24 +1877,6 @@ select:disabled {
   border: 0;
 }
 
-@media (max-width: 1500px) {
-  .quote-head {
-    align-items: end;
-    grid-template-columns: minmax(220px, 1fr) auto !important;
-  }
-
-  .quote-stats {
-    width: 100%;
-    grid-column: 1 / -1 !important;
-    padding-top: 18px !important;
-    border-top: 1px solid var(--apple-border) !important;
-  }
-
-  .quote-stats .stat:first-child {
-    padding-left: 0;
-  }
-}
-
 @media (max-width: 1180px) {
   .app-shell {
     padding: 14px !important;
@@ -2043,37 +1940,6 @@ select:disabled {
     width: 100%;
     order: 2;
     justify-content: flex-start;
-  }
-
-  .workspace-grid {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .workspace-grid > .chart-card {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-  }
-
-  .analysis-rail {
-    grid-column: 1;
-    min-width: 0;
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-
-  .workspace-grid .analysis-rail .rail-card {
-    grid-column: auto !important;
-    grid-row: auto !important;
-  }
-
-  .workspace-grid .analysis-rail .backtest-card {
-    grid-column: 1 / -1 !important;
-  }
-
-  .mobile-analysis-toggle {
-    display: none !important;
   }
 
   .realtime-layout {
@@ -2226,47 +2092,6 @@ select:disabled {
     max-width: 100%;
   }
 
-  .quote-head {
-    margin-bottom: 24px;
-    padding: 6px 2px 24px;
-    display: grid !important;
-    align-items: start;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 18px;
-  }
-
-  .quote-price {
-    min-width: 0;
-    padding: 18px 0;
-    border: 0;
-    border-top: 1px solid var(--apple-border);
-    border-bottom: 1px solid var(--apple-border);
-  }
-
-  .quote-stats {
-    grid-column: 1 !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    padding-top: 0 !important;
-    border-top: 0 !important;
-  }
-
-  .quote-stats .stat,
-  .quote-stats .stat:first-child,
-  .quote-stats .stat:last-child {
-    min-height: 62px;
-    padding: 10px 12px;
-    border-right: 1px solid var(--apple-border);
-    border-bottom: 1px solid var(--apple-border);
-  }
-
-  .quote-stats .stat:nth-child(3n) {
-    border-right: 0;
-  }
-
-  .quote-stats .stat:nth-last-child(-n + 3) {
-    border-bottom: 0;
-  }
-
   .realtime-header {
     align-items: flex-start;
     flex-direction: column;
@@ -2326,14 +2151,6 @@ select:disabled {
 
   .realtime-session-summary small {
     white-space: normal;
-  }
-
-  .analysis-rail {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .workspace-grid .analysis-rail .backtest-card {
-    grid-column: 1 !important;
   }
 
   .chart-toolbar {
@@ -2418,14 +2235,12 @@ select:disabled {
   }
 
   .finance-dashboard-header,
-  .research-dock-heading,
-  .section-heading,
-  .fundamentals-heading {
+.section-heading,
+.fundamentals-heading {
     padding: 18px;
   }
 
-  .finance-chart-grid,
-  .current-stock-grid {
+  .finance-chart-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
@@ -2506,33 +2321,6 @@ select:disabled {
 
   .source-title-row {
     justify-content: center;
-  }
-
-  .quote-identity h1,
-  .quote-identity select {
-    font-size: 30px;
-  }
-
-  .quote-price strong {
-    font-size: 40px;
-  }
-
-  .quote-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .quote-stats .stat:nth-child(n) {
-    min-height: 64px;
-    border-right: 1px solid var(--apple-border);
-    border-bottom: 1px solid var(--apple-border);
-  }
-
-  .quote-stats .stat:nth-child(even) {
-    border-right: 0;
-  }
-
-  .quote-stats .stat:nth-last-child(-n + 2) {
-    border-bottom: 0;
   }
 
   .chart-stage {
@@ -2673,76 +2461,6 @@ select:disabled {
     flex: 0 0 auto;
   }
 
-  .workspace-grid {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 16px !important;
-  }
-
-  .workspace-grid > .chart-card {
-    grid-column: 1 !important;
-    grid-row: auto !important;
-  }
-
-  .analysis-rail {
-    grid-column: 1;
-    display: grid !important;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-auto-flow: row;
-    align-items: stretch;
-    gap: 16px;
-  }
-
-  .analysis-rail > .rail-card {
-    height: 100%;
-    grid-row: auto;
-  }
-
-  .analysis-rail > .conclusion-card {
-    grid-column: 1 / 7 !important;
-    grid-row: 1 !important;
-  }
-
-  .analysis-rail > .focus-card {
-    grid-column: 7 / 10 !important;
-    grid-row: 1 !important;
-  }
-
-  .analysis-rail > .holding-card {
-    grid-column: 10 / 13 !important;
-    grid-row: 1 !important;
-  }
-
-  .analysis-rail > .intent-card {
-    grid-column: 1 / 7 !important;
-    grid-row: 2 !important;
-  }
-
-  .analysis-rail > .data-card {
-    grid-column: 7 / 10 !important;
-    grid-row: 2 !important;
-  }
-
-  .analysis-rail > .indicator-card {
-    grid-column: 10 / 13 !important;
-    grid-row: 2 !important;
-  }
-
-  .analysis-rail > .ownership-card {
-    grid-column: 1 / 7 !important;
-    grid-row: 3 !important;
-  }
-
-  .analysis-rail > .sentiment-card {
-    grid-column: 7 / 13 !important;
-    grid-row: 3 !important;
-  }
-
-  .analysis-rail > .backtest-card {
-    grid-column: 1 / -1 !important;
-    grid-row: 4 !important;
-  }
-
   .focus-card .detail-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2751,77 +2469,6 @@ select:disabled {
 
   .focus-card .detail-list > div {
     min-width: 0;
-  }
-
-  .quote-head {
-    min-height: 154px;
-    margin: 0 0 28px;
-    padding: 18px;
-    align-items: stretch;
-    grid-template-columns: minmax(220px, 1.05fr) minmax(196px, .72fr) minmax(336px, 1.25fr) !important;
-    gap: 0;
-    overflow: hidden;
-    border: 1px solid var(--apple-border);
-    border-radius: var(--apple-radius-lg);
-    background: var(--apple-surface);
-    box-shadow: var(--apple-shadow-card);
-  }
-
-  .quote-identity,
-  .quote-price,
-  .quote-stats {
-    min-height: 116px;
-  }
-
-  .quote-identity {
-    padding: 8px 22px 8px 4px;
-    align-content: center;
-  }
-
-  .quote-identity h1,
-  .quote-identity select {
-    font-size: clamp(28px, 2.15vw, 38px);
-  }
-
-  .quote-price {
-    min-width: 0;
-    padding: 8px 22px;
-    align-content: center;
-    justify-content: center;
-    flex-direction: column;
-    border-inline: 1px solid var(--apple-border);
-  }
-
-  .quote-price strong {
-    font-size: clamp(34px, 2.7vw, 44px);
-  }
-
-  .quote-stats {
-    width: auto;
-    padding: 0 0 0 18px !important;
-    grid-column: auto !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    border-top: 0 !important;
-  }
-
-  .quote-stats .stat,
-  .quote-stats .stat:first-child {
-    min-height: 0;
-    padding: 10px 12px;
-    align-items: flex-start;
-    justify-content: center;
-    flex-direction: column;
-    gap: 5px;
-    border: 0;
-    border-radius: 12px;
-    background: var(--apple-surface-soft);
-  }
-
-  .quote-stats .stat strong {
-    font-size: 14px;
-    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -3281,27 +2928,25 @@ select:disabled {
    containers while dense data cells keep a quieter fill for legibility. */
 @media (min-width: 1181px) {
   .app-sidebar,
-  .topbar,
-  .query-strip,
-  .quote-head,
-  .realtime-panel,
-  .chart-card,
-  .rail-card,
-  .research-dock,
-  .finance-dashboard,
-  .fundamentals-card,
-  .financial-card,
-  .recent-card,
-  .news-card,
-  .advanced-research-panel,
-  .legacy-financial-summary,
-  .stock-score-card,
-  .next-day-card,
-  .global-summary,
-  .global-shanghai-panel,
-  .global-map-card,
-  .global-region-card,
-  .global-fear-card {
+.topbar,
+.query-strip,
+.realtime-panel,
+.chart-card,
+.rail-card,
+.finance-dashboard,
+.fundamentals-card,
+.financial-card,
+.recent-card,
+.news-card,
+.advanced-research-panel,
+.legacy-financial-summary,
+.stock-score-card,
+.next-day-card,
+.global-summary,
+.global-shanghai-panel,
+.global-map-card,
+.global-region-card,
+.global-fear-card {
     border-color: color-mix(in srgb, var(--apple-glass-border) 86%, var(--apple-reflection));
     background:
       linear-gradient(132deg, var(--apple-reflection), var(--apple-reflection-soft) 17%, transparent 39%),
@@ -3328,16 +2973,15 @@ select:disabled {
     box-shadow: 0 10px 30px rgba(48, 55, 66, 0.065);
   }
 
-  .quote-stats .stat,
   .orderbook-card,
-  .holding-results,
-  .stock-score-verdict,
-  .stock-score-radar,
-  .stock-score-dimension,
-  .finance-chart-card,
-  .finance-signal-card,
-  .finance-detail-card,
-  .finance-conclusion-card {
+.holding-results,
+.stock-score-verdict,
+.stock-score-radar,
+.stock-score-dimension,
+.finance-chart-card,
+.finance-signal-card,
+.finance-detail-card,
+.finance-conclusion-card {
     border-color: var(--apple-glass-border);
     background:
       linear-gradient(138deg, var(--apple-reflection-soft), transparent 46%),
@@ -3345,17 +2989,16 @@ select:disabled {
     box-shadow: none;
   }
 
-  .research-panel,
   .backtest-card,
-  .financial-report-card,
-  .news-summary-panel,
-  .factor-card,
-  .event-study-card,
-  .next-day-grade,
-  .next-day-range,
-  .next-day-panel,
-  .next-day-similar-table,
-  .next-day-method {
+.financial-report-card,
+.news-summary-panel,
+.factor-card,
+.event-study-card,
+.next-day-grade,
+.next-day-range,
+.next-day-panel,
+.next-day-similar-table,
+.next-day-method {
     border-color: var(--apple-glass-border);
     background:
       linear-gradient(138deg, var(--apple-reflection-soft), transparent 45%),
@@ -3481,10 +3124,9 @@ select:disabled {
   }
 
   .appearance-toggle,
-  .command-trigger,
-  .icon-button,
-  .chart-nudge,
-  .annotation-list article button {
+.command-trigger,
+.icon-button,
+.chart-nudge {
     min-width: 44px;
     width: 44px;
     min-height: 44px;
@@ -3505,17 +3147,15 @@ select:disabled {
   }
 
   .segmented button,
-  .indicator-toggles button,
-  .range-control button,
-  .finance-filter-group button,
-  .holding-actions button,
-  .research-actions button,
-  .realtime-header-meta button,
-  .news-filters button {
+.indicator-toggles button,
+.range-control button,
+.finance-filter-group button,
+.holding-actions button,
+.realtime-header-meta button,
+.news-filters button {
     min-height: 44px;
   }
 
-  .research-more-actions summary,
   .chart-data-alternative summary {
     min-height: 44px;
   }
@@ -3571,21 +3211,7 @@ select:disabled {
     height: 44px;
   }
 
-  .holding-actions,
-  .research-actions,
-  .annotation-form {
-    gap: 10px;
-  }
-
-  .research-more-actions:not([open]) > div {
-    display: none !important;
-  }
-
-  .research-more-actions[open] > div {
-    position: static;
-    width: 100%;
-    margin-top: 10px;
-    display: grid;
+  .holding-actions {
     gap: 10px;
   }
 }
@@ -3606,36 +3232,8 @@ select:disabled {
   }
 }
 
-.research-sidebar.app-sidebar {
-  top: 96px;
-  height: auto;
-  min-height: 0;
-  max-height: calc(100vh - 112px);
-  padding: 12px;
-  overflow-y: auto;
-}
-
-.research-sidebar .workspace-nav {
-  margin: 0;
-  gap: 2px;
-}
-
-.research-sidebar .workspace-nav a {
-  min-height: 37px;
-  padding: 0 11px;
-  font-size: 12px;
-}
-
 .research-page .query-strip { margin-top: 0; }
 .research-page .stock-initial-header { display: none; }
-
-@media (min-width: 821px) and (max-width: 1280px) {
-  .research-sidebar.app-sidebar {
-    top: 144px;
-    height: auto;
-    max-height: calc(100vh - 160px);
-  }
-}
 
 @media (max-width: 820px) {
   .research-page > .app-shell,
@@ -3643,21 +3241,10 @@ select:disabled {
     width: 100%;
     padding: 12px var(--site-frame-gutter) 24px !important;
   }
-  .research-sidebar.app-sidebar {
-    top: auto;
-    height: 68px;
-    max-height: 68px;
-    padding: 6px;
-    overflow: hidden;
-  }
-  .research-sidebar .sidebar-menu-summary { display: none; }
-  .research-sidebar .workspace-nav { gap: 8px; }
-  .research-sidebar .workspace-nav a { min-height: 56px; }
 }
 
 /* Unified liquid-glass sidebars shared by stock and global pages. */
 @media (min-width: 821px) {
-  .research-sidebar.app-sidebar,
   .global-sidebar.global-navigation-sidebar {
     border-color: color-mix(in srgb, var(--apple-glass-border) 74%, transparent);
     border-radius: 22px;
@@ -3667,60 +3254,6 @@ select:disabled {
     box-shadow: var(--apple-glass-shadow);
     backdrop-filter: saturate(165%) blur(26px);
     -webkit-backdrop-filter: saturate(165%) blur(26px);
-  }
-
-  .research-sidebar .sidebar-preview-card,
-  .global-navigation-sidebar .sidebar-preview-card {
-    margin: 0 0 12px;
-    padding: 12px;
-    gap: 10px;
-    border-color: transparent;
-    border-radius: 17px;
-    background:
-      linear-gradient(145deg, color-mix(in srgb, var(--apple-glass-highlight) 68%, transparent), transparent 46%),
-      color-mix(in srgb, var(--apple-surface) 58%, var(--apple-glass-soft));
-    box-shadow: 0 8px 24px rgba(30, 40, 60, .045);
-  }
-
-  .sidebar-preview-header {
-    min-width: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .sidebar-preview-header > div {
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-
-  .sidebar-preview-header span {
-    color: var(--apple-accent);
-    font-size: 11px;
-    font-weight: 720;
-    letter-spacing: .11em;
-  }
-
-  .sidebar-preview-header strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--apple-text);
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: -.02em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-preview-header small {
-    overflow: hidden;
-    color: var(--apple-tertiary);
-    font-size: 11px;
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .sidebar-status-pill {
@@ -3758,114 +3291,6 @@ select:disabled {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--apple-rise) 12%, transparent);
   }
 
-  .sidebar-preview-hero {
-    min-width: 0;
-    padding: 9px 10px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 3px 8px;
-    border: 0;
-    border-radius: 13px;
-    background: color-mix(in srgb, var(--apple-fill) 58%, var(--apple-glass-soft));
-    box-shadow: 0 4px 16px rgba(30, 40, 60, .035);
-  }
-
-  .sidebar-preview-hero > span {
-    grid-column: 1 / -1;
-    color: var(--apple-tertiary);
-    font-size: 11px;
-    font-weight: 650;
-  }
-
-  .sidebar-preview-hero > strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--apple-text);
-    font-size: 20px;
-    font-weight: 730;
-    letter-spacing: -.045em;
-    line-height: 1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-preview-hero > em {
-    font-size: 11px;
-    font-style: normal;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  .sidebar-preview-hero > em.is-up,
-  .sidebar-preview-metrics em.is-up,
-  .sidebar-preview-metrics em.is-buy { color: var(--apple-rise); }
-  .sidebar-preview-hero > em.is-down,
-  .sidebar-preview-metrics em.is-down,
-  .sidebar-preview-metrics em.is-sell { color: var(--apple-fall); }
-  .sidebar-preview-metrics em.is-hold,
-  .sidebar-preview-metrics em.is-flat { color: var(--apple-accent); }
-
-  .sidebar-preview-metrics {
-    min-width: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
-    overflow: hidden;
-    border-radius: 13px;
-    background: color-mix(in srgb, var(--apple-surface) 56%, var(--apple-glass-soft));
-    box-shadow: 0 4px 16px rgba(30, 40, 60, .03);
-  }
-
-  .sidebar-preview-metrics > div {
-    min-width: 0;
-    min-height: 60px;
-    padding: 8px;
-    display: grid;
-    align-content: center;
-    gap: 3px;
-    border: 0;
-    border-right: 1px solid color-mix(in srgb, var(--apple-border-strong) 42%, transparent);
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .sidebar-preview-metrics > div:last-child { border-right: 0; }
-
-  .sidebar-preview-metrics span {
-    color: var(--apple-tertiary);
-    font-size: 11px;
-    font-weight: 650;
-  }
-
-  .sidebar-preview-metrics strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--apple-text);
-    font-size: 13px;
-    font-weight: 720;
-    letter-spacing: -.02em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-preview-metrics strong small {
-    color: var(--apple-tertiary);
-    font-size: 11px;
-    font-weight: 580;
-  }
-
-  .sidebar-preview-metrics em {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--apple-secondary);
-    font-size: 11px;
-    font-style: normal;
-    font-weight: 620;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .sidebar-breadth-track {
     height: 3px;
     grid-column: 1 / -1;
@@ -3881,45 +3306,6 @@ select:disabled {
     background: var(--apple-rise);
   }
 
-  .sidebar-preview-strip {
-    margin: 0;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    overflow: hidden;
-    border: 0;
-    border-radius: 13px;
-    background: color-mix(in srgb, var(--apple-surface) 56%, var(--apple-glass-soft));
-    box-shadow: 0 4px 16px rgba(30, 40, 60, .03);
-  }
-
-  .sidebar-preview-strip > div {
-    min-width: 0;
-    padding: 7px 5px;
-    display: grid;
-    gap: 2px;
-    border-right: 1px solid color-mix(in srgb, var(--apple-border-strong) 42%, transparent);
-    text-align: center;
-  }
-
-  .sidebar-preview-strip > div:nth-child(3n) { border-right: 0; }
-  .sidebar-preview-strip > div:nth-child(n + 4) {
-    border-top: 1px solid color-mix(in srgb, var(--apple-border-strong) 42%, transparent);
-  }
-  .sidebar-preview-strip dt { color: var(--apple-tertiary); font-size: 11px; font-weight: 620; }
-  .sidebar-preview-strip dd { min-width: 0; margin: 0; overflow: hidden; color: var(--apple-text); font-size: 11px; font-weight: 690; text-overflow: ellipsis; white-space: nowrap; }
-  .sidebar-preview-strip dd.is-up { color: var(--apple-rise); }
-  .sidebar-preview-strip dd.is-down { color: var(--apple-fall); }
-
-  .sidebar-menu-summary > .sidebar-preview-source {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--apple-tertiary);
-    font-size: 11px;
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .global-navigation-sidebar .global-sidebar-refresh {
     min-height: 32px;
     margin: 0;
@@ -3929,7 +3315,6 @@ select:disabled {
     box-shadow: 0 4px 14px rgba(30, 40, 60, .035);
   }
 
-  .research-sidebar .workspace-nav,
   .global-navigation-sidebar .workspace-nav {
     margin: 0;
     padding: 5px;
@@ -3948,7 +3333,6 @@ select:disabled {
     letter-spacing: .12em;
   }
 
-  .research-sidebar .workspace-nav a,
   .global-navigation-sidebar .workspace-nav a {
     min-height: 42px;
     padding: 4px 8px 4px 6px;
@@ -3964,7 +3348,6 @@ select:disabled {
     counter-increment: sidebar-section;
   }
 
-  .research-sidebar .workspace-nav a::before,
   .global-navigation-sidebar .workspace-nav a::before {
     width: 24px;
     height: 24px;
@@ -3981,7 +3364,6 @@ select:disabled {
     font-weight: 720;
   }
 
-  .research-sidebar .workspace-nav a::after,
   .global-navigation-sidebar .workspace-nav a::after {
     grid-column: 3;
     grid-row: 1 / 3;
@@ -3991,7 +3373,6 @@ select:disabled {
     font-weight: 500;
   }
 
-  .research-sidebar .workspace-nav a > span,
   .global-navigation-sidebar .workspace-nav a > span {
     grid-column: 2;
     grid-row: 1;
@@ -4002,7 +3383,6 @@ select:disabled {
     line-height: 1.15;
   }
 
-  .research-sidebar .workspace-nav a > small,
   .global-navigation-sidebar .workspace-nav a > small {
     grid-column: 2;
     grid-row: 2;
@@ -4013,10 +3393,8 @@ select:disabled {
     line-height: 1.1;
   }
 
-  .research-sidebar .workspace-nav a:hover,
-  .research-sidebar .workspace-nav a:focus-visible,
   .global-navigation-sidebar .workspace-nav a:hover,
-  .global-navigation-sidebar .workspace-nav a:focus-visible {
+.global-navigation-sidebar .workspace-nav a:focus-visible {
     background: color-mix(in srgb, var(--apple-surface) 86%, var(--apple-accent) 14%);
     box-shadow: 0 5px 14px rgba(30, 40, 60, .065);
   }
@@ -4028,14 +3406,6 @@ select:disabled {
     grid-template-columns: 184px minmax(0, 1fr) !important;
     gap: 16px !important;
   }
-
-  .research-sidebar .sidebar-preview-hero {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .research-sidebar .sidebar-preview-hero > span { grid-column: 1; }
-  .research-sidebar .sidebar-preview-hero > em { justify-self: start; }
 }
 
 @media (max-width: 820px) {
@@ -4554,8 +3924,6 @@ p,
   text-wrap: pretty;
 }
 
-.quote-price strong,
-.quote-stats strong,
 .stat strong,
 table,
 input[type="number"] {
@@ -4605,10 +3973,8 @@ select {
   }
 
   .stock-search button[type="submit"]:not(:disabled):hover,
-  .holding-actions button:not(.secondary):not(:disabled):hover,
-  .annotation-form button:not(:disabled):hover,
-  .global-refresh-button:not(:disabled):hover,
-  .research-actions > button:not(:disabled):hover {
+.holding-actions button:not(.secondary):not(:disabled):hover,
+.global-refresh-button:not(:disabled):hover {
     box-shadow: 0 9px 22px color-mix(in srgb, var(--apple-accent) 18%, transparent);
   }
 
@@ -4644,16 +4010,6 @@ summary:active,
 /* Final mobile interactive hit-area guard. Keep this after component-level
    defaults so later compact styles cannot shrink real controls below 44px. */
 @media (max-width: 820px) {
-  .research-page .mobile-analysis-toggle {
-    min-height: 44px;
-    width: 100%;
-    display: inline-flex !important;
-    grid-column: 1 / -1;
-    align-items: center;
-    justify-content: center;
-    padding-inline: 16px;
-    touch-action: manipulation;
-  }
 
   .realtime-header-meta button:not(.icon-button) {
     min-height: 44px;
@@ -4814,20 +4170,18 @@ summary:active,
 
 @media (min-width: 1181px) {
   .research-page .app-sidebar,
-  .research-page .query-strip,
-  .research-page .quote-head,
-  .research-page .stock-score-card,
-  .research-page .realtime-panel,
-  .research-page .chart-card,
-  .research-page .rail-card,
-  .research-page .next-day-card,
-  .research-page .finance-dashboard,
-  .research-page .legacy-financial-summary,
-  .research-page .fundamentals-card,
-  .research-page .financial-card,
-  .research-page .advanced-research-panel,
-  .research-page .research-dock,
-  .research-page .news-card {
+.research-page .query-strip,
+.research-page .stock-score-card,
+.research-page .realtime-panel,
+.research-page .chart-card,
+.research-page .rail-card,
+.research-page .next-day-card,
+.research-page .finance-dashboard,
+.research-page .legacy-financial-summary,
+.research-page .fundamentals-card,
+.research-page .financial-card,
+.research-page .advanced-research-panel,
+.research-page .news-card {
     border-color: var(--apple-material-border);
     background: var(--apple-material-panel);
     box-shadow: var(--apple-material-shadow);
@@ -4863,25 +4217,6 @@ summary:active,
  */
 .platform-mobile-chapter { display: contents; }
 .platform-mobile-section-nav { display: none; }
-
-.basic-chart-badge {
-  min-height: 30px;
-  padding: 0 11px;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--apple-border);
-  border-radius: 999px;
-  color: var(--apple-secondary);
-  background: var(--apple-surface-soft);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.basic-next-step-card { gap: 8px; }
-.basic-next-step-card h3 { margin: 0; font-size: 16px; }
-.basic-next-step-card > p:not(.eyebrow) { margin: 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.65; }
-.basic-next-step-card button,
 .basic-news-more {
   min-height: 40px;
   padding: 0 14px;
@@ -4894,40 +4229,12 @@ summary:active,
   cursor: pointer;
 }
 
-.view-basic .sentiment-card,
-.view-basic .focus-card,
-.view-basic .holding-card,
-.view-basic .ownership-card,
-.view-basic .mobile-analysis-toggle { display: none; }
-
 /* The desktop rail normally uses 12 tracks for the denser professional view.
    Give the two-card basic view its own composition so the optional prompt does
    not auto-place into a single track and leave the rest of the row empty. */
-@media (min-width: 1181px) {
-  .view-basic .analysis-rail {
-    grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
-  }
-
-  .view-basic .analysis-rail > .conclusion-card {
-    grid-column: auto !important;
-  }
-
-  .view-basic .analysis-rail > .basic-next-step-card {
-    min-width: 0;
-    grid-column: auto;
-    grid-row: 1;
-  }
-}
-
-.view-basic .finance-filter-bar,
-.view-basic .finance-chart-grid,
-.view-basic .finance-signal-card,
-.view-basic .finance-detail-card { display: none; }
 
 .view-basic .finance-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.view-basic .finance-kpi-grid > :nth-child(n + 5) { display: none; }
 .view-basic .news-layout { grid-template-columns: minmax(0, 1fr); }
-.view-basic .news-summary-panel { display: none; }
 .view-basic .basic-news-more { width: 100%; margin-top: 4px; }
 
 /* Important explanatory copy should remain readable at dense desktop widths. */
@@ -4970,11 +4277,9 @@ summary:active,
 .app-sidebar,
 .topbar,
 .query-strip,
-.quote-head,
 .realtime-panel,
 .chart-card,
 .rail-card,
-.research-dock,
 .finance-dashboard,
 .fundamentals-card,
 .financial-card,
@@ -5004,7 +4309,6 @@ summary:active,
 .finance-signal-card,
 .finance-detail-card,
 .finance-conclusion-card,
-.research-panel,
 .backtest-card,
 .financial-report-card,
 .news-summary-panel,
@@ -5027,7 +4331,6 @@ summary:active,
 .realtime-signal-bar,
 .realtime-chart-footer,
 .finance-dashboard-header,
-.research-dock-heading,
 .section-heading,
 .fundamentals-heading,
 .finance-kpi-grid,
@@ -5129,9 +4432,6 @@ summary:active,
     background: var(--apple-surface);
     font: 650 13px var(--apple-font);
   }
-
-  .view-basic .workspace-grid { grid-template-columns: minmax(0, 1fr); }
-  .view-basic .analysis-rail { display: grid; }
   .view-basic .finance-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .next-day-trust-summary { grid-template-columns: 1fr; margin: 12px; }
 }
@@ -5276,7 +4576,16 @@ body {
   isolation: isolate;
   font-family: var(--apple-font);
   font-variant-numeric: tabular-nums;
+  background: var(--apple-page);
+  --apple-material-panel: var(--apple-surface);
+  --apple-material-inset: var(--apple-surface-soft);
+  --platform-panel-radius: 12px;
+  --platform-inset-radius: 8px;
 }
+
+body:has(.research-page) { background: var(--apple-page); }
+
+body:has(.research-page)::before, body:has(.research-page)::after { content: none; }
 
 .research-page :where(.eyebrow, .section-heading > div > p, .rail-heading p, .finance-dashboard-header p) {
   color: var(--apple-tertiary);
@@ -5286,16 +4595,18 @@ body {
   text-transform: uppercase;
 }
 
-.research-page :where(.section-heading h2, .rail-heading h2, .finance-dashboard-header h2, .research-dock-heading h2) {
+.research-page :where(.section-heading h2, .rail-heading h2, .finance-dashboard-header h2) {
   letter-spacing: -0.025em;
   line-height: 1.16;
 }
 
-.research-page :where(.app-sidebar, .query-strip, .quote-head, .realtime-panel, .chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card) {
-  box-shadow: var(--apple-shadow-resting);
+.research-page :where(.app-sidebar, .query-strip, .realtime-panel, .chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .news-card, .stock-score-card) {
+  box-shadow: none;
+  border-radius: 12px;
+  background: var(--apple-surface);
 }
 
-.research-page :where(.query-source, .orderbook-card, .stock-score-verdict, .stock-score-radar, .stock-score-dimension, .finance-chart-card, .finance-signal-card, .finance-detail-card, .research-panel, .backtest-card, .financial-report-card, .news-summary-panel, .factor-card, .event-study-card, .next-day-grade, .next-day-range, .next-day-panel, .next-day-method) {
+.research-page :where(.query-source, .orderbook-card, .stock-score-verdict, .stock-score-radar, .stock-score-dimension, .finance-chart-card, .finance-signal-card, .finance-detail-card, .backtest-card, .financial-report-card, .news-summary-panel, .factor-card, .event-study-card, .next-day-grade, .next-day-range, .next-day-panel, .next-day-method) {
   border-color: var(--apple-material-border);
   background: var(--apple-material-inset);
 }
@@ -5322,19 +4633,15 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card) {
+  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .news-card, .stock-score-card) {
     transition:
-      border-color var(--apple-motion-base) var(--apple-motion-curve),
-      box-shadow var(--apple-motion-base) var(--apple-motion-curve),
-      transform var(--apple-motion-base) var(--apple-motion-curve);
+      border-color var(--apple-motion-base) var(--apple-motion-curve);
   }
 
-  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card):hover {
-    position: relative;
-    z-index: 1;
+  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .news-card, .stock-score-card):hover {
     border-color: color-mix(in srgb, var(--apple-accent) 16%, var(--platform-border-color));
-    box-shadow: var(--apple-shadow-hover);
-    transform: translate3d(0, var(--apple-hover-lift), 0);
+    box-shadow: none;
+    transform: none;
   }
 
   .research-page :where(.table-wrap tbody tr, .finance-table tbody tr):hover {
@@ -5356,11 +4663,11 @@ body {
       var(--apple-page);
   }
 
-  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card) {
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.025), 0 8px 24px rgba(16, 24, 40, 0.035);
+  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .news-card, .stock-score-card) {
+    box-shadow: none;
   }
 
-  .research-page :where(.section-heading, .rail-heading, .finance-dashboard-header, .research-dock-heading) {
+  .research-page :where(.section-heading, .rail-heading, .finance-dashboard-header) {
     gap: 10px;
   }
 }
@@ -5375,13 +4682,13 @@ body {
     animation-iteration-count: 1;
   }
 
-  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card):hover {
+  .research-page :where(.chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .news-card, .stock-score-card):hover {
     transform: none;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :where(.research-page, .stock-initial-shell) :where(.app-sidebar, .query-strip, .quote-head, .topbar, .stock-initial-header, .stock-initial-card) {
+  :where(.research-page, .stock-initial-shell) :where(.app-sidebar, .query-strip, .topbar, .stock-initial-header, .stock-initial-card) {
     background: var(--apple-surface);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -5408,7 +4715,7 @@ body {
 
 @media print {
   body { background: #fff; }
-  .research-page :where(.app-sidebar, .query-strip, .quote-head, .realtime-panel, .chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .research-dock, .news-card, .stock-score-card) {
+  .research-page :where(.app-sidebar, .query-strip, .realtime-panel, .chart-card, .rail-card, .next-day-card, .finance-dashboard, .fundamentals-card, .financial-card, .advanced-research-panel, .news-card, .stock-score-card) {
     box-shadow: none;
   }
 }
