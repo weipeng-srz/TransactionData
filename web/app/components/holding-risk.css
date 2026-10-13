@@ -1,0 +1,26 @@
+.holding-risk-summary { margin: 12px 0; padding: 15px 17px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface, transparent); }
+.holding-risk-heading, .holding-risk-heading > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.holding-risk-heading { justify-content: space-between; }
+.holding-risk-heading strong { font-size: 13px; }
+.holding-risk-heading span, .holding-risk-method { font-size: 11px; color: var(--text-secondary, #86868b); }
+.holding-risk-status { padding: 4px 8px; border-radius: 6px; background: var(--surface-secondary, rgba(128, 128, 128, .08)); }
+.holding-risk-status.is-profit { color: #d14d53; }
+.holding-risk-status.is-risk { color: #188759; }
+.holding-risk-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 15px 0 12px; }
+.holding-risk-levels > div { display: grid; gap: 4px; }
+.holding-risk-levels span { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.holding-risk-levels i { width: 14px; border-top: 2px dashed currentColor; }
+.holding-risk-levels strong { font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 650; }
+.holding-risk-levels small { color: var(--text-secondary, #86868b); font-size: 10px; }
+.holding-risk-cost > span, .holding-risk-cost > strong { color: #347fc6; }
+.holding-risk-profit > span, .holding-risk-profit > strong { color: #d14d53; }
+.holding-risk-stop > span, .holding-risk-stop > strong { color: #188759; }
+.holding-risk-method summary { cursor: pointer; line-height: 1.6; }
+.holding-risk-method p { margin: 8px 0 0; line-height: 1.7; }
+.holding-risk-adjustment { margin: 8px 0 0; font-size: 10px; line-height: 1.6; color: var(--text-secondary, #86868b); }
+@media (max-width: 540px) {
+  .holding-risk-summary { padding: 12px; }
+  .holding-risk-levels { gap: 6px; }
+  .holding-risk-levels strong { font-size: 17px; }
+  .holding-risk-levels small { line-height: 1.5; }
+}

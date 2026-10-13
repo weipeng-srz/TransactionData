@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import AuthProvider from "./components/AuthProvider";
+import AppearanceProvider from "./components/AppearanceProvider";
 import ThemeIconSync from "./components/ThemeIconSync";
+import { appearanceBootstrapScript } from "./lib/appearance";
 import "./globals.css";
 import "./apple.css";
 import "./apple-refinement.css";
+import "./experience.css";
 
 const title = "TrendSight · 市场研究工作台";
 const description = "以清晰、克制的工作区同时查看行情、风险、因子、回测、财报、估值与市场新闻。";
@@ -43,8 +47,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN" data-appearance="light">
-      <body><ThemeIconSync />{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script id="appearance-bootstrap" dangerouslySetInnerHTML={{ __html: appearanceBootstrapScript }} />
+      </head>
+      <body>
+        <AuthProvider>
+        <AppearanceProvider>
+          <ThemeIconSync />
+          {children}
+        </AppearanceProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

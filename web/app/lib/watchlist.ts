@@ -67,6 +67,25 @@ export function upsertWatchlistStock(current: WatchlistStock[], stock: Watchlist
   return [normalized, ...current.filter((item) => stockStorageKey(item) !== key)].slice(0, maxWatchlistSize);
 }
 
+// Positions remain visible even when the security is not on the watchlist.
+// Do not apply the watchlist's 50-item cap to the independently stored holdings.
+export function buildPortfolioStocks(watchlist: WatchlistStock[], holdings: StockHoldings): WatchlistStock[] {
+  const stocks = [...watchlist];
+  const seen = new Set(stocks.map(stockStorageKey));
+  for (const holding of Object.values(holdings)) {
+    const key = stockStorageKey(holding);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    stocks.push({
+      code: holding.code,
+      name: holding.name || holding.code,
+      ...(marketOf(holding) === "US" ? { market: "US" as const, currency: "USD" as const } : {}),
+      addedAt: holding.updatedAt,
+    });
+  }
+  return stocks;
+}
+
 export function calculatePortfolioTotals(
   watchlist: WatchlistStock[],
   holdings: StockHoldings,
@@ -82,7 +101,8 @@ export function calculatePortfolioTotals(
     USD: { costValue: 0, marketValue: 0, profit: 0, profitPct: 0, dayProfit: 0 },
   };
 
-  for (const stock of watchlist) {
+  const portfolioStocks = buildPortfolioStocks(watchlist, holdings);
+  for (const stock of portfolioStocks) {
     const key = stockStorageKey(stock);
     const holding = holdings[key];
     if (!holding) continue;
@@ -110,7 +130,7 @@ export function calculatePortfolioTotals(
   dayProfit = byCurrency.CNY.dayProfit;
 
   return {
-    tracked: watchlist.length,
+    tracked: portfolioStocks.length,
     positioned,
     costValue,
     marketValue,
@@ -118,5 +138,23 @@ export function calculatePortfolioTotals(
     profitPct: costValue > 0 ? (profit / costValue) * 100 : 0,
     dayProfit,
     byCurrency,
+  };
+}
+
+export function convertPortfolioTotalsToCny(
+  totals: PortfolioTotals["byCurrency"],
+  usdCny: number,
+): CurrencyPortfolioTotals | null {
+  if (!Number.isFinite(usdCny) || usdCny <= 0 || usdCny >= 20) return null;
+  const costValue = totals.CNY.costValue + totals.USD.costValue * usdCny;
+  const marketValue = totals.CNY.marketValue + totals.USD.marketValue * usdCny;
+  const profit = totals.CNY.profit + totals.USD.profit * usdCny;
+  const dayProfit = totals.CNY.dayProfit + totals.USD.dayProfit * usdCny;
+  return {
+    costValue,
+    marketValue,
+    profit,
+    profitPct: costValue > 0 ? (profit / costValue) * 100 : 0,
+    dayProfit,
   };
 }

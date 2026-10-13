@@ -1,0 +1,16 @@
+.main { max-width: 1120px; margin: 0 auto; padding: clamp(38px, 8vw, 100px) 24px 60px; color: var(--apple-text); }
+.hero { max-width: 860px; padding-bottom: 64px; }
+.eyebrow { color: var(--apple-accent); font-size: 11px; font-weight: 650; letter-spacing: .12em; }
+.hero h1 { margin: 22px 0; font-size: clamp(34px, 5vw, 64px); font-weight: 650; line-height: 1.2; letter-spacing: -.045em; }
+.hero p, .account p { color: var(--apple-secondary); font-size: 15px; line-height: 1.9; }
+.examples { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.examples button { display: flex; gap: 20px; align-items: center; padding: 15px 20px; border: 1px solid var(--apple-border-strong); border-radius: 14px; background: var(--apple-surface); color: var(--apple-text); cursor: pointer; }
+.examples span { font-size: 12px; color: var(--apple-secondary); }
+.account { padding: 30px; display: flex; gap: 40px; align-items: center; border: 1px solid var(--apple-border-strong); border-radius: 22px; background: var(--apple-surface); }
+.account h2 { font-size: 23px; font-weight: 600; letter-spacing: -.025em; }
+.account p { max-width: 630px; margin-bottom: 0; font-size: 13px; }
+.actions { flex-shrink: 0; display: grid; gap: 16px; text-align: center; }
+.actions a { color: var(--apple-accent); text-decoration: none; font-size: 13px; }
+.actions a:first-child { padding: 13px 28px; background: var(--apple-accent); color: white; border-radius: 12px; font-weight: 600; }
+.examples button:focus-visible, .actions a:focus-visible { outline: 2px solid var(--apple-accent); outline-offset: 4px; }
+@media (max-width: 650px) { .account { flex-direction: column; align-items: stretch; gap: 24px; padding: 24px; } .hero { padding-bottom: 38px; } .examples { gap: 8px; } .examples button { padding: 13px; gap: 10px; } }

@@ -1,0 +1,38 @@
+.shell:global(.global-page-shell) {
+  display: block !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.highlights a {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--apple-border);
+  border-radius: 12px;
+  background: var(--apple-surface);
+  color: var(--apple-text);
+  text-decoration: none;
+}
+
+.highlights a:hover { border-color: var(--apple-accent); }
+.highlights a > span { color: var(--apple-secondary); font-size: 13px; }
+.highlights strong { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.highlights em { font-size: 14px; font-style: normal; }
+.highlights small { color: var(--apple-accent); font-size: 12px; }
+.note { margin: 14px 0 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.6; }
+
+.regions:global(.global-region-board) { margin-top: 0; }
+.regions > :global(.global-a-share-board) { grid-column: 1 / -1; margin: 0; }
+
+@media (max-width: 600px) {
+  .highlights { grid-template-columns: 1fr; gap: 12px; }
+  .highlights a { padding: 16px; }
+  .highlights strong { font-size: 23px; }
+}

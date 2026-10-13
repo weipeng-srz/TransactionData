@@ -38,11 +38,13 @@ test("lets ordinary wheel events scroll the page before chart code can cancel th
   }
 });
 
-test("uses an eight-pixel touch direction lock and leaves pinch zoom to the browser", () => {
+test("uses an eight-pixel touch direction lock, tap inspection, and leaves pinch zoom to the browser", () => {
   const combined = `${marketChart}\n${realtimeChart}\n${globalCharts}`;
-  assert.equal((combined.match(/resolveKlineDragIntent\(/g) ?? []).length, 4);
+  assert.ok((combined.match(/resolveKlineDragIntent\(/g) ?? []).length >= 4);
   assert.equal((combined.match(/touchAction:\s*"pan-y pinch-zoom"/g) ?? []).length, 4);
   assert.equal((combined.match(/event\.pointerType === "touch" \? "pending" : "horizontal"/g) ?? []).length, 4);
+  assert.match(marketChart, /gesture\?\.intent === "pending"/);
+  assert.equal((globalCharts.match(/gesture\?\.intent === "pending"/g) ?? []).length, 2);
 });
 
 test("shows minute-chart instructions that match the guarded wheel behavior", () => {
@@ -50,6 +52,16 @@ test("shows minute-chart instructions that match the guarded wheel behavior", ()
   assert.match(realtimeChart, /普通滚轮滚页面/);
   assert.match(realtimeChart, /Ctrl\/⌘ \+ 滚轮缩放/);
   assert.match(realtimeChart, /Shift \+ 滚轮\/横拖平移/);
+});
+
+test("keeps the A-share minute chart on a fixed four-hour session while preserving US zoom", () => {
+  assert.match(realtimeChart, /fixedCnSession = market === "CN"/);
+  assert.match(realtimeChart, /CN_TRADING_MINUTES/);
+  assert.match(realtimeChart, /固定 240 分钟 · 不缩放/);
+  assert.match(realtimeChart, /尾盘竞价 · 14:57–15:00/);
+  assert.match(realtimeChart, /盘后观察 · 15:00–16:00/);
+  assert.match(realtimeChart, /if \(fixedCnSession\) return;\s+const wheelIntent/);
+  assert.match(realtimeChart, /KlineViewportControls className="is-inline is-apple realtime-kline-controls"/);
 });
 
 test("keeps K-line stages draggable without stealing vertical touch scrolling", () => {

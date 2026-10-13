@@ -86,3 +86,37 @@ test("deduplicates AAPL articles by normalized title and canonical URL", async (
     ].sort());
   });
 });
+
+test("falls back to the stock-specific Eastmoney feed when Sina rate limits news", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedHosts = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requestedHosts.push(url.hostname);
+    if (url.hostname === "suggest3.sinajs.cn") return new Response(appleLookupResponse());
+    if (url.hostname === "search.sina.com.cn") return new Response("rate limited", { status: 429 });
+    if (url.hostname === "searchapi.eastmoney.com") {
+      return Response.json({ QuotationCodeTable: { Data: [{ Code: "AAPL", Name: "苹果", Classify: "UsStock", QuoteID: "105.AAPL" }] } });
+    }
+    if (url.hostname === "np-listapi.eastmoney.com") {
+      assert.equal(url.searchParams.get("mTypeAndCode"), "105.AAPL");
+      return Response.json({ code: 1, data: { list: [{
+        Art_Title: "苹果公司发布新款 iPhone，AAPL 盘前上涨",
+        Art_Url: "http://finance.eastmoney.com/a/202608273855315126.html",
+        Art_ShowTime: "2026-08-27 07:18:06",
+        Author: "测试媒体",
+      }] } });
+    }
+    throw new Error(`unexpected request ${url}`);
+  };
+  try {
+    const dataset = parseNewsCsv(await fetchUSNewsCsv("AAPL", 30));
+    assert.equal(dataset.items.length, 1);
+    assert.equal(dataset.items[0].portal, "东方财富个股资讯");
+    assert.equal(dataset.items[0].media, "测试媒体");
+    assert.equal(dataset.items[0].url, "https://finance.eastmoney.com/a/202608273855315126.html");
+    assert.deepEqual(requestedHosts, ["suggest3.sinajs.cn", "search.sina.com.cn", "searchapi.eastmoney.com", "np-listapi.eastmoney.com"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

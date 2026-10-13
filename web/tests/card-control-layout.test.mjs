@@ -4,8 +4,14 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-const portfolioSource = read("../app/components/PortfolioHome.tsx");
-const portfolioStyles = read("../app/components/PortfolioHome.module.css");
+const portfolioSource = [
+  "../app/components/PortfolioHome.tsx",
+  "../app/features/portfolio/PortfolioStockList.tsx",
+].map(read).join("\n");
+const portfolioStyles = [
+  "../app/components/PortfolioHome.module.css",
+  "../app/features/portfolio/PortfolioStockList.module.css",
+].map(read).join("\n");
 const bannerStyles = read("../app/components/SiteBanner.module.css");
 const beginnerStyles = read("../app/components/BeginnerGuideCard.module.css");
 const viewModeStyles = read("../app/components/ViewModeSwitch.module.css");
@@ -13,7 +19,7 @@ const backtestStyles = read("../app/components/SignalBacktestCard.module.css");
 
 test("keeps mobile banner controls inside a container sized for 44px touch targets", () => {
   const mobile = bannerStyles.slice(bannerStyles.indexOf("@media (max-width: 820px)"));
-  assert.match(mobile, /grid-template-rows: 48px;/);
+  assert.match(mobile, /grid-template-rows: 48px 48px;/);
   assert.match(mobile, /\.searchField \{[\s\S]*?height: 48px;[\s\S]*?min-height: 48px;/);
   assert.match(mobile, /\.searchField > button\[type="submit"\] \{[^}]*min-height: 44px;/);
   assert.match(mobile, /\.navigation a \{[^}]*min-height: 44px;/);
@@ -53,7 +59,7 @@ test("keeps portfolio actions touch-safe without nesting interactive controls", 
   assert.match(mobile, /\.listActions label \{ min-height: 44px;[^}]*display: flex;[^}]*grid-column: 1 \/ -1;/);
   assert.match(mobile, /\.listActions select \{ min-width: 0; min-height: 44px; flex: 1; \}/);
   assert.match(mobile, /\.listActions > button \{ min-height: 44px;/);
-  assert.match(mobile, /\.signalActions button \{ min-height: 44px;/);
+  assert.match(mobile, /\.signalActions button(?:\s*,\s*\.[\w]+(?: button)?)*\s*\{[^}]*min-height:\s*44px;/);
   assert.match(mobile, /\.rowActions button \{ width: 44px; height: 44px;/);
   assert.match(mobile, /\.stockIdentity \{ min-height: 44px;/);
 });

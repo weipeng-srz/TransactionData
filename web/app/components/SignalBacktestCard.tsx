@@ -4,13 +4,17 @@ import type { StockMarket } from "../lib/security";
 import styles from "./SignalBacktestCard.module.css";
 
 function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "CN", priceBasis = "", onCostChange }: { backtest: SignalBacktest; benchmarkName?: string; market?: StockMarket; priceBasis?: string; onCostChange?: (value: number) => void }) {
-  const primary = backtest.horizons.find((item) => item.periods === 10) ?? backtest.horizons[0];
+  const buyHorizons = backtest.directions?.buy.horizons ?? backtest.horizons;
+  const sellHorizons = backtest.directions?.sell.horizons ?? [];
+  const primary = buyHorizons.find((item) => item.periods === 10) ?? buyHorizons[0];
+  const sellPrimary = sellHorizons.find((item) => item.periods === 10) ?? sellHorizons[0];
   return (
     <section className="rail-card backtest-card" id="signal-backtest">
       <div className="rail-heading">
         <div className={styles.headingControls}>
           <p className="eyebrow">HISTORICAL VALIDATION</p>
-          <h3>B/S 信号回测</h3>
+          <h3>B 收益 / S 风险验证</h3>
+          <span className={`${styles.regimeBadge} ${styles[backtest.recent?.status ?? "insufficient"]}`}>{backtest.recent?.label ?? "近期样本不足"}</span>
         </div>
         <div>
           <label className={styles.costControl}>交易摩擦
@@ -20,29 +24,18 @@ function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "C
           <span className="calc-badge">{backtest.totalSignals} SIGNALS</span>
         </div>
       </div>
-      <div className="backtest-layout">
-        <div className="backtest-hero">
-          <span>{primary ? `${primary.periods}期信号胜率` : "信号胜率"}</span>
-          <strong className={(primary?.winRate ?? 0) >= 50 ? "is-up" : "is-down"}>{formatPercent(primary?.winRate ?? null)}</strong>
-          <small>B {backtest.buySignals} · S {backtest.sellSignals} · 跳过 {backtest.skippedSignals} · 95%区间 {formatRange(primary?.winRateLow ?? null, primary?.winRateHigh ?? null)}</small>
-        </div>
-        <div className="backtest-table-wrap">
-          <table className="backtest-table">
-            <thead><tr><th>观察期</th><th>样本</th><th>胜率</th><th>平均收益</th><th>中位收益</th><th>最差不利波动</th></tr></thead>
-            <tbody>
-              {backtest.horizons.map((item) => (
-                <tr key={item.periods}>
-                  <td>{item.periods} 根K线</td>
-                  <td>{item.samples}</td>
-                  <td>{formatPercent(item.winRate)}</td>
-                  <td className={tone(item.averageReturn)}>{formatPercent(item.averageReturn)}</td>
-                  <td className={tone(item.medianReturn)}>{formatPercent(item.medianReturn)}</td>
-                  <td className="is-down">{formatPercent(item.worstAdverseMove)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className={styles.directionGrid}>
+        <DirectionHero label="B 点 · 可交易方向" primary={primary} count={backtest.buySignals} />
+        <DirectionHero label="S 点 · 仅风险提示" primary={sellPrimary} count={backtest.sellSignals} warning />
+      </div>
+      <div className="backtest-table-wrap">
+        <table className="backtest-table">
+          <thead><tr><th>方向</th><th>观察期</th><th>样本</th><th>胜率</th><th>平均收益</th><th>Profit Factor</th><th>平均成本</th></tr></thead>
+          <tbody>
+            {buyHorizons.map((item) => <HorizonRow key={`buy-${item.periods}`} label="B" item={item} />)}
+            {sellHorizons.map((item) => <HorizonRow key={`sell-${item.periods}`} label="S" item={item} warning />)}
+          </tbody>
+        </table>
       </div>
       {primary ? (
         <div className="backtest-risk-grid" aria-label={`${primary.periods}期回测风险指标`}>
@@ -54,12 +47,36 @@ function SignalBacktestCard({ backtest, benchmarkName = "沪深300", market = "C
           <Metric label={`相对${benchmarkName}`} value={formatPercent(primary.averageExcessReturn)} tone={primary.averageExcessReturn} />
         </div>
       ) : null}
-      <p className="method-note">{backtest.executionModel}；方向收益已扣除 {backtest.roundTripCostPct.toFixed(2)}% 往返交易摩擦（手续费、税费与滑点合计假设），并跳过无量{market === "CN" ? "或单边涨跌停开盘" : "开盘"}样本。价格口径：{priceBasis || "未明确复权，需核对分红送转影响"}。胜率区间使用 Wilson 95% 估计；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
+      <p className="method-note">{backtest.executionModel}；输入的 {backtest.roundTripCostPct.toFixed(2)}% 为回测单次往返交易摩擦百分比基础值，流动性模型会在其上估算手续费、税费与滑点合计假设，并跳过无量{market === "CN" ? "或按板块与历史日期识别的单边涨跌停开盘" : "开盘"}入场。主观察期 B 样本中，{primary?.delayedExits ?? 0} 笔延迟退出、{primary?.pendingExits ?? 0} 笔尚未退出；未退出不计入已完成胜率。价格口径：{priceBasis || "未明确复权，需核对分红送转影响"}。胜率区间使用 Wilson 95% 估计；重叠持有期使样本相关，区间可能偏窄，信号序列回撤不等于资金曲线回撤；卖出信号仅作方向验证，不代表可直接做空。样本少时不应外推。</p>
     </section>
   );
 }
 
 export default memo(SignalBacktestCard);
+
+function DirectionHero({ label, primary, count, warning = false }: { label: string; primary: SignalBacktest["horizons"][number] | undefined; count: number; warning?: boolean }) {
+  return (
+    <div className={`${styles.directionHero} ${warning ? styles.warningHero : ""}`}>
+      <span>{label}</span>
+      <strong className={tone(primary?.averageReturn ?? null)}>{formatPercent(primary?.averageReturn ?? null)}</strong>
+      <small>{primary?.periods ?? 10}期平均 · {count} 个信号 · 胜率 {formatPercent(primary?.winRate ?? null)} · 95%区间 {formatRange(primary?.winRateLow ?? null, primary?.winRateHigh ?? null)}</small>
+    </div>
+  );
+}
+
+function HorizonRow({ label, item, warning = false }: { label: "B" | "S"; item: SignalBacktest["horizons"][number]; warning?: boolean }) {
+  return (
+    <tr className={warning ? styles.warningRow : ""}>
+      <td><strong>{label}</strong></td>
+      <td>{item.periods} 根K线</td>
+      <td>{item.samples}</td>
+      <td>{formatPercent(item.winRate)}</td>
+      <td className={tone(item.averageReturn)}>{formatPercent(item.averageReturn)}</td>
+      <td>{formatRatio(item.profitFactor)}</td>
+      <td>{formatPercent(item.averageCostPct ?? null)}</td>
+    </tr>
+  );
+}
 
 function Metric({ label, value, tone: metricTone }: { label: string; value: string; tone?: number | null }) {
   return <div><span>{label}</span><strong className={metricTone == null ? "" : tone(metricTone)}>{value}</strong></div>;

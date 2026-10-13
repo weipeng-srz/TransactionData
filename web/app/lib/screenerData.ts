@@ -1,4 +1,10 @@
 import { fetchGlobalIndexFeed, type GlobalIndexFeed } from "./globalIndexes.ts";
+import { emptyFinancialDataset, type FinancialDataset } from "./financials.ts";
+import { buildFinancialAnalysis } from "./financialAnalysis.ts";
+import { calculateIndicators, type Candle, type IntentAnalysis } from "./market.ts";
+import { backtestGuideSignals, calculateRiskMetrics } from "./research.ts";
+import { buildStockScore, stockScoreModelVersion } from "./stockScore.ts";
+import { fetchUSFinancials } from "./usStockFinancials.ts";
 import { fetchUSDailyRows } from "./usStockMarket.ts";
 import type {
   ScreenerFeed,
@@ -17,13 +23,19 @@ const cnCountEndpoint = "https://vip.stock.finance.sina.com.cn/quotes_service/ap
 const cnDailyEndpoint = "https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData";
 const usListEndpoint = "https://stock.finance.sina.com.cn/usstock/api/jsonp.php/var%20_trendsight=/US_CategoryService.getList";
 const eastmoneyEndpoint = "https://push2ex.eastmoney.com";
+const eastmoneyFinancialEndpoint = "https://datacenter-web.eastmoney.com/api/data/v1/get";
 const maxResponseBytes = 2 * 1024 * 1024;
 const cacheTtlMs: Record<ScreenerMarket, number> = { CN: 90_000, US: 120_000 };
-const screenerModelVersion = "rules-2026.08.2";
+const maxStaleFeedMs = 15 * 60_000;
+const staleRetryTtlMs = 20_000;
+const screenerModelVersion = "rules-2026.08.4";
 const historyWindowDays = 90;
 const defaultRiskPerTradePercent = .5;
 const cache = new Map<ScreenerMarket, { value: ScreenerFeed; expiresAt: number }>();
 const pending = new Map<ScreenerMarket, Promise<ScreenerFeed>>();
+const researchFinancialCache = new Map<string, { rows: Array<Record<string, unknown>>; expiresAt: number }>();
+const researchUSFinancialCache = new Map<string, { value: FinancialDataset; expiresAt: number }>();
+const researchFinancialTtlMs = 30 * 60_000;
 
 type CNQuote = {
   symbol: string;
@@ -125,6 +137,17 @@ export async function fetchScreenerFeed(market: ScreenerMarket): Promise<Screene
   const request = (market === "CN" ? buildCNFeed() : buildUSFeed())
     .then((value) => {
       cache.set(market, { value, expiresAt: Date.now() + cacheTtlMs[market] });
+      return value;
+    })
+    .catch((reason) => {
+      const cachedAt = cached ? Date.parse(cached.value.fetchedAt) : Number.NaN;
+      if (!cached || !Number.isFinite(cachedAt) || now - cachedAt > maxStaleFeedMs) throw reason;
+      const value: ScreenerFeed = {
+        ...cached.value,
+        quoteStatus: cached.value.quoteStatus.startsWith("缓存快照") ? cached.value.quoteStatus : `缓存快照 · ${cached.value.quoteStatus}`,
+        diagnostics: { ...cached.value.diagnostics, delayed: true },
+      };
+      cache.set(market, { value, expiresAt: Date.now() + staleRetryTtlMs });
       return value;
     })
     .finally(() => pending.delete(market));
@@ -250,6 +273,20 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[], b
   const atr = averageTrueRange(rows.slice(-16));
   const atrPct = price > 0 ? atr / price * 100 : 0;
   const ma5Distance = ma5 > 0 ? percentChange(price, ma5) : 0;
+  const phaseAnalysis = assessMarketPhases(seed, rows, {
+    price,
+    ma5,
+    ma10,
+    ma20,
+    breakout20,
+    breakout60,
+    volumeRatio,
+    closePosition,
+    return5,
+    return20,
+    relativeStrength20: return20 - benchmarkReturn20,
+    atrPct,
+  });
 
   const strengthScore = clamp(48 + seed.change * 3 + (closePosition - 50) * .32 - Math.max(0, gap - seed.change) * 1.4, 0, 100);
   const trendScore = clamp(42 + (price > ma5 ? 12 : -8) + (ma5 > ma10 ? 11 : -5) + (ma10 > ma20 ? 11 : -5) + return20 * 1.15 + (breakout20 ? 12 : 0), 0, 100);
@@ -261,9 +298,12 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[], b
   const confidence = Math.round(clamp(38 + score * .46 - risk * .13, 35, 82));
   const recommendation = recommendationFor(score, risk);
 
-  const strategies = seed.market === "CN"
+  const baseStrategies = seed.market === "CN"
     ? cnStrategies(seed, { breakout20, volumeRatio })
     : usStrategies(seed, { breakout60, volumeRatio, gap, return20, ma20 });
+  const strategies = unique([
+    ...baseStrategies,
+  ]);
   const signal = signalFor(seed, { breakout20, breakout60, volumeRatio, gap, return20 });
   const reasons = buildReasons(seed, { ma5, ma10, ma20, closePosition, volumeRatio, return5, return20, breakout20, breakout60, gap });
   const risks = buildRisks(seed, { ma5Distance, return5, atrPct, volumeRatio, gap, closePosition });
@@ -322,6 +362,7 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[], b
       { label: "量价", value: Math.round(volumeScore) },
       { label: "动量", value: Math.round(momentumScore) },
     ],
+    phaseAnalysis,
     plan: {
       watch: risk >= 68 ? `等待回落至 ${formatPrice(watchLow)} – ${formatPrice(normalizedWatchHigh)}` : `${formatPrice(watchLow)} – ${formatPrice(normalizedWatchHigh)}`,
       breakout: formatPrice(breakout),
@@ -338,6 +379,8 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[], b
       rewardRisk: round(rewardRisk, 2),
       riskPerTradePercent: defaultRiskPerTradePercent,
       suggestedPositionPercent: round(clamp(rawPositionPercent, 1, positionCap), 1),
+      trailingStop: "浮盈达到 1R 后将保护位抬至成本附近；达到 2R 后按 MA10 与 2ATR 中较高者跟踪",
+      exitRule: "初始风险位失效即退出；未触发保护位时最多观察 40 个交易日",
     },
     chart: {
       dates: chartRows.map((row) => row.date),
@@ -351,6 +394,480 @@ export function scoreScreenerOpportunity(seed: AnalysisSeed, rows: DailyRow[], b
       completeness: Math.round(clamp(rows.length / historyWindowDays * 100, 0, 100)),
     },
   };
+}
+
+function assessMarketPhases(
+  seed: AnalysisSeed,
+  rows: DailyRow[],
+  state: {
+    price: number;
+    ma5: number;
+    ma10: number;
+    ma20: number;
+    breakout20: boolean;
+    breakout60: boolean;
+    volumeRatio: number;
+    closePosition: number;
+    return5: number;
+    return20: number;
+    relativeStrength20: number;
+    atrPct: number;
+  },
+): ScreenerOpportunity["phaseAnalysis"] {
+  const closes = rows.map((row) => row.close);
+  const laggedAverage = (window: number, lag: number) => {
+    const end = Math.max(0, closes.length - lag);
+    return average(closes.slice(Math.max(0, end - window), end));
+  };
+  const ma60 = average(closes.slice(-Math.min(60, closes.length)));
+  const previousMa20 = laggedAverage(20, 5) || state.ma20;
+  const previousMa60 = laggedAverage(60, 10) || ma60;
+  const ma20Slope = percentChange(state.ma20, previousMa20);
+  const ma60Slope = percentChange(ma60, previousMa60);
+  const recent20 = rows.slice(-20);
+  const recent10 = rows.slice(-10);
+  const prior10 = rows.slice(-20, -10);
+  const previous60 = rows.slice(-60);
+  const range20 = priceRangePercent(recent20);
+  const range10 = priceRangePercent(recent10);
+  const rangeCompression = range20 > 0 ? range10 / range20 : 1;
+  const recentLow = Math.min(...recent10.map((row) => row.low));
+  const priorLow = Math.min(...(prior10.length ? prior10 : recent10).map((row) => row.low));
+  const raisedLow = percentChange(recentLow, priorLow);
+  const previous60High = Math.max(...previous60.map((row) => row.high));
+  const drawdown60 = percentChange(state.price, previous60High);
+  const ma20Distance = percentChange(state.price, state.ma20);
+  const upVolumes: number[] = [];
+  const downVolumes: number[] = [];
+  for (let index = Math.max(1, rows.length - 20); index < rows.length; index += 1) {
+    const bucket = rows[index].close >= rows[index - 1].close ? upVolumes : downVolumes;
+    bucket.push(rows[index].volume);
+  }
+  const upVolumeAverage = average(upVolumes);
+  const downVolumeAverage = average(downVolumes);
+  const upDownVolumeRatio = downVolumeAverage > 0 ? upVolumeAverage / downVolumeAverage : upVolumeAverage > 0 ? 2 : 1;
+
+  const mainFeatures: string[] = [];
+  let mainScore = 0;
+  const shortStacked = state.price > state.ma5 && state.ma5 > state.ma10 && state.ma10 > state.ma20;
+  const longStacked = rows.length < 50 || state.ma20 > ma60;
+  if (shortStacked && longStacked) {
+    mainScore += 24;
+    mainFeatures.push(rows.length >= 50 ? "MA5、MA10、MA20、MA60 多头排列" : "MA5、MA10、MA20 多头排列");
+  } else if (state.price > state.ma20 && state.ma5 > state.ma10) {
+    mainScore += 12;
+    mainFeatures.push("价格站上 MA20，短期均线转强");
+  }
+  if (ma20Slope >= 1) {
+    mainScore += 10;
+    mainFeatures.push(`MA20 近 5 日斜率 ${signed(ma20Slope)}%`);
+  } else if (ma20Slope > 0) mainScore += 5;
+  if (ma60Slope > 0) mainScore += 6;
+  if (state.breakout60) {
+    mainScore += 16;
+    mainFeatures.push("价格触及近 60 日高位");
+  } else if (state.breakout20) {
+    mainScore += 11;
+    mainFeatures.push("价格突破近 20 日高位");
+  }
+  if (state.relativeStrength20 >= 5) {
+    mainScore += 12;
+    mainFeatures.push(`近 20 日跑赢基准 ${state.relativeStrength20.toFixed(1)}%`);
+  } else if (state.relativeStrength20 >= 0) mainScore += 7;
+  if (seed.change > 0 && state.volumeRatio >= 1.2 && state.volumeRatio <= 3.5) {
+    mainScore += 10;
+    mainFeatures.push(`上涨量能为前 5 日均量 ${state.volumeRatio.toFixed(2)} 倍`);
+  } else if (seed.change > 0 && state.volumeRatio >= .9) mainScore += 5;
+  if (upDownVolumeRatio >= 1.25) {
+    mainScore += 8;
+    mainFeatures.push(`近 20 日涨日/跌日均量比 ${upDownVolumeRatio.toFixed(2)}`);
+  } else if (upDownVolumeRatio >= 1.05) mainScore += 4;
+  if (state.closePosition >= 70) mainScore += 6;
+  if (state.return20 >= 5 && state.return20 <= 35) mainScore += 8;
+  else if (state.return20 > 0 && state.return20 <= 45) mainScore += 4;
+  const ma5Distance = percentChange(state.price, state.ma5);
+  if (state.return5 > 18) mainScore -= 8;
+  if (state.volumeRatio > 4) mainScore -= 8;
+  if (state.atrPct > 8) mainScore -= 6;
+  if (ma5Distance > 12) mainScore -= 8;
+  const rawMainScore = Math.round(clamp(mainScore, 0, 100));
+  const chasePenalty = Math.min(16, Math.max(0, state.return5 - 10) * 2)
+    + Math.min(14, Math.max(0, ma5Distance - 7) * 2)
+    + Math.min(12, Math.max(0, state.volumeRatio - 3) * 6);
+  const mainOverheat = state.return5 > 12 || ma5Distance > 8 || state.volumeRatio > 3.2;
+  const mainMarketGate = seed.market !== "CN" || state.return20 - state.relativeStrength20 > 0;
+  mainScore = Math.round(clamp(rawMainScore - chasePenalty, 0, 100));
+  if (!mainMarketGate) mainScore = Math.min(mainScore, 54);
+  if (mainOverheat) mainScore = Math.min(mainScore, 59);
+  const mainActionable = mainMarketGate && !mainOverheat && mainScore >= 55;
+  const mainStage = !mainMarketGate
+    ? "等待环境"
+    : mainOverheat
+      ? "加速过热"
+      : mainScore >= 65 && (state.breakout20 || state.breakout60)
+        ? "启动确认"
+        : mainScore >= 55
+          ? "趋势准备"
+          : "结构观察";
+
+  const accumulationFeatures: string[] = [];
+  let accumulationScore = 0;
+  if (drawdown60 <= -4 && drawdown60 >= -30) {
+    accumulationScore += 12;
+    accumulationFeatures.push(`距近 60 日高点 ${drawdown60.toFixed(1)}%，仍处整理区`);
+  } else if (drawdown60 < 2 && state.return20 <= 12) accumulationScore += 7;
+  if (range10 <= 12 && rangeCompression <= .72) {
+    accumulationScore += 16;
+    accumulationFeatures.push(`近 10 日振幅收敛至 20 日的 ${(rangeCompression * 100).toFixed(0)}%`);
+  } else if (range10 <= 15 && rangeCompression <= .9) accumulationScore += 9;
+  if (raisedLow >= 1) {
+    accumulationScore += 14;
+    accumulationFeatures.push(`近 10 日低点较前一区间抬高 ${raisedLow.toFixed(1)}%`);
+  } else if (raisedLow >= -1) accumulationScore += 8;
+  if (ma20Slope >= -1.5 && ma20Slope <= 3) {
+    accumulationScore += 12;
+    accumulationFeatures.push(`MA20 斜率 ${signed(ma20Slope)}%，平台趋稳`);
+  } else if (ma20Slope > 0 && ma20Slope <= 5) accumulationScore += 7;
+  if (Math.abs(ma20Distance) <= 5) {
+    accumulationScore += 12;
+    accumulationFeatures.push(`价格围绕 MA20 ${signed(ma20Distance)}% 运行`);
+  } else if (ma20Distance > 0 && ma20Distance <= 8) accumulationScore += 6;
+  if (upDownVolumeRatio >= 1.15) {
+    accumulationScore += 14;
+    accumulationFeatures.push(`涨日均量为跌日的 ${upDownVolumeRatio.toFixed(2)} 倍`);
+  } else if (upDownVolumeRatio >= 1) accumulationScore += 8;
+  if (state.return20 >= -5 && state.return20 <= 12) accumulationScore += 10;
+  else if (state.return20 > -10 && state.return20 <= 18) accumulationScore += 5;
+  if (state.relativeStrength20 >= 0) accumulationScore += 8;
+  if (state.volumeRatio >= .8 && state.volumeRatio <= 1.8) accumulationScore += 6;
+  if (state.closePosition >= 55) accumulationScore += 4;
+  if (state.breakout60 && state.return20 > 15) accumulationScore -= 18;
+  if (state.return5 > 12) accumulationScore -= 12;
+  if (state.volumeRatio > 3) accumulationScore -= 8;
+  if (seed.turnover > 15) accumulationScore -= 6;
+  if (ma20Distance < -8) accumulationScore -= 10;
+  const rawAccumulationScore = Math.round(clamp(accumulationScore, 0, 100));
+  const accumulationMarketGate = seed.market !== "CN" || state.return20 - state.relativeStrength20 > -5;
+  const accumulationTurnoverGate = seed.market !== "CN" || (seed.turnover >= .3 && seed.turnover <= 10);
+  accumulationScore = rawAccumulationScore;
+  if (!accumulationMarketGate || !accumulationTurnoverGate) accumulationScore = Math.min(accumulationScore, 49);
+  const accumulationStage = accumulationScore >= 72
+    ? "突破准备"
+    : accumulationScore >= 60
+      ? "平台确认"
+      : accumulationScore >= 50
+        ? "早期平台"
+        : "结构观察";
+  const accumulationActionable = accumulationScore >= 50 && accumulationMarketGate && accumulationTurnoverGate;
+  const benchmarkReturn20 = state.return20 - state.relativeStrength20;
+
+  return {
+    mainUptrend: {
+      score: mainScore,
+      rawScore: rawMainScore,
+      level: phaseLevel(mainScore, 70, 55),
+      stage: mainStage,
+      actionable: mainActionable,
+      overheat: mainOverheat,
+      gateReason: !mainMarketGate
+        ? `沪深300近20日 ${signed(benchmarkReturn20)}%，未通过主升环境门槛`
+        : mainOverheat
+          ? "短线涨幅、均线乖离或量能进入过热区"
+          : seed.market === "CN"
+            ? `沪深300近20日 ${signed(benchmarkReturn20)}%，环境门槛已通过`
+            : "基准环境仅作提示，不对美股候选做硬过滤",
+      rankPercentile: 0,
+      rankLabel: "等待候选池横向排名",
+      summary: mainStage === "启动确认" ? "趋势、突破与量价共振，且未进入追高区" : mainStage === "趋势准备" ? "趋势已转强，等待更明确的突破确认" : mainStage === "加速过热" ? "结构偏强，但当前位置已进入防追高区" : mainStage === "等待环境" ? "个股结构存在，但市场环境尚未放行" : "主升结构尚未形成完整闭环",
+      features: mainFeatures.length ? mainFeatures.slice(0, 5) : ["趋势、突破和量能暂未形成共振"],
+      warning: mainOverheat ? "短线涨幅、量能或均线乖离偏高，当前不进入主升候选。" : !mainMarketGate ? "回测中弱市与震荡市的主升信号明显失效，先等待基准转强。" : "规则迹象不等于上涨概率；跌回突破位或 MA20 后需要重新评估。",
+    },
+    accumulation: {
+      score: accumulationScore,
+      rawScore: rawAccumulationScore,
+      level: phaseLevel(accumulationScore, 72, 50),
+      stage: accumulationStage,
+      actionable: accumulationActionable,
+      overheat: state.return5 > 12 || state.volumeRatio > 3,
+      gateReason: !accumulationMarketGate
+        ? `沪深300近20日 ${signed(benchmarkReturn20)}%，弱市中暂缓建仓观察`
+        : !accumulationTurnoverGate
+          ? `换手率 ${seed.turnover.toFixed(2)}%，不在 0.3%–10% 有效区间`
+          : accumulationStage === "突破准备"
+            ? "平台成熟度较高，仍需突破量价确认"
+            : "市场与换手条件通过，继续观察平台演化",
+      rankPercentile: 0,
+      rankLabel: "等待候选池横向排名",
+      summary: accumulationStage === "突破准备" ? "平台成熟度较高，进入突破准备阶段" : accumulationStage === "平台确认" ? "平台收敛与承接得到进一步确认" : accumulationStage === "早期平台" ? "出现早期平台特征，仍需时间验证" : "现有量价不足以支持建仓阶段判断",
+      features: accumulationFeatures.length ? accumulationFeatures.slice(0, 5) : ["平台、低点和量能承接尚未形成共振"],
+      warning: "仅基于公开量价结构推断，不能识别真实账户，也不能证明机构或所谓主力正在买入。",
+    },
+  };
+}
+
+export function rankPhaseOpportunities(opportunities: ScreenerOpportunity[]): ScreenerOpportunity[] {
+  const ranked = opportunities.map((item) => ({
+    ...item,
+    strategies: item.strategies.filter((strategy) => strategy !== "主升扫描" && strategy !== "建仓观察"),
+    phaseAnalysis: {
+      mainUptrend: { ...item.phaseAnalysis.mainUptrend },
+      accumulation: { ...item.phaseAnalysis.accumulation },
+    },
+  }));
+  const applyRank = (phase: keyof ScreenerOpportunity["phaseAnalysis"], pool: ScreenerOpportunity[], label: string, strategy?: string, strategyFilter?: (item: ScreenerOpportunity) => boolean, selectionRatio = .2) => {
+    const ordered = [...pool].sort((left, right) => right.phaseAnalysis[phase].score - left.phaseAnalysis[phase].score || right.score - left.score);
+    if (!ordered.length) return;
+    const eligibleCount = Math.max(1, Math.ceil(ordered.length * selectionRatio));
+    ordered.forEach((item, index) => {
+      const assessment = item.phaseAnalysis[phase];
+      assessment.rankPercentile = Math.round((ordered.length - index) / ordered.length * 100);
+      assessment.rankLabel = `${label}第 ${index + 1}/${ordered.length}${index < eligibleCount ? ` · 前${Math.round(selectionRatio * 100)}%` : ""}`;
+      if (strategy && index < eligibleCount && (!strategyFilter || strategyFilter(item))) item.strategies = unique([...item.strategies, strategy]);
+    });
+  };
+  const mainPool = ranked.filter((item) => item.phaseAnalysis.mainUptrend.actionable && item.risk < 68);
+  const accumulationPool = ranked.filter((item) => item.phaseAnalysis.accumulation.actionable);
+  ranked.filter((item) => item.phaseAnalysis.mainUptrend.actionable && item.risk >= 68).forEach((item) => {
+    item.phaseAnalysis.mainUptrend.rankLabel = "风险≥68，未进入主升横向排名";
+  });
+  applyRank("mainUptrend", mainPool, "有效主升池", "主升扫描");
+  applyRank("accumulation", accumulationPool, "有效建仓池", "建仓观察", (item) => ["早期平台", "平台确认"].includes(item.phaseAnalysis.accumulation.stage), .5);
+  return ranked;
+}
+
+async function enrichResearchScores(
+  items: Array<{ opportunity: ScreenerOpportunity; rows: DailyRow[] }>,
+  benchmarkRows: DailyRow[],
+  market: ScreenerMarket,
+): Promise<void> {
+  const candidates = [...items]
+    .sort((left, right) => right.opportunity.score - left.opportunity.score)
+    .slice(0, market === "CN" ? items.length : 16);
+  const benchmark = researchCandles(benchmarkRows);
+  await mapLimited(candidates, market === "CN" ? 6 : 4, async ({ opportunity, rows }) => {
+    const candles = researchCandles(rows);
+    if (candles.length < 20) return;
+    const financials = market === "CN"
+      ? await fetchCNResearchFinancials(opportunity.symbol, opportunity.price)
+      : await fetchCachedUSResearchFinancials(opportunity.symbol);
+    const indicators = calculateIndicators(candles);
+    const report = buildStockScore({
+      candles,
+      indicators,
+      currentPrice: opportunity.price,
+      intent: researchDailyIntent(candles),
+      financials,
+      newsItems: [],
+      risk: calculateRiskMetrics(candles, benchmark),
+      backtest: backtestGuideSignals(candles, indicators, [5, 10, 20], {
+        benchmark,
+        market,
+        code: opportunity.symbol,
+        name: opportunity.name,
+        costModel: "liquidity",
+        positionValue: 80_000,
+      }),
+      dataQuality: {
+        ambiguousDuplicates: 0,
+        duplicateRate: 0,
+        zeroVolumeRows: rows.filter((row) => row.volume <= 0).length,
+        sideCoverage: 0,
+        dailyContextCoverage: 0,
+        warnings: [],
+      },
+    });
+    opportunity.researchScore = {
+      score: report.score,
+      coverage: report.coverage,
+      modelVersion: stockScoreModelVersion,
+      signal: report.signal.action,
+      dimensions: report.dimensions.map((dimension) => ({
+        key: dimension.key,
+        label: dimension.label,
+        score: dimension.score,
+        coverage: dimension.coverage,
+      })),
+    };
+  });
+}
+
+async function fetchCNResearchFinancials(code: string, price: number): Promise<FinancialDataset> {
+  const cacheKey = `CN:${code}`;
+  const cached = researchFinancialCache.get(cacheKey);
+  let rows = cached && cached.expiresAt > Date.now() ? cached.rows : null;
+  if (!rows) {
+    const secuCode = `${code}.${/^[569]/.test(code) ? "SH" : /^[48]/.test(code) ? "BJ" : "SZ"}`;
+    const url = new URL(eastmoneyFinancialEndpoint);
+    const columns = [
+      "SECUCODE", "SECURITY_CODE", "SECURITY_NAME_ABBR", "ORG_TYPE", "REPORT_DATE", "REPORT_TYPE", "REPORT_DATE_NAME", "NOTICE_DATE",
+      "BPS", "TOTALOPERATEREVE", "MLR", "PARENTNETPROFIT", "KCFJCXSYJLR", "ROEJQ", "ROIC", "NETCASH_OPERATE_PK",
+      "TOTAL_SHARE", "TOTAL_ASSETS_PK", "TOTAL_EQUITY_PK", "LIABILITY", "LD", "SD", "ZCFZL",
+    ].join(",");
+    for (const [key, value] of Object.entries({
+      reportName: "RPT_F10_FINANCE_MAINFINADATA",
+      columns,
+      filter: `(SECUCODE=\"${secuCode}\")`,
+      pageNumber: "1",
+      pageSize: "50",
+      sortColumns: "REPORT_DATE",
+      sortTypes: "-1",
+      source: "WEB",
+      client: "WEB",
+    })) url.searchParams.set(key, value);
+    const payload = JSON.parse(await fetchText(url.toString(), 768 * 1024)) as { result?: { data?: unknown } };
+    rows = Array.isArray(payload.result?.data)
+      ? payload.result.data.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      : [];
+    if (!rows.length) throw new Error(`${code} 财务主指标为空`);
+    researchFinancialCache.set(cacheKey, { rows, expiresAt: Date.now() + researchFinancialTtlMs });
+  }
+
+  const incomeRows = rows.map((row) => ({
+    REPORT_DATE: row.REPORT_DATE,
+    NOTICE_DATE: row.NOTICE_DATE,
+    REPORT_DATE_NAME: row.REPORT_DATE_NAME,
+    REPORT_TYPE: row.REPORT_TYPE,
+    ORG_TYPE: row.ORG_TYPE,
+    TOTAL_OPERATE_INCOME: row.TOTALOPERATEREVE,
+    OPERATE_COST: nullableNumber(row.TOTALOPERATEREVE) != null && nullableNumber(row.MLR) != null
+      ? nullableNumber(row.TOTALOPERATEREVE)! - nullableNumber(row.MLR)!
+      : null,
+    PARENT_NETPROFIT: row.PARENTNETPROFIT,
+    DEDUCT_PARENT_NETPROFIT: row.KCFJCXSYJLR,
+  }));
+  const balanceRows = rows.map((row) => ({
+    REPORT_DATE: row.REPORT_DATE,
+    TOTAL_ASSETS: row.TOTAL_ASSETS_PK,
+    TOTAL_LIABILITIES: row.LIABILITY,
+    TOTAL_PARENT_EQUITY: row.TOTAL_EQUITY_PK,
+  }));
+  const cashflowRows = rows.map((row) => ({ REPORT_DATE: row.REPORT_DATE, NETCASH_OPERATE: row.NETCASH_OPERATE_PK }));
+  const wrapped = (data: Array<Record<string, unknown>>) => ({ result: { data } });
+  const analysis = buildFinancialAnalysis({
+    income: wrapped(incomeRows),
+    balance: wrapped(balanceRows),
+    cashflow: wrapped(cashflowRows),
+    indicators: wrapped(rows),
+  });
+  const latest = rows
+    .filter((row) => researchDate(row.NOTICE_DATE) <= new Date().toISOString().slice(0, 10))
+    .sort((left, right) => researchDate(right.REPORT_DATE).localeCompare(researchDate(left.REPORT_DATE)))[0];
+  const dataset = emptyFinancialDataset();
+  dataset.code = code;
+  dataset.name = String(latest?.SECURITY_NAME_ABBR ?? code);
+  dataset.analysis = analysis;
+  const period = analysis.periods[0];
+  const shares = positiveNumber(latest?.TOTAL_SHARE) || null;
+  const bookValuePerShare = nullableNumber(latest?.BPS);
+  const ttmProfit = period?.ttm.parentNetProfit ?? null;
+  const ttmRevenue = period?.ttm.revenue ?? null;
+  const eps = ttmProfit != null && shares ? ttmProfit / shares : null;
+  const pe = eps != null && eps !== 0 ? price / eps : null;
+  const pb = bookValuePerShare != null && bookValuePerShare !== 0 ? price / bookValuePerShare : null;
+  const marketCap = shares ? shares * price : null;
+  const ps = marketCap != null && ttmRevenue != null && ttmRevenue !== 0 ? marketCap / ttmRevenue : null;
+  const profitGrowth = period?.ttmYoY.parentNetProfit ?? null;
+  dataset.snapshot = {
+    ...dataset.snapshot,
+    asOfDate: researchDate(latest?.NOTICE_DATE),
+    closePrice: price,
+    totalMarketCap: marketCap,
+    totalShares: shares,
+    peTtm: pe,
+    pb,
+    psTtm: ps,
+    peg: pe != null && profitGrowth != null && profitGrowth > 0 ? pe / profitGrowth : null,
+  };
+  return dataset;
+}
+
+async function fetchCachedUSResearchFinancials(symbol: string): Promise<FinancialDataset> {
+  const cached = researchUSFinancialCache.get(symbol);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const value = await fetchUSFinancials(symbol);
+  researchUSFinancialCache.set(symbol, { value, expiresAt: Date.now() + researchFinancialTtlMs });
+  return value;
+}
+
+function researchCandles(rows: DailyRow[]): Candle[] {
+  return rows.map((row, index) => {
+    const previousClose = rows[index - 1]?.close ?? row.open;
+    const amount = row.amount || row.close * row.volume;
+    return {
+      key: row.date,
+      label: row.date.slice(5),
+      date: row.date,
+      time: "",
+      open: row.open,
+      high: row.high,
+      low: row.low,
+      close: row.close,
+      volume: row.volume,
+      amount,
+      adjustedAmount: amount,
+      vwap: row.volume > 0 ? amount / row.volume : row.close,
+      turnoverPct: null,
+      change: row.close - previousClose,
+      changePct: percentChange(row.close, previousClose),
+    };
+  });
+}
+
+function researchDailyIntent(candles: Candle[]): IntentAnalysis | null {
+  const candle = candles.at(-1);
+  const previous = candles.at(-2);
+  if (!candle) return null;
+  const range = Math.max(candle.high - candle.low, candle.close * .001);
+  const multiplier = clamp(((2 * candle.close) - candle.high - candle.low) / range, -1, 1);
+  const activeNetRatio = multiplier * 100;
+  const activeNetAmount = candle.amount * multiplier;
+  const closeVsVwapPct = candle.vwap > 0 ? percentChange(candle.close, candle.vwap) : 0;
+  const returnPct = previous?.close ? percentChange(candle.close, previous.close) : 0;
+  const priorVolumes = candles.slice(-21, -1).map((row) => row.volume).sort((left, right) => left - right);
+  const medianVolume = priorVolumes[Math.floor(priorVolumes.length / 2)] || candle.volume;
+  const volumeRatio20 = medianVolume > 0 ? candle.volume / medianVolume : null;
+  const largeNetRatio = activeNetRatio * clamp((volumeRatio20 ?? 1) / 1.5, .35, 1.25);
+  const score = round(clamp(activeNetRatio / 22 + closeVsVwapPct / 1.2 + returnPct / 3, -4.5, 4.5), 2);
+  const label = score >= 1 ? "偏吸筹 / 承接（量价代理）" : score <= -1 ? "偏派发（量价代理）" : "量价中性 / 分歧";
+  return {
+    date: candle.date,
+    basis: "daily-price-volume",
+    label,
+    tone: score >= 1 ? "up" : score <= -1 ? "down" : "neutral",
+    confidence: Math.round(clamp(32 + Math.abs(score) * 5, 32, 54)),
+    score,
+    activeNetAmount,
+    activeNetRatio,
+    largeNetAmount: activeNetAmount * clamp((volumeRatio20 ?? 1) / 1.5, .35, 1.25),
+    largeNetRatio,
+    largeThreshold: 0,
+    closeVsVwapPct,
+    closeLocationPct: clamp((candle.close - candle.low) / range * 100, 0, 100),
+    turnoverPct: null,
+    volumeRatio20,
+    tailNetRatio: percentChange(candle.close, candle.open),
+    evidence: ["日K量价代理"],
+    warnings: ["不含逐笔买卖方向与账户身份"],
+  };
+}
+
+function nullableNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function researchDate(value: unknown): string {
+  return String(value ?? "").slice(0, 10);
+}
+
+function phaseLevel(score: number, strong: number, medium: number): "强" | "中" | "弱" {
+  return score >= strong ? "强" : score >= medium ? "中" : "弱";
+}
+
+function priceRangePercent(rows: DailyRow[]): number {
+  if (!rows.length) return 0;
+  const low = Math.min(...rows.map((row) => row.low));
+  return percentChange(Math.max(...rows.map((row) => row.high)), low);
 }
 
 async function buildCNFeed(): Promise<ScreenerFeed> {
@@ -369,11 +886,13 @@ async function buildCNFeed(): Promise<ScreenerFeed> {
   const quoteByCode = new Map(quotes.map((quote) => [quote.code, quote]));
   const currentByCode = new Map(limitPool.items.map((item) => [item.code, item]));
   const yesterdayByCode = new Map(yesterdayPool.items.map((item) => [item.code, item]));
+  const qualityQuotes = quotes.filter(isCNAnalysisQuote);
   const selectedCodes = unique([
-    ...yesterdayPool.items.sort((left, right) => right.change - left.change).map((item) => item.code).slice(0, 9),
-    ...limitPool.items.sort((left, right) => (right.streak - left.streak) || (right.sealFund - left.sealFund)).map((item) => item.code).slice(0, 9),
-    ...quotes.filter(isCNQualityQuote).sort((left, right) => cnPreScore(right) - cnPreScore(left)).map((quote) => quote.code).slice(0, 16),
-  ]).filter((code) => quoteByCode.has(code)).slice(0, 24);
+    ...yesterdayPool.items.sort((left, right) => right.change - left.change).map((item) => item.code).slice(0, 7),
+    ...limitPool.items.sort((left, right) => (right.streak - left.streak) || (right.sealFund - left.sealFund)).map((item) => item.code).slice(0, 7),
+    ...qualityQuotes.filter(isCNQualityQuote).sort((left, right) => cnPreScore(right) - cnPreScore(left)).map((quote) => quote.code).slice(0, 14),
+    ...qualityQuotes.filter(isCNAccumulationQuote).sort((left, right) => cnAccumulationPreScore(right) - cnAccumulationPreScore(left)).map((quote) => quote.code).slice(0, 12),
+  ]).filter((code) => quoteByCode.has(code)).slice(0, 36);
 
   const benchmarkReturn20 = historicalReturn(benchmarkRows, 20);
   const analyzed = await mapLimited(selectedCodes, 6, async (code) => {
@@ -385,7 +904,8 @@ async function buildCNFeed(): Promise<ScreenerFeed> {
     return { opportunity: scoreScreenerOpportunity(seed, rows, benchmarkReturn20), rows };
   });
   const analyzedItems = analyzed.flatMap((result) => result.ok ? [result.value] : []);
-  const opportunities = analyzedItems.map((item) => item.opportunity).sort((left, right) => right.score - left.score);
+  await enrichResearchScores(analyzedItems, benchmarkRows, "CN");
+  const opportunities = rankPhaseOpportunities(analyzedItems.map((item) => item.opportunity)).sort((left, right) => right.score - left.score);
   opportunities.slice(0, 12).forEach((item) => item.strategies.unshift("今日精选"));
   const failedHistoryCount = analyzed.filter((result) => !result.ok).length;
   const tradeDate = limitPool.tradeDate || yesterdayPool.tradeDate || latestOpportunityDate(opportunities, now, "Asia/Shanghai");
@@ -414,8 +934,8 @@ async function buildCNFeed(): Promise<ScreenerFeed> {
     diagnostics: {
       universeCount: quotes.length,
       scannedCount: quotes.length,
-      qualityCount: quotes.filter(isCNQualityQuote).length,
-      expandedQualityCount: quotes.filter(isCNQualityQuote).length,
+      qualityCount: qualityQuotes.length,
+      expandedQualityCount: qualityQuotes.length,
       prefilterCount: selectedCodes.length,
       analyzedCount: opportunities.length,
       failedHistoryCount,
@@ -461,7 +981,8 @@ async function buildUSFeed(): Promise<ScreenerFeed> {
     };
   });
   const analyzedItems = analyzed.flatMap((result) => result.ok ? [result.value] : []);
-  const opportunities = analyzedItems.map((item) => item.opportunity).sort((left, right) => right.score - left.score);
+  await enrichResearchScores(analyzedItems, benchmarkRows, "US");
+  const opportunities = rankPhaseOpportunities(analyzedItems.map((item) => item.opportunity)).sort((left, right) => right.score - left.score);
   opportunities.slice(0, 12).forEach((item) => item.strategies.unshift("今日精选"));
   const tradeDate = await inferUSLatestDate(selected[0]?.symbol).catch(() => zonedDate(now, "America/New_York"));
   const snapshot = buildUSSnapshot(marketList.quotes, qualityQuotes.length, opportunities, indexes);
@@ -503,7 +1024,7 @@ async function fetchCNUniverse(): Promise<CNQuote[]> {
   const countBody = await fetchText(`${cnCountEndpoint}?node=hs_a`, 32 * 1024);
   const count = Math.min(6_000, Math.max(100, Math.floor(finiteNumber(countBody.replaceAll('"', "")))));
   const pages = Array.from({ length: Math.ceil(count / 100) }, (_, index) => index + 1);
-  const responses = await mapLimited(pages, 10, async (page) => {
+  const responses = await mapLimited(pages, 4, async (page) => {
     const url = new URL(cnListEndpoint);
     url.searchParams.set("page", String(page));
     url.searchParams.set("num", "100");
@@ -921,8 +1442,19 @@ function isCNQualityQuote(quote: CNQuote): boolean {
   return quote.price > 2 && quote.amount >= 50_000_000 && quote.change > 0 && !/(?:^|\*)ST|退$|^N/.test(quote.name);
 }
 
+function isCNAnalysisQuote(quote: CNQuote): boolean {
+  return quote.price > 2 && quote.amount >= 50_000_000 && quote.change > -9.5 && !/(?:^|\*)ST|退$|^N/.test(quote.name);
+}
+
+function isCNAccumulationQuote(quote: CNQuote): boolean {
+  return quote.change >= -3.5 && quote.change <= 5 && quote.turnover >= .3 && quote.turnover <= 10;
+}
+
 function isUSQualityQuote(quote: USQuote, tier: "standard" | "expanded" = "standard"): boolean {
-  const suspicious = /(?:WARRANT|RIGHT|UNIT|权证)/i.test(quote.name) || /W$|WS$|WT$|R$|U$/.test(quote.symbol);
+  // A trailing letter is also part of many ordinary tickers (UBER, PLTR, MU).
+  // Use explicit instrument labels or delimited suffixes instead.
+  const suspicious = /\b(?:WARRANTS?|RIGHTS?|UNITS?)\b|权证|认股权|配股权|单位证券/i.test(`${quote.name} ${quote.category}`)
+    || /[.-](?:W|WS|WT|R|RT|U|UN)$/.test(quote.symbol);
   if (suspicious || quote.change <= 0) return false;
   if (tier === "expanded") return quote.price >= 2 && quote.marketCap >= 100_000_000 && quote.amount >= 3_000_000;
   return quote.price >= 5
@@ -948,6 +1480,14 @@ function industryForUSQuote(quote: USQuote): string {
 
 function cnPreScore(quote: CNQuote): number {
   return quote.change * 3 + Math.min(quote.turnover, 25) * .45 + Math.log10(Math.max(quote.amount, 1)) * 2;
+}
+
+function cnAccumulationPreScore(quote: CNQuote): number {
+  const closePosition = quote.high > quote.low ? (quote.price - quote.low) / (quote.high - quote.low) * 100 : 50;
+  const changeFit = 16 - Math.abs(quote.change - .6) * 3;
+  const turnoverFit = 14 - Math.abs(quote.turnover - 3.5) * 1.8;
+  const liquidity = clamp((Math.log10(Math.max(quote.amount, 1)) - 7) * 8, 0, 24);
+  return changeFit + turnoverFit + liquidity + clamp((closePosition - 40) * .18, -5, 10);
 }
 
 function usPreScore(quote: USQuote): number {
@@ -1033,20 +1573,49 @@ function averageTrueRange(rows: DailyRow[]): number {
   return average(ranges.slice(-14));
 }
 
-async function fetchText(url: string, maxBytes: number): Promise<string> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      Accept: "*/*",
-      Referer: url.includes("eastmoney") ? "https://quote.eastmoney.com/ztb/" : "https://finance.sina.com.cn/",
-      "User-Agent": "Mozilla/5.0 (compatible; TrendSight/2.0)",
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`上游行情请求失败：HTTP ${response.status}`);
-  const body = await response.text();
-  if (new TextEncoder().encode(body).byteLength > maxBytes) throw new Error("上游行情响应超过安全上限");
-  return body;
+export async function fetchText(url: string, maxBytes: number): Promise<string> {
+  const attempts = 2;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        cache: "no-store",
+        headers: {
+          Accept: "*/*",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+          Referer: url.includes("eastmoney") ? "https://quote.eastmoney.com/ztb/" : "https://finance.sina.com.cn/",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/128.0 Safari/537.36",
+        },
+        signal: AbortSignal.timeout(9_000),
+      });
+    } catch (reason) {
+      if (attempt === attempts - 1) {
+        throw new Error(`上游行情请求失败：${reason instanceof Error ? reason.message : "网络连接异常"}`);
+      }
+      await waitForRetry(url, attempt);
+      continue;
+    }
+    if (!response.ok) {
+      if (!isTransientUpstreamStatus(response.status) || attempt === attempts - 1) {
+        throw new Error(`上游行情请求失败：HTTP ${response.status}`);
+      }
+      await waitForRetry(url, attempt);
+      continue;
+    }
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maxBytes) throw new Error("上游行情响应超过安全上限");
+    return body;
+  }
+  throw new Error("上游行情请求失败：重试次数已用尽");
+}
+
+export function isTransientUpstreamStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status === 456 || status >= 500;
+}
+
+async function waitForRetry(url: string, attempt: number): Promise<void> {
+  const stagger = [...url].reduce((sum, character) => (sum + character.charCodeAt(0)) % 60, 0);
+  await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1) + stagger));
 }
 
 async function mapLimited<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<Array<{ ok: true; value: R } | { ok: false; reason: unknown }>> {

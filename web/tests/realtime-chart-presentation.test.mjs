@@ -20,11 +20,12 @@ test("moves the latest quote into the minute K-line without duplicating the old 
   assert.match(realtimeSource, /className="realtime-chart-quote"[\s\S]*?最新价 \$\{quote\.price\.toFixed\(3\)\}/);
   assert.match(realtimeSource, /className=\{quoteDirection\}>\{quote\.price\.toFixed\(3\)\}<\/strong>/);
   assert.match(realtimeSource, /quote\.change\.toFixed\(3\)[\s\S]*?quote\.changePct\.toFixed\(2\)/);
-  assert.match(realtimeSource, /aria-label=\{`当前交易日1分钟K线，最新价\$\{quote\.price\.toFixed\(3\)\}，涨跌幅/);
+  assert.match(realtimeSource, /A股当前交易日固定四小时1分钟K线[\s\S]*?最新价\$\{quote\.price\.toFixed\(3\)\}，涨跌幅/);
+  assert.match(realtimeSource, /当前交易日1分钟K线，最新价\$\{quote\.price\.toFixed\(3\)\}，涨跌幅/);
 });
 
 test("draws the live price guide inside the plot and keeps narrow canvases contained", () => {
-  assert.match(realtimeSource, /calculatePlot\(visibleCandles, previousClose, quote\.price, size\)/);
+  assert.match(realtimeSource, /calculatePlot\(visibleCandles, previousClose, quote\.price, size, sessionMinuteOffsets\)/);
   assert.match(realtimeSource, /Math\.min\(previousClose, currentPrice,/);
   assert.match(realtimeSource, /context\.moveTo\(left, quoteY\)[\s\S]*?context\.lineTo\(plotRight, quoteY\)/);
   assert.match(realtimeSource, /context\.fillText\(quote\.price\.toFixed\(3\)/);
@@ -33,11 +34,17 @@ test("draws the live price guide inside the plot and keeps narrow canvases conta
   assert.doesNotMatch(realtimeSource, /width: Math\.max\(320, entry\.contentRect\.width\)/);
 });
 
-test("reserves a larger responsive chart surface and prevents quote-control collisions", () => {
+test("reserves a larger responsive chart surface and keeps controls or session status outside the canvas", () => {
   assert.match(appleStyles, /\.realtime-canvas-wrap \{[\s\S]*?min-height: 410px;[\s\S]*?height: clamp\(410px, 34vw, 480px\);/);
   assert.match(appleStyles, /\.realtime-chart-quote \{[\s\S]*?max-width: 140px;[\s\S]*?pointer-events: none;/);
   assert.match(refinementStyles, /\.realtime-quote-strip \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);[\s\S]*?overflow: hidden;/);
   assert.match(refinementStyles, /height: clamp\(430px, 60vw, 480px\);\s+min-height: 430px;/);
-  assert.match(refinementStyles, /@media \(max-width: 380px\)[\s\S]*?height: 460px;[\s\S]*?\.realtime-canvas-wrap \.realtime-kline-controls \{[\s\S]*?top: 84px;/);
+  assert.match(realtimeSource, /<div className="realtime-chart-control-dock is-session-fixed">[\s\S]*?固定 240 分钟 · 不缩放/);
+  assert.match(realtimeSource, /<div className="realtime-session-summary"[\s\S]*?尾盘竞价 · 14:57–15:00[\s\S]*?盘后观察 · 15:00–16:00/);
+  assert.match(realtimeSource, /<div className="realtime-chart-control-dock">[\s\S]*?<KlineViewportControls className="is-inline is-apple realtime-kline-controls"/);
+  assert.match(appleStyles, /\.realtime-chart-control-dock \{[\s\S]*?display: flex;[\s\S]*?border-top: 1px solid var\(--apple-border\);/);
+  assert.match(appleStyles, /\.realtime-session-summary \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(refinementStyles, /\.realtime-canvas-wrap \.realtime-kline-controls/);
+  assert.match(refinementStyles, /@media \(max-width: 380px\)[\s\S]*?height: 460px;[\s\S]*?\.realtime-chart-control-dock > span \{[\s\S]*?display: none;/);
   assert.match(refinementStyles, /@media \(min-width: 821px\) and \(max-width: 1024px\)[\s\S]*?\.realtime-layout \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
 });

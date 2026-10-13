@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+const researchStyles = read("../app/apple-refinement.css");
+const portfolioStyles = read("../app/components/PortfolioHome.module.css");
+const bannerStyles = read("../app/components/SiteBanner.module.css");
+const screenerStyles = read("../app/screener/screener.module.css");
+const globalStyles = read("../app/global-markets/global-markets.css");
+const platformStyles = [researchStyles, portfolioStyles, bannerStyles, screenerStyles, globalStyles];
+const completeStyleSet = [
+  read("../app/globals.css"),
+  read("../app/apple.css"),
+  read("../app/components/BeginnerGuideCard.module.css"),
+  read("../app/components/PortfolioWorkbenchSummary.module.css"),
+  read("../app/components/SignalBacktestCard.module.css"),
+  ...platformStyles,
+];
+
+test("uses one optical type, focus, and motion language across the platform", () => {
+  assert.match(researchStyles, /--apple-display-font:/);
+  assert.match(researchStyles, /--apple-focus-ring:/);
+  assert.match(researchStyles, /--apple-press-scale: 0\.97;/);
+  assert.match(researchStyles, /font-optical-sizing: auto;/);
+
+  for (const styles of platformStyles) {
+    assert.match(styles, /focus-visible/);
+    assert.match(styles, /var\(--apple-motion-fast\)/);
+    assert.match(styles, /scale\(var\(--apple-press-scale/);
+  }
+});
+
+test("keeps translucency on structural chrome while scrolling surfaces stay stable", () => {
+  assert.match(bannerStyles, /@media \(min-width: 821px\)[\s\S]*?backdrop-filter: blur\(30px\) saturate\(175%\)/);
+  assert.match(portfolioStyles, /\.watchlistCard,[\s\S]*?\.globalMarketCard \{[\s\S]*?backdrop-filter: none/);
+  assert.match(screenerStyles, /\.featuredSection,[\s\S]*?\.comparePanel \{[\s\S]*?backdrop-filter: none/);
+  assert.match(globalStyles, /\.global-summary,[\s\S]*?\.global-region-card \{[\s\S]*?backdrop-filter: none/);
+
+  for (const styles of platformStyles) {
+    assert.match(styles, /prefers-reduced-transparency: reduce/);
+    assert.match(styles, /backdrop-filter: none/);
+  }
+});
+
+test("uses one light translucent material hierarchy for information surfaces", () => {
+  assert.match(researchStyles, /--apple-material-panel-fill: rgba\(255, 255, 255, 0\.72\)/);
+  assert.match(researchStyles, /--apple-material-inset-fill: rgba\(255, 255, 255, 0\.62\)/);
+  assert.match(researchStyles, /--apple-material-panel-fill: rgba\(20, 25, 34, 0\.74\)/);
+  assert.match(researchStyles, /--apple-material-shadow:/);
+  assert.match(researchStyles, /\.research-page \.app-sidebar,[\s\S]*?\.research-page \.news-card \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(portfolioStyles, /\.watchlistCard,[\s\S]*?\.globalMarketCard \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(globalStyles, /\.global-summary,[\s\S]*?\.global-region-card \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(screenerStyles, /\.featuredSection,[\s\S]*?\.comparePanel \{[\s\S]*?background: var\(--apple-material-panel\)/);
+  assert.match(researchStyles, /@media \(prefers-reduced-transparency: reduce\)[\s\S]*?--apple-material-panel-fill: #ffffff/);
+});
+
+test("preserves touch accessibility and calm reduced-motion fallbacks", () => {
+  assert.match(researchStyles, /@media \(pointer: coarse\)[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px/);
+  assert.match(portfolioStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
+  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
+  assert.match(screenerStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
+  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?min-height: 44px/);
+
+  for (const styles of platformStyles) {
+    assert.match(styles, /prefers-reduced-motion: reduce/);
+  }
+});
+
+test("keeps the screener refresh action in the shared control language", () => {
+  const refreshButtonStyles = screenerStyles.match(/\.tradeDate button \{([\s\S]*?)\}/)?.[1] ?? "";
+
+  assert.match(refreshButtonStyles, /border: 1px solid var\(--apple-control-stroke\)/);
+  assert.match(refreshButtonStyles, /border-radius: var\(--platform-control-radius\)/);
+  assert.match(refreshButtonStyles, /background: var\(--apple-control-fill\)/);
+  assert.doesNotMatch(refreshButtonStyles, /border-radius: 999px/);
+});
+
+test("keeps captions readable and compact controls reliably clickable", () => {
+  assert.match(researchStyles, /--apple-caption-size: 11px;/);
+  assert.match(researchStyles, /--apple-compact-hit: 32px;/);
+  assert.match(researchStyles, /@media \(pointer: fine\)[\s\S]*?min-height: var\(--apple-compact-hit\)/);
+
+  for (const styles of completeStyleSet) {
+    assert.doesNotMatch(styles, /font-size:\s*(?:7|8|9|10)px/);
+    assert.doesNotMatch(styles, /font:\s*[^;\n]*?(?<!\d)(?:7|8|9|10)px/);
+  }
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { FinancialDataset } from "../lib/financials";
 import type {
   FinancialAnalysisPeriod,
@@ -10,6 +10,11 @@ import type {
 } from "../lib/financialAnalysis";
 import FinancialChart, { type FinancialChartSeries } from "./FinancialChart";
 import type { StockCurrency } from "../lib/security";
+
+import { useWorkspaceView } from "../hooks/useWorkspaceView";
+import { workspaceAnchor } from "../lib/workspaceNavigation";
+import { WorkspaceTabs, WorkspacePanel } from "./WorkspaceTabs";
+import { financialViews, financialAnchors, financialContext } from "../lib/financialNavigation";
 
 type LoadState = { phase: "idle" | "loading" | "success" | "error"; detail: string };
 type RangeKey = "8q" | "12q" | "5y" | "10y";
@@ -71,10 +76,20 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
   const [displayMode, setDisplayMode] = useState<DisplayMode>("absolute");
   const [expandedMetric, setExpandedMetric] = useState<MetricKey | null>(null);
   const [detailExpanded, setDetailExpanded] = useState(false);
+  const [financialView, setFinancialView] = useWorkspaceView(financialViews, "summary", "finance", financialAnchors, financialContext);
   const [peerCode, setPeerCode] = useState("");
   const [peerDataset, setPeerDataset] = useState<FinancialDataset | null>(null);
   const [peerLoad, setPeerLoad] = useState<LoadState>({ phase: "idle", detail: "" });
   const hasAnalysis = dataset.analysis.periods.length > 0;
+  useEffect(() => {
+    if (!hasAnalysis) return;
+    const anchor = workspaceAnchor(window.location.hash);
+    if (!anchor.startsWith("finance-")) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(anchor)?.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hasAnalysis, financialView]);
 
   const visiblePeriods = useMemo(() => {
     const periods = dataset.analysis.periods;
@@ -186,6 +201,10 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
         </div>
       ) : null}
 
+      {hasAnalysis ? <WorkspaceTabs id="finance" label="财务信息分组" sticky={false} value={financialView} onChange={setFinancialView} tabs={[
+        { id: "summary", label: "关键指标" }, { id: "trends", label: "趋势图表" }, { id: "details", label: "明细与结论" },
+      ]} /> : null}
+
       {!hasAnalysis ? (
         <div className={`finance-dashboard-empty ${load.phase === "loading" ? "is-loading" : ""}`}>
           <span className="finance-empty-mark">FIN</span>
@@ -196,7 +215,8 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
         </div>
       ) : latest ? (
         <>
-          <div className="finance-kpi-grid">
+          <WorkspacePanel id="finance" view="summary" active={financialView}>
+            <div className="finance-kpi-grid">
             <FinanceKpi label="营业收入" value={latest[effectiveMode].revenue} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").revenue} qoq={comparisonFor(latest, effectiveMode, "qoq").revenue} trend={visiblePeriods.map((period) => period[effectiveMode].revenue)} />
             <FinanceKpi label="归母净利润" value={latest[effectiveMode].parentNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").parentNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").parentNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].parentNetProfit)} />
             <FinanceKpi label="扣非净利润" value={latest[effectiveMode].deductNetProfit} format="amount" currency={currency} yoy={comparisonFor(latest, effectiveMode, "yoy").deductNetProfit} qoq={comparisonFor(latest, effectiveMode, "qoq").deductNetProfit} trend={visiblePeriods.map((period) => period[effectiveMode].deductNetProfit)} note={`与归母差额 ${formatAmount(latest[effectiveMode].nonRecurringProfit, currency)}`} />
@@ -205,9 +225,9 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             <FinanceKpi label="现金含量（净利>0）" value={latest[effectiveMode].cashCoverage} format="ratio" yoy={comparisonFor(latest, effectiveMode, "yoy").cashCoverage} qoq={comparisonFor(latest, effectiveMode, "qoq").cashCoverage} trend={visiblePeriods.map((period) => period[effectiveMode].cashCoverage)} note={cashCoverageNote(latest[effectiveMode].cashCoverage, latest[effectiveMode].parentNetProfit)} deltaUnit="" />
             <FinanceKpi label="ROE TTM" value={latest.ttm.roe} format="percent" yoy={latest.ttmYoY.roe} qoq={latest.ttmQoQ.roe} trend={visiblePeriods.map((period) => period.ttm.roe)} note={roeQualityNote(latest)} deltaUnit="个百分点" />
             <FinanceKpi label="资产负债率" value={latest.balance.debtAssetRatio} format="percent" yoy={latest.balanceYoY.debtAssetRatio} qoq={latest.balanceQoQ.debtAssetRatio} trend={visiblePeriods.map((period) => period.balance.debtAssetRatio)} deltaUnit="个百分点" />
-          </div>
+            </div>
 
-          <div className="valuation-support-strip" id="finance-valuation">
+            <div className="valuation-support-strip" id="finance-valuation">
             <div className="valuation-support-copy">
               <span>业绩与估值匹配</span>
               <strong>{valuationVerdict(latest, dataset)}</strong>
@@ -224,22 +244,23 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
             <ValuationMetric label="FCF收益率" value={formatPercent(advancedQuality?.freeCashFlowYield ?? null, false)} tone={advancedQuality?.freeCashFlowYield ?? null} />
             <ValuationMetric label="应计利润率" value={formatPercent(advancedQuality?.accrualRatio ?? null, false)} tone={advancedQuality?.accrualRatio == null ? null : -advancedQuality.accrualRatio} />
             <ValuationMetric label="杜邦ROE" value={formatPercent(advancedQuality?.dupontRoe ?? null, false)} tone={advancedQuality?.dupontRoe ?? null} />
-          </div>
+            </div>
 
-          <PeerComparisonPanel
-            dataset={dataset}
-            peer={peerDataset}
-            peerCode={peerCode}
-            peerLoad={peerLoad}
-            currency={currency}
-            onPeerCodeChange={(value) => {
-              setPeerCode(value);
-              if (peerLoad.phase !== "idle") setPeerLoad({ phase: "idle", detail: "" });
-            }}
-            onLoad={() => void loadPeer()}
-          />
+            <PeerComparisonPanel
+              dataset={dataset}
+              peer={peerDataset}
+              peerCode={peerCode}
+              peerLoad={peerLoad}
+              currency={currency}
+              onPeerCodeChange={(value) => {
+                setPeerCode(value);
+                if (peerLoad.phase !== "idle") setPeerLoad({ phase: "idle", detail: "" });
+              }}
+              onLoad={() => void loadPeer()}
+            />
+          </WorkspacePanel>
 
-          <div className="finance-chart-grid">
+          <WorkspacePanel id="finance" view="trends" active={financialView} className="finance-chart-grid">
             <FinanceChartCard id="finance-income" title="收入趋势" subtitle={`${rangeLabel(range)} · ${modeLabel(effectiveMode)} · 柱为规模，线为同比`}>
               <FinancialChart labels={labels} series={incomeSeries} leftUnit={displayMode === "absolute" ? amountUnit : "%"} rightUnit="%" ariaLabel="营业收入及同比趋势" />
             </FinanceChartCard>
@@ -268,9 +289,10 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
               <p className="finance-rule-note">规则仅提示需要核查的方向，不据此断言财务造假或投资结论。</p>
               {advancedQuality ? <dl className="dupont-readout"><div><dt>净利率</dt><dd>{formatPercent(advancedQuality.netMargin, false)}</dd></div><div><dt>资产周转</dt><dd>{formatRatio(advancedQuality.assetTurnover)}</dd></div><div><dt>权益乘数</dt><dd>{formatRatio(advancedQuality.equityMultiplier)}</dd></div></dl> : null}
             </section>
-          </div>
+          </WorkspacePanel>
 
-          <section className={`finance-detail-card ${detailExpanded ? "is-expanded" : "is-collapsed"}`} id="finance-detail">
+          <WorkspacePanel id="finance" view="details" active={financialView}>
+            <section className={`finance-detail-card ${detailExpanded ? "is-expanded" : "is-collapsed"}`} id="finance-detail">
             <header>
               <div><p className="eyebrow">FINANCIAL MATRIX</p><h4>详细财务指标对比</h4></div>
               <div>
@@ -309,21 +331,28 @@ function FinancialDashboard({ dataset, load, currency = "CNY" }: { dataset: Fina
               </div>
             ) : (
               <button className="finance-detail-preview" type="button" aria-expanded="false" aria-controls="finance-detail-content" onClick={() => setDetailExpanded(true)}>
-                <span><strong>需要精确数值时再展开</strong><small>减少首屏约 {tableRows.length * Math.max(1, visiblePeriods.length)} 个财务单元格的布局与更新成本</small></span>
+                <span><strong>需要精确数值时再展开</strong><small>{tableRows.length} 项指标 · {visiblePeriods.length} 个报告期 · 支持导出与趋势展开</small></span>
                 <em>查看矩阵</em>
                 <i aria-hidden="true">⌄</i>
               </button>
             )}
-          </section>
+            </section>
 
-          <section className="finance-conclusion-card" id="finance-conclusion">
+            <section className="finance-conclusion-card" id="finance-conclusion">
             <header><div><p className="eyebrow">TRACEABLE READOUT</p><h4>财报结论与后续关注</h4></div><span>每条结论均可定位依据</span></header>
             <div className="finance-conclusion-grid">
               {conclusions.map((item, index) => (
-                <article key={item.title}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.body}</p><button type="button" onClick={() => document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "center" })}>查看依据</button></div></article>
+                <article key={item.title}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.body}</p><button type="button" onClick={() => {
+                  setFinancialView(item.target === "finance-valuation" ? "summary" : "trends");
+                  requestAnimationFrame(() => {
+                    const target = document.getElementById(item.target);
+                    if (target) { target.tabIndex = -1; target.focus({ preventScroll: true }); target.scrollIntoView({ block: "center" }); }
+                  });
+                }}>查看依据</button></div></article>
               ))}
             </div>
-          </section>
+            </section>
+          </WorkspacePanel>
           <p className="finance-source-note">财报截至 {dataset.analysis.latestReportDate}，估值截至 {dataset.snapshot.asOfDate || "—"}。来源：{dataset.source}；页面按公开合并报表计算，公告修订后数值可能变化。{currency === "USD" ? "美股季度均按公司财政年度 FY，而非自然季度标注。" : "A 股单季度流量值由同一会计年度累计披露差分，资产负债项目使用期末值。"}</p>
         </>
       ) : null}
