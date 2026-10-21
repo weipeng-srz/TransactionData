@@ -649,6 +649,15 @@ function MarketChart({
   const hoverTone = hoveredCandle?.change && hoveredCandle.change !== 0
     ? hoveredCandle.change > 0 ? "is-up" : "is-down"
     : "";
+  const latestCandle = candles.at(-1);
+  const changeToLatest = hoveredCandle && !hoveredCandle.time && latestCandle
+    && Number.isFinite(hoveredCandle.close) && hoveredCandle.close > 0
+    && Number.isFinite(latestCandle.close) && latestCandle.close > 0
+    ? (latestCandle.close / hoveredCandle.close - 1) * 100
+    : null;
+  const changeToLatestPct = changeToLatest !== null && Number.isFinite(changeToLatest)
+    ? changeToLatest
+    : null;
 
   return (
     <div className="market-chart-frame">
@@ -808,6 +817,14 @@ function MarketChart({
               <div><dt>均价</dt><dd>{formatNumber(hoveredCandle.vwap, 3)}</dd></div>
               <div><dt>换手率</dt><dd>{hoveredCandle.turnoverPct == null ? "—" : `${formatNumber(hoveredCandle.turnoverPct, 2)}%`}</dd></div>
             </dl>
+            {!hoveredCandle.time ? (
+              <dl className="chart-day-return">
+                <dt>距今涨跌幅<small>截至 {latestCandle?.date ?? "—"}</small></dt>
+                <dd className={changeToLatestPct === null || changeToLatestPct === 0 ? "" : changeToLatestPct > 0 ? "is-up" : "is-down"}>
+                  {changeToLatestPct === null ? "—" : `${changeToLatestPct > 0 ? "+" : ""}${formatNumber(changeToLatestPct, 2)}%`}
+                </dd>
+              </dl>
+            ) : null}
             {hoveredGuide || hoveredEvent ? (
               <footer className="chart-day-meta">
                 {hoveredGuide ? <span className="chart-day-guide" style={hoveredGuide.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}>信号 {hoveredGuide.confidence === "watch" ? "b" : hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</span> : null}

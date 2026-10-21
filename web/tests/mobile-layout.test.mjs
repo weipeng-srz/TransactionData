@@ -10,6 +10,7 @@ const bannerStyles = readFileSync(new URL("../app/components/SiteBanner.module.c
 const bannerSource = readFileSync(new URL("../app/components/SiteBanner.tsx", import.meta.url), "utf8");
 
 test("keeps the shared stock banner and search touch-friendly on mobile", () => {
+  const mobileChrome = bannerStyles.slice(bannerStyles.indexOf("/* Mobile chrome is deliberately isolated"));
   assert.match(pageSource, /<SiteBanner activePage="stock"/);
   assert.match(pageSource, /currentStockCode=\{selectedCode\}/);
   assert.match(bannerStyles, /position: fixed;/);
@@ -20,11 +21,14 @@ test("keeps the shared stock banner and search touch-friendly on mobile", () => 
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?right: var\(--site-frame-gutter, 12px\);[\s\S]*?left: var\(--site-frame-gutter, 12px\);/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?transform: none;/);
   assert.doesNotMatch(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?translate3d\(-50%/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.mobileSpacer \{[\s\S]*?height: calc\(126px \+ max\(8px, env\(safe-area-inset-top\)\)\);[\s\S]*?display: block;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-rows: 48px 48px;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.search \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?grid-row: 2;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.navigation \{[\s\S]*?height: 48px;[\s\S]*?min-height: 48px;[\s\S]*?padding: 1px;/);
-  assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.searchField \{[\s\S]*?height: 48px;[\s\S]*?min-height: 48px;/);
+  assert.match(mobileChrome, /\.searchToggle, \.mobileSearchHeading, \.accountAvatar[^\{]*\{ display: none; \}/);
+  assert.match(mobileChrome, /@media \(max-width: 820px\)[\s\S]*?\.searchToggle \{[^}]*min-height: 44px;[^}]*display: grid;/);
+  assert.match(mobileChrome, /\.banner \.search \{ display: none; \}/);
+  assert.match(mobileChrome, /\.banner\[data-search-open="true"\] \.search \{[^}]*display: grid;[^}]*max-height:[^}]*overflow-y: auto;/);
+  assert.match(mobileChrome, /\.banner\[data-compact="true"\] \.accountAvatar \{[^}]*display: grid;/);
+  assert.match(mobileChrome, /\.banner\[data-compact="true"\] \.navigation \{[^}]*overflow-x: auto;/);
+  assert.match(bannerSource, /aria-label="搜索股票" aria-expanded=\{mobile && searchOpen\}/);
+  assert.match(bannerSource, /aria-label="关闭股票搜索"/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.banner \.search input \{ min-height: 44px;[\s\S]*?font-size: 16px;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.match(bannerStyles, /@media \(max-width: 820px\)[\s\S]*?\.addButton \{ display: none; \}/);
@@ -43,7 +47,7 @@ test("keeps stock loading compact with one accessible all-screen research naviga
   assert.match(pageSource, /label="个股研究视图"/);
   assert.match(workspaceStyles, /overflow-x: auto/);
   assert.match(workspaceStyles, /min-height: 44px/);
-  assert.match(workspaceStyles, /top: max\(136px/);
+  assert.match(workspaceStyles, /top: var\(--mobile-banner-offset,/);
   assert.doesNotMatch(pageSource, /research-section-jump|滑动 ›/);
 });
 

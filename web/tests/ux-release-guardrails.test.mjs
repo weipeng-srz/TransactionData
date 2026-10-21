@@ -50,7 +50,7 @@ test("gives novice users progressive disclosure, suitability context and an inva
 
 test("keeps the analysis readable within the active workspace without legacy rail overrides", () => {
   assert.match(stockWorkspaceStyles, /\.analysis \{[^}]*min-width: 0;[^}]*display: grid/);
-  assert.match(stockWorkspaceStyles, /\.analysis > :global\(\.conclusion-card\) \{ min-width: 0; \}/);
+  assert.match(stockWorkspaceStyles, /\.analysis > :global\(\.conclusion-card\) \{[^}]*min-width: 0;/);
   assert.match(stockWorkspaceStyles, /\.market \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.doesNotMatch(appleRefinementStyles, /\.analysis-rail|\.basic-next-step-card/);
 });

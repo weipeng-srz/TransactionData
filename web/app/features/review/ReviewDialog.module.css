@@ -16,3 +16,11 @@
   .close { width: 44px; min-height: 44px; }
   .content { padding: 14px 12px 0; scroll-padding-block: 16px 170px; }
 }
+
+
+/* Mobile review M42: the dialog stays inside dynamic viewport and safe areas. */
+@media (max-width: 820px) {
+  .dialog { inset-block: env(safe-area-inset-top) env(safe-area-inset-bottom); max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .frame { max-height: calc(100dvh - 26px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .content { scroll-padding-block: 16px calc(180px + env(safe-area-inset-bottom)); }
+}

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import { isUSStockSymbol, marketLabel, marketOf, normalizeUSSymbol, stockRouteKey, stockStorageKey, type StockIdentity, type StockMarket } from "../lib/security";
 import { publicStockLookupError } from "../lib/stockLookupError";
+import { mobileBannerCompact } from "../lib/mobileNavigation";
 import styles from "./SiteBanner.module.css";
 
 type BannerPage = "portfolio" | "stock" | "global" | "screener" | "review" | "account";
@@ -50,6 +51,36 @@ export default function SiteBanner({
   const suggestionControllerRef = useRef<AbortController | null>(null);
   const operationRef = useRef<AbortController | null>(null);
   const composingRef = useRef(false);
+  const [mobile, setMobile] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchToggleRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 820px)");
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      setMobile(media.matches);
+      setCompact((previous) => media.matches && mobileBannerCompact(window.scrollY, previous));
+      if (!media.matches) setSearchOpen(false);
+    };
+    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    media.addEventListener("change", schedule);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      media.removeEventListener("change", schedule);
+    };
+  }, []);
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    // Commit the mobile panel before focusing its formerly hidden input.
+    window.requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+  }, []);
 
   const dismissSuggestions = useCallback(() => {
     suggestionControllerRef.current?.abort();
@@ -57,6 +88,13 @@ export default function SiteBanner({
     setSuggestion(null);
     setIsSearching(false);
   }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    dismissSuggestions();
+    setMessage("");
+    searchToggleRef.current?.focus({ preventScroll: true });
+  }, [dismissSuggestions]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -66,13 +104,14 @@ export default function SiteBanner({
         if (event.isComposing || composingRef.current) return;
         event.preventDefault();
         if (modalOpen) return;
-        searchRef.current?.focus({ preventScroll: true });
+        openSearch();
       }
       if (event.key === "Escape" && !event.isComposing && !composingRef.current && formRef.current?.contains(document.activeElement)) {
         event.preventDefault();
         searchRef.current?.focus({ preventScroll: true });
         dismissSuggestions();
         setMessage("");
+        if (window.matchMedia("(max-width: 820px)").matches) closeSearch();
       }
     };
     const handleOutsidePointer = (event: PointerEvent) => {
@@ -82,13 +121,15 @@ export default function SiteBanner({
       }
     };
     window.addEventListener("keydown", handleShortcut);
+    window.addEventListener("trendsight:open-search", openSearch);
     document.addEventListener("pointerdown", handleOutsidePointer);
     return () => {
       window.removeEventListener("keydown", handleShortcut);
+      window.removeEventListener("trendsight:open-search", openSearch);
       document.removeEventListener("pointerdown", handleOutsidePointer);
       operationRef.current?.abort();
     };
-  }, [dismissSuggestions]);
+  }, [dismissSuggestions, openSearch, closeSearch]);
 
   useEffect(() => {
     const input = query.trim();
@@ -139,6 +180,7 @@ export default function SiteBanner({
       const stock = await resolveStock(value, controller.signal);
       if (controller.signal.aborted) return;
       setQuery("");
+      setSearchOpen(false);
       const routeKey = stockRouteKey(stock);
       if (onOpenStock) onOpenStock(routeKey);
       else window.location.assign(`/?stock=${encodeURIComponent(routeKey)}`);
@@ -205,7 +247,7 @@ export default function SiteBanner({
 
   return (
     <>
-    <header className={styles.banner} data-site-banner>
+    <header className={styles.banner} data-site-banner data-compact={mobile && compact} data-search-open={mobile && searchOpen}>
       <Link className={styles.brand} href="/" aria-label="TrendSight 工作台首页" onClick={openPortfolioClick}>
         <span className={styles.brandMark} aria-hidden="true" />
         <span><strong>TrendSight</strong><small>市场研究工作台</small></span>
@@ -225,8 +267,15 @@ export default function SiteBanner({
         </>}
       </nav>
 
+      <button ref={searchToggleRef} className={styles.searchToggle} type="button" onClick={openSearch} aria-label="搜索股票" aria-expanded={mobile && searchOpen} aria-controls={`site-stock-form-${activePage}`}>
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+      </button>
+
+      {mobile && searchOpen && <button className={styles.searchBackdrop} type="button" tabIndex={-1} onClick={closeSearch} aria-label="收起股票搜索" />}
+
       <form
         ref={formRef}
+        id={`site-stock-form-${activePage}`}
         className={styles.search}
         aria-label="快速搜索股票"
         aria-busy={busy}
@@ -238,6 +287,7 @@ export default function SiteBanner({
           }
         }}
       >
+        <div className={styles.mobileSearchHeading}><strong>搜索股票</strong><button type="button" onClick={closeSearch} aria-label="关闭股票搜索">关闭</button></div>
         <div className={styles.searchField}>
           <span className={styles.searchIcon} aria-hidden="true">⌕</span>
           <label className={styles.srOnly} htmlFor={`site-stock-search-${activePage}`}>输入股票名称或代码</label>
@@ -275,6 +325,8 @@ export default function SiteBanner({
             }}
             placeholder="搜索名称 / 代码"
             autoComplete="off"
+            enterKeyHint="search"
+            autoCapitalize="off"
             spellCheck={false}
             maxLength={40}
             readOnly={busy}
@@ -309,7 +361,7 @@ export default function SiteBanner({
 
       <div className={styles.bannerActions}>
         <span className={styles.dataState} title={statusText} aria-live="polite"><i />{user ? syncStatus === "saving" ? "保存中…" : syncStatus === "error" ? "保存失败，请重试" : "账户数据已同步" : statusText}</span>
-        <Link className={styles.accountLink} href={user ? "/account" : "/login"}>{user ? "个人中心" : "登录"}</Link>
+        <Link className={styles.accountLink} href={user ? "/account" : "/login"} aria-label={user ? "个人中心" : "登录"}><span className={styles.accountAvatar} aria-hidden="true">{user ? (user.displayName || user.email).slice(0, 1).toLocaleUpperCase() : "访"}</span><span className={styles.accountLabel}>{user ? "个人中心" : "登录"}</span></Link>
         {!user && <Link className={styles.registerLink} href="/register">注册</Link>}
         <button className={styles.iconButton} type="button" onClick={onToggleAppearance} aria-label={`切换到${appearance === "light" ? "深色" : "浅色"}外观`} title={`切换到${appearance === "light" ? "深色" : "浅色"}外观`}>
           <span aria-hidden="true">{appearance === "light" ? "◐" : "☀"}</span>

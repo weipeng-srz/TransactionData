@@ -37,16 +37,14 @@ test("shows one stock quote header and retains global market summary coverage", 
   assert.match(stockStyles, /@media \(max-width: 620px\)[\s\S]*?\.quoteStats \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 });
 
-test("calculates watchlist predictions and reveals their detail on hover or focus", () => {
+test("calculates watchlist predictions and retains their evidence and appearance contracts", () => {
   assert.match(portfolioSource, /score: StockScoreReport \| null/);
   assert.match(portfolioSource, /buildStockScore\(\{/);
   assert.match(portfolioSource, /prediction: NextDayPredictionReport \| null/);
   assert.match(portfolioSource, /buildNextDayPrediction\(candles, \{/);
   assert.match(portfolioSource, /prediction=\{quote\.prediction\}/);
   assert.match(portfolioSource, /scoreReport=\{quote\.score\}/);
-  assert.match(portfolioSource, /onMouseEnter=\{showDetails\}/);
-  assert.match(portfolioSource, /onFocusCapture=\{showDetails\}/);
-  assert.match(portfolioSource, /role="tooltip"/);
+  // Mobile tap/close and desktop hover/focus behavior are exercised in portfolio-score-popover.test.mjs.
   assert.match(portfolioSource, /prediction\.decisionSupport\.checks\.map/);
   assert.match(portfolioStyles, /\.scorePopover \{/);
   assert.match(portfolioStyles, /html\[data-appearance="dark"\]\) \.scorePopover/);

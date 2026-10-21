@@ -601,3 +601,142 @@
   .mobileSpacer { height: calc(176px + max(8px, env(safe-area-inset-top))); }
   .accountLink, .registerLink { min-height: 44px; }
 }
+
+/* Mobile chrome is deliberately isolated from the desktop banner. */
+.searchToggle, .mobileSearchHeading, .accountAvatar, .searchBackdrop { display: none; }
+
+@media (max-width: 820px) {
+  .banner {
+    min-height: 108px;
+    padding: 6px 8px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: 44px 44px;
+    gap: 6px;
+    transition: min-height 180ms ease, box-shadow 180ms ease;
+  }
+  .brand { grid-column: 1; grid-row: 1; justify-content: start; }
+  .brand > span:last-child { display: grid; }
+  .brand small { display: none; }
+  .brand strong { font-size: 13px; }
+  .brandMark { width: 26px; height: 26px; }
+  .bannerActions { grid-column: 2; grid-row: 1; gap: 4px; }
+  .accountLink, .registerLink { min-height: 44px; padding-inline: 8px; }
+  .iconButton { width: 44px; height: 44px; min-height: 44px; }
+  .navigation {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-self: stretch;
+  }
+  .navigation a { min-width: 44px; min-height: 44px; padding: 0 6px; flex: 1; }
+  .searchToggle {
+    grid-column: 3;
+    grid-row: 1;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--apple-border-strong);
+    border-radius: 50%;
+    color: var(--apple-text);
+    background: var(--apple-surface);
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+  /* The spacer never shrinks on scroll: changing chrome must not move content. */
+  .mobileSpacer { height: calc(116px + max(8px, env(safe-area-inset-top))); }
+  .banner[data-compact="true"] {
+    min-height: 58px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-rows: 44px;
+    gap: 4px;
+  }
+  .banner[data-compact="true"] .brand,
+  .banner[data-compact="true"] .iconButton,
+  .banner[data-compact="true"] .registerLink,
+  .banner[data-compact="true"] .accountLabel { display: none; }
+  .banner[data-compact="true"] .bannerActions { display: contents; }
+  .banner[data-compact="true"] .accountLink { grid-column: 1; grid-row: 1; padding: 0; }
+  .banner[data-compact="true"] .accountAvatar {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--apple-accent);
+    background: color-mix(in srgb, var(--apple-accent) 12%, var(--apple-surface));
+    font-size: 15px;
+    font-weight: 650;
+  }
+  .banner[data-compact="true"] .navigation {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 0;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .banner[data-compact="true"] .navigation a { padding-inline: 4px; font-size: 11px; }
+  .banner .search { display: none; }
+  .banner[data-search-open="true"] .search {
+    position: absolute;
+    display: grid;
+    gap: 12px;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: calc(100dvh - 160px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 14px;
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--apple-border-strong);
+    border-radius: 18px;
+    background: var(--apple-surface);
+    box-shadow: var(--apple-shadow-float);
+    z-index: 3;
+  }
+  .banner[data-compact="true"][data-search-open="true"] .search { max-height: calc(100dvh - 104px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .mobileSearchHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .mobileSearchHeading strong { font-size: 16px; }
+  .mobileSearchHeading button { min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 10px; background: var(--apple-fill); color: var(--apple-text); font: inherit; cursor: pointer; }
+  .searchBackdrop { display: block; position: fixed; inset: -100vh -100vw; width: 300vw; height: 300vh; padding: 0; border: 0; border-radius: 0; background: rgba(0, 0, 0, .22); z-index: 2; cursor: default; }
+  .searchField { position: static; height: auto; min-height: 48px; }
+  .suggestion {
+    position: static;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 10px;
+    max-height: none;
+    width: 100%;
+    padding: 10px 0 0;
+    border: 0;
+    border-top: 1px solid var(--apple-border);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .searchMessage { position: static; padding: 8px; box-shadow: none; overflow-wrap: anywhere; }
+  .suggestionIdentity strong { white-space: normal; overflow-wrap: anywhere; }
+  .banner[data-search-open="true"] .searchField { align-items: start; }
+  .banner[data-search-open="true"] .searchField > button[type="submit"] { grid-column: 2; grid-row: 1; }
+  .banner[data-search-open="true"] .searchField input { grid-column: 1; grid-row: 1; }
+}
+
+@media (max-width: 360px) {
+  .banner .brand > span:last-child { display: none; }
+}
+
+@media (max-width: 820px) and (prefers-reduced-motion: reduce) {
+  .banner { transition: none; }
+  .banner button:active:not(:disabled), .navigation a:active { transform: none; }
+}
+
+@media print { .banner, .mobileSpacer { display: none; } }

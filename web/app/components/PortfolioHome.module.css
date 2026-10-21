@@ -1415,9 +1415,7 @@
 }
 
 .toast {
-  border: 1px solid color-mix(in srgb, #fff 24%, var(--portfolio-border));
   border-radius: 999px;
-  background: color-mix(in srgb, var(--portfolio-text) 88%, transparent);
   box-shadow: var(--portfolio-panel-shadow-hover);
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);

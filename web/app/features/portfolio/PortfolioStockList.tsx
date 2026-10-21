@@ -168,6 +168,11 @@ function WatchlistScoreBadge({
   const [popoverPosition, setPopoverPosition] = useState<{ left: number; top: number } | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
+  const isMobilePopover = () => window.matchMedia("(max-width: 820px)").matches;
+  const closeMobilePopover = () => {
+    setDetailsVisible(false);
+    anchorRef.current?.querySelector("button")?.focus({ preventScroll: true });
+  };
   const conclusion = prediction ? buildPortfolioPredictionConclusion(prediction) : null;
   const predictionToneClass = conclusion ? {
     hold: styles.predictionHold,
@@ -191,10 +196,16 @@ function WatchlistScoreBadge({
     <div
       ref={anchorRef}
       className={styles.scoreCell}
-      onMouseEnter={showDetails}
-      onMouseLeave={() => setDetailsVisible(false)}
-      onFocusCapture={showDetails}
-      onBlurCapture={() => setDetailsVisible(false)}
+      onMouseEnter={() => { if (!isMobilePopover()) showDetails(); }}
+      onMouseLeave={() => { if (!isMobilePopover()) setDetailsVisible(false); }}
+      onFocusCapture={() => { if (!isMobilePopover()) showDetails(); }}
+      onBlurCapture={() => { if (!isMobilePopover()) setDetailsVisible(false); }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && isMobilePopover() && detailsVisible) {
+          event.stopPropagation();
+          closeMobilePopover();
+        }
+      }}
       onClick={(event) => event.stopPropagation()}
     >
       {prediction && conclusion ? (
@@ -204,8 +215,13 @@ function WatchlistScoreBadge({
           aria-describedby={detailsVisible ? popoverId : undefined}
           aria-expanded={detailsVisible}
           aria-label={`${stockName} 明日预测结论：${conclusion.action}，上涨概率 ${probabilityPercent(prediction.prediction.upProbability)}，决策可信度 ${prediction.signal.decisionConfidence}%`}
+          onClick={() => {
+            if (!isMobilePopover()) return;
+            if (detailsVisible) setDetailsVisible(false);
+            else showDetails();
+          }}
           onPointerUp={(event) => {
-            if (event.pointerType !== "touch") return;
+            if (event.pointerType !== "touch" || isMobilePopover()) return;
             if (detailsVisible) setDetailsVisible(false);
             else showDetails();
           }}
@@ -224,7 +240,8 @@ function WatchlistScoreBadge({
         <button type="button" onClick={onEdit} aria-label={`${hasHolding ? "调整" : "记录"} ${stockName} 的持仓`}>{hasHolding ? "调持仓" : "记持仓"}</button>
       </div>
       {detailsVisible && prediction && conclusion && popoverPosition ? createPortal((
-        <div className={styles.scorePopover} id={popoverId} role="tooltip" style={popoverPosition}>
+        <div className={styles.scorePopover} id={popoverId} role={isMobilePopover() ? "region" : "tooltip"} aria-label={isMobilePopover() ? `${stockName} 预测说明` : undefined} style={popoverPosition}>
+          <button className={styles.scorePopoverClose} type="button" onClick={closeMobilePopover}>关闭预测说明</button>
           <header><div><span>NEXT SESSION PREDICTION</span><strong>{stockName} · {prediction.target.label}</strong></div><b>{conclusion.action}</b></header>
           <p>{prediction.decisionSupport.summary}</p>
           <div className={styles.predictionMetrics}>

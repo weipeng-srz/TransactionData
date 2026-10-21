@@ -85,3 +85,13 @@
   .ruleOption { min-height: 48px; }
 }
 @media (prefers-reduced-motion: reduce) { .library button { transition: none; } }
+
+
+/* Mobile review M45-M46: full-row disclosure and flexible filter widths. */
+@media (max-width: 820px) {
+  .samples summary { width: 100%; min-height: 44px; line-height: 1.5; padding-block: 12px; }
+  .samples ul { overscroll-behavior: contain; scroll-padding-block: 8px; }
+  .filters label, .filters label:first-child { min-width: 0; max-width: 100%; }
+  .filters label:first-child { flex-basis: 100%; }
+  .filters label:not(:first-child) { flex: 1 1 140px; }
+}

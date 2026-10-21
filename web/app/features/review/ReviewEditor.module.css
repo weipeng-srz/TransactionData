@@ -122,3 +122,17 @@
 }
 @media (prefers-reduced-motion: reduce) { .editor button { transition: none; } }
 @media print { .steps, .footer, .backButton, .inputRow button, .removeButton, .deriveBox button { display: none; } .section { break-inside: avoid; } }
+
+
+/* Mobile review M43-M44: deliberate touch targets and reachable save actions. */
+@media (max-width: 820px) {
+  .editor .choice, .editor .tag, .editor .removeButton { min-width: 44px; min-height: 44px; }
+  .chips { gap: 8px; }
+  .footer { bottom: 0; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .editor :is(input, select, textarea)[data-field] { scroll-margin-block: 28px calc(180px + env(safe-area-inset-bottom)); }
+}
+
+/* Mobile review M26: the mounted stock-notes flow edits through ReviewEditor. */
+@media (max-width: 820px) {
+  .editor textarea[data-field] { min-height: 132px; font-size: 16px; line-height: 1.7; }
+}

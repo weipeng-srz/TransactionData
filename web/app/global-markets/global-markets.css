@@ -1394,3 +1394,20 @@ body:has(.global-page-shell) {
 @media (prefers-reduced-transparency: reduce) {
   .global-region-jumps { background: var(--apple-surface); }
 }
+
+
+/* Mobile review M39-M41: market labels stay readable and map leaves room for content. */
+@media (max-width: 820px) {
+  .global-summary article, .global-index-list article > div:first-child, .global-us-index-head > div { min-width: 0; }
+  .global-summary small, .global-summary article > span,
+  .global-index-list article > div:first-child strong, .global-index-list article > div:first-child small,
+  .global-us-index-head strong, .global-us-quote-time, .global-fear-heading strong {
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.5;
+  }
+  .global-region-card > header, .global-map-card > header, .global-map-header-meta { flex-wrap: wrap; gap: 10px; }
+  .global-region-card > header > div { min-width: 0; flex-wrap: wrap; }
+  .global-region-card > header small { overflow-wrap: anywhere; line-height: 1.5; }
+  .global-heading-actions { flex-wrap: wrap; min-width: 0; }
+  .global-map-stage { min-height: 0; padding-block: 24px; }
+  .global-map-viewport { max-width: min(100%, 576px, calc((48dvh - 48px) * 1.971)); }
+}

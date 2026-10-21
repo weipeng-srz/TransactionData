@@ -758,7 +758,7 @@ export default function PortfolioHome({ onOpenStock }: { onOpenStock: (code: str
               <h2 id="portfolio-get-started">从一只关注的股票开始</h2>
               <p>搜索名称或代码，查看行情并加入自选。支持沪深 A 股与美股。</p>
             </div>
-            <button type="button" onClick={() => document.getElementById("site-stock-search-portfolio")?.focus({ preventScroll: true })}>搜索第一只股票 <span aria-hidden="true">↗</span></button>
+            <button type="button" onClick={() => window.dispatchEvent(new Event("trendsight:open-search"))}>搜索第一只股票 <span aria-hidden="true">↗</span></button>
           </section>
         ) : null}
 

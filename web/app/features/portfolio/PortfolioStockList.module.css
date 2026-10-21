@@ -463,3 +463,33 @@
 @media (prefers-reduced-transparency: reduce) {
   .scorePopover { background: var(--portfolio-surface-solid); backdrop-filter: none; }
 }
+
+
+.scorePopoverClose { display: none; }
+
+/* Mobile review M16-M20: readable identities, complete amounts and safe popovers. */
+@media (max-width: 820px) {
+  .stockIdentity strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
+  .rowActions { gap: 8px; }
+  .primaryRow { column-gap: 10px; }
+  .rowActions button { flex: 0 0 44px; }
+  .priceCell strong, .capitalCell strong, .profitCell strong, .holdingCell strong,
+  .priceCell > span, .holdingCell > span, .profitCell > span, .priceCell small, .holdingCell small {
+    overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.5;
+  }
+  .primaryRow > .priceCell { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
+  .rowDetails > summary { width: 100%; padding-block: 10px; }
+  .scorePopover {
+    /* Override desktop's inline anchor coordinates only for the mobile sheet. */
+    top: auto !important;
+    left: max(12px, env(safe-area-inset-left)) !important;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: auto; max-width: 380px; margin-inline: auto;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overscroll-behavior: contain; scroll-padding-block: 12px;
+  }
+  .scorePopoverClose { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; width: 100%; padding: 8px 12px; border: 1px solid var(--portfolio-border-strong); border-radius: 9px; background: var(--portfolio-surface-solid); color: var(--portfolio-blue); font: inherit; font-size: 13px; cursor: pointer; }
+  .scorePopoverClose:focus-visible { outline: 2px solid var(--portfolio-blue); outline-offset: 2px; }
+  .scorePopover header strong { white-space: normal; overflow-wrap: anywhere; }
+}

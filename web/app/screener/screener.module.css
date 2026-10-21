@@ -1763,3 +1763,29 @@
   .methodDialog header button { width: 44px; min-width: 44px; height: 44px; }
   .drawerHeader h2 { font-size: 21px; }
 }
+
+
+/* Mobile review M34-M38: preserve horizontal exploration without page overflow. */
+@media (max-width: 820px) {
+  .strategyTabs { gap: 8px; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: thin; padding-bottom: 12px; }
+  .strategyTabs::-webkit-scrollbar { display: block; height: 3px; }
+  .strategyTabs::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--apple-border-strong); }
+  .strategyTabs button { scroll-snap-align: start; }
+  .filters, .advancedFilterGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters label, .advancedFilterGrid label { min-width: 0; width: 100%; }
+  .advancedFilterGrid label { display: grid; gap: 4px; padding: 8px 10px; }
+  .advancedFilterGrid select { min-width: 0; width: 100%; max-width: none; }
+  .filterActions { grid-column: 1 / -1; }
+  .presetManager { flex-wrap: wrap; gap: 8px; }
+  .presetManager input { flex: 1 1 100%; width: 100%; min-width: 0; min-height: 44px; }
+  .presetManager select { min-width: 0; flex: 1 1 100%; width: 100%; }
+  .presetManager button { flex: 1; min-height: 44px; }
+  .compareGrid { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 8px; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scroll-padding-inline: 2px; }
+  .compareGrid article { flex: 0 0 min(260px, 85%); min-width: 0; scroll-snap-align: start; }
+  .compareGrid article > span, .compareGrid dd { white-space: normal; overflow-wrap: anywhere; }
+  .drawer { scroll-padding-block: 90px calc(156px + env(safe-area-inset-bottom)); }
+  .drawerActions { bottom: 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 360px) {
+  .filters, .advancedFilterGrid { grid-template-columns: minmax(0, 1fr); }
+}

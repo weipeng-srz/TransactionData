@@ -57,3 +57,11 @@
   .prices { gap: 8px; }
   .prices dd { font-size: 16px; }
 }
+
+/* Mobile review M27: research actions in the mounted stock review entry. */
+@media (max-width: 820px) {
+  .legacy > summary { width: 100%; min-height: 44px; overflow-wrap: anywhere; }
+  .researchTools { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 8px; max-height: min(320px, 50dvh); overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 8px; }
+  .researchTools > button { width: 100%; min-width: 0; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+  .researchTools > [role="status"] { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+}

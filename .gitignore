@@ -30,8 +30,7 @@ tmp/
 # Local code-intelligence metadata
 /.gitnexus/
 /.claude/
-/AGENTS.md
-/CLAUDE.md
+# Repository AI instructions (AGENTS.md / CLAUDE.md) are versioned documentation.
 
 # Web dependencies and generated output
 /web/node_modules/

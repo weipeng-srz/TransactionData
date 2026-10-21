@@ -113,3 +113,16 @@
   .syncNotice > span { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .field input, .field textarea, .primaryButton, .secondaryButton { transition: none; } }
+
+
+/* Mobile review M47-M50: reliable password, account and recovery actions. */
+@media (max-width: 820px) {
+  .passwordInput input { min-height: 52px; padding-right: 64px; }
+  .passwordInput button { min-width: 48px; min-height: 44px; }
+  .switchMode { align-items: center; gap: 0 8px; }
+  .switchMode a { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 8px; }
+  .formActions > :is(.primaryButton, .secondaryButton) { width: 100%; }
+  .syncNotice { bottom: calc(12px + env(safe-area-inset-bottom)); flex-wrap: wrap; gap: 8px; max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+  .syncNotice > span { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+  .syncNotice button { min-width: 44px; min-height: 44px; }
+}

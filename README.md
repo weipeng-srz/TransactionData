@@ -17,6 +17,15 @@
 
 <img width="1652" height="992" alt="TrendSight 市场研究工作台" src="https://github.com/user-attachments/assets/6bd4a33f-2cd6-4786-9d3f-335ab92550fa" />
 
+## 开发者与 AI 导航
+
+首次开发从 [`AGENTS.md`](./AGENTS.md) → [AI 上下文入口](./docs/ai/README.md) 开始，再按任务选择 [代码与功能地图](./docs/code-map.md) 或 [功能研究地图](./docs/feature-research-map.md)。无需每次读取全部源码和历史报告。
+
+- 运行项目：[快速开始](#快速开始)、[Web 开发说明](./web/README.md)。
+- 理解实现：[技术架构](./docs/architecture.md)、[数据契约](./docs/data-formats.md)。
+- 修改功能：[领域约束](./docs/ai/domain-invariants.md)、[验证指南](./docs/ai/verification.md)、[文档同步规则](./docs/ai/documentation-maintenance.md)。
+- 查找专题与历史证据：[文档目录](./docs/README.md)。
+
 ## 为什么做 TrendSight
 
 传统行情页面擅长展示价格，却常常把研究证据拆散在多个页面：K 线在一个页面，财报在另一个页面，新闻与个人笔记又在别处。TrendSight 希望提供一个更完整的研究工作台：先确认数据是否可用，再理解趋势与风险，最后记录需要复核的证据。
@@ -47,7 +56,7 @@
 - 展示持仓市值、累计收益、当日盈亏和组合集中度；CNY 与 USD 默认分开汇总。
 - 工作台按人民币、美元分别记录每日持仓收益估算，提供收益日历、月度汇总和盈利天数；同日刷新覆盖记录，仅统计已观察日期，缺失日期不会按零收益补齐。
 - 收益记录按登录账户保存在数据库中。由于没有个人成交流水，当日持仓变更会标记统计不完整；不回算已清仓收益、手续费、税费或分红，也不把月度已记录合计当作完整账户收益。
-- 支持持仓 CSV 导入、导出和本地编辑；人民币折算视图必须由用户显式启用并提供汇率。
+- 支持持仓 CSV 导入、导出和页面内编辑；首页同时提供人民币折算总计，采用明确展示、可修改的参考汇率，仅影响展示，不改写原始持仓。
 - 首页提供“今日三件事”和全球市场脉动，优先暴露数据状态、收益风险与下一步核验动作。
 
 ### 行情与技术研究
@@ -56,6 +65,7 @@
 - 提供神奇九转和组合 B/S 研究信号，并明确标注规则代理属性。
 - A 股专业视图可展示当前交易日分钟 K、五档盘口和 Level-1 成交明细下载；这些数据不等同于交易所 Level-2 逐笔订单。
 - 支持图表缩放、拖动、区间收益、最大回撤、波动率和基准相对表现研究。
+- 日 K 悬浮明细显示从该日收盘价到最新日线价格的“距今涨跌幅”，并注明截至日期。
 - 已记录持仓的个股图表展示成本线及算法止盈、止损参考线，结合持仓成本、ATR14 与近 20 日支撑压力计算，并显示推荐依据和触线状态；样本或价格口径不足时显示原因。
 
 ### 财务与估值诊断
@@ -79,6 +89,13 @@
 - 将大盘趋势、波动率、个股相对强弱和时点过滤后的新闻情绪纳入上下文。
 - 展示三种概率场景、相似日收益分布、成交活跃度、统计观察带与风险收益比。
 - 通过 Walk Forward 的 Accuracy、ROC-AUC、Brier Score 和样本门槛控制 ML 权重；验证不足时自动降级为规则与相似日模型。
+
+### 选股、全球市场与交易复盘
+
+- `/screener` 提供 A 股与美股研究候选、筛选和研究池；规则评分与模型置信度需要结合数据覆盖和策略证据理解。
+- `/global-markets` 提供全球指数概览与地图，帮助观察市场背景。
+- `/review` 保存交易复盘、观察记录、策略规则及执行评价，支持草稿恢复和 JSON 备份；历史复盘保留策略与规则快照。
+- 以上页面需要登录；交易复盘的详细口径见 [专题说明](./docs/trading-review.md)。
 
 ## 基础视图与专业视图
 
@@ -160,14 +177,17 @@ flowchart LR
 │   ├── app/
 │   │   ├── api/          # 行情、财务、新闻、研究状态与遥测 API
 │   │   ├── components/   # 图表、组合、财务和研究组件
+│   │   ├── features/     # 个股、组合、选股、全球市场与复盘功能
+│   │   ├── hooks/        # 导航、收益记录与打印等页面编排
 │   │   └── lib/          # 数据客户端、解析、指标与领域逻辑
 │   ├── db/               # Drizzle / D1 schema
 │   ├── drizzle/          # D1 数据库迁移
-│   ├── tests/            # 构建后回归测试
+│   ├── tests/            # Node 回归、源码约束与构建产物检查
 │   └── worker/           # Cloudflare Worker 入口
-├── docs/                 # 架构、数据格式、数据源与验证记录
+├── docs/                 # 技术说明、代码/功能研究地图、AI 上下文与历史验证记录
 ├── .github/              # CI、Dependabot、Issue 与 PR 模板
 ├── Makefile              # 开发与验证入口
+├── AGENTS.md             # 仓库级 AI 指令与按需上下文入口
 └── README.md
 ```
 
@@ -181,7 +201,7 @@ flowchart LR
 | 美国 SEC Company Facts | 美股申报财务数据 | 以公司申报口径为准，非实时数据 |
 | Cloudflare D1 | 账户、个人研究数据与匿名聚合遥测 | 不保存第三方原始行情数据 |
 
-所有金额均保留证券所属市场的原始币种。CNY 与 USD 不会被隐式合并；跨币种组合观察必须由用户主动提供汇率。
+原始金额保留证券所属市场的币种，CNY 与 USD 分别核算。首页人民币总计按界面明确展示的参考汇率折算，默认值或用户输入值均不代表实时外汇报价；收益日历、复盘和风险统计保留原币口径。
 
 接口字段与计算口径见 [`docs/data-formats.md`](./docs/data-formats.md)，数据源、限制、隐私和合规边界见 [`docs/data-sources.md`](./docs/data-sources.md)。
 
@@ -240,10 +260,14 @@ make check       # lint + test
 
 | 文档 | 内容 |
 | --- | --- |
+| [`AGENTS.md`](./AGENTS.md) / [AI 上下文入口](./docs/ai/README.md) | AI 工作约定、任务路由和最小加载顺序 |
+| [代码与功能地图](./docs/code-map.md) | 功能对应的页面、组件、领域模块、API 和测试 |
+| [功能研究地图](./docs/feature-research-map.md) | 按研究问题追踪实现、数据口径和验证证据 |
 | [`docs/architecture.md`](./docs/architecture.md) | 系统边界、目录职责和主要数据流 |
 | [`docs/data-formats.md`](./docs/data-formats.md) | 服务端接口返回格式与计算口径 |
 | [`docs/data-sources.md`](./docs/data-sources.md) | 外部数据源、限制、隐私和合规说明 |
 | [`web/README.md`](./web/README.md) | Web 子项目开发、测试与部署约定 |
+| [文档目录](./docs/README.md) | 全部专题、验证指南与历史研究记录 |
 | [`SECURITY.md`](./SECURITY.md) | 私密漏洞报告方式 |
 
 ## 贡献
@@ -251,6 +275,8 @@ make check       # lint + test
 Bug 报告、功能建议、文档改进和测试补充都很欢迎。较大的数据源、格式或架构变更请先创建 Issue 讨论，以便保持兼容性和数据口径一致。
 
 贡献前请阅读 [`CONTRIBUTING.md`](./CONTRIBUTING.md) 和 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)。安全问题请按照 [`SECURITY.md`](./SECURITY.md) 私密报告，不要在公开 Issue 中披露。
+
+修改功能时，在同一批改动中按 [文档同步矩阵](./docs/ai/documentation-maintenance.md) 更新相关上下文；若文档无需变化，在交付说明中写明理由。
 
 ## License
 

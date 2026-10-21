@@ -1,0 +1,38 @@
+/* Mobile interaction refinements. Keep desktop selectors unchanged. */
+@media (max-width: 820px) {
+  :root { --mobile-banner-offset: max(124px, calc(env(safe-area-inset-top) + 116px)); }
+  :root:has([data-site-banner][data-compact="true"]) { --mobile-banner-offset: max(74px, calc(env(safe-area-inset-top) + 66px)); }
+
+  /* M28-M29: toolbar groups wrap; each option rail keeps its own scroll. */
+  .research-page .chart-toolbar { gap: 12px 8px; }
+  .research-page .market-chart-control-dock,
+  .research-page .realtime-chart-control-dock,
+  .research-page .market-chart-control-actions { min-width: 0; flex-wrap: wrap; gap: 8px; }
+  .research-page .market-chart-control-actions { flex: 1 1 100%; }
+  .research-page .kline-viewport-controls { max-width: 100%; flex-wrap: wrap; gap: 8px; }
+  .research-page .chart-pan-controls { gap: 8px; }
+  .research-page .chart-toolbar-title { min-width: 0; }
+  .research-page .chart-toolbar-title small { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+  .research-page .chart-toolbar > .segmented,
+  .research-page .indicator-toggles { min-width: 0; max-width: 100%; gap: 8px; padding-inline: 6px; padding-bottom: 6px; scroll-padding-inline: 6px; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .research-page .chart-toolbar > .segmented button,
+  .research-page .indicator-toggles button { flex-shrink: 0; scroll-snap-align: start; }
+
+  /* M30: full-width action row gives download and refresh equal touch space. */
+  .research-page .realtime-header-meta { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .research-page .realtime-header-meta > span:not(.sr-only) { min-width: 0; overflow-wrap: anywhere; }
+  .research-page .realtime-header-meta > button { flex: 1 1 calc(50% - 4px); width: auto; min-height: 44px; }
+
+  /* M31: wide financial matrices scroll within their panel. */
+  .research-page .finance-table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; touch-action: pan-x pan-y; overscroll-behavior-x: contain; scroll-padding-inline: 12px; }
+  .research-page #finance-detail-content { min-width: 0; max-width: 100%; }
+  .research-page .finance-table { width: max-content; min-width: 100%; table-layout: auto; }
+
+  /* M32-M33: long news and evidence text remains readable at phone widths. */
+  .research-page .news-item { min-width: 0; }
+  .research-page .news-item h4, .research-page .news-item > p { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+  .research-page .news-item-meta, .research-page .news-item-footer { flex-wrap: wrap; gap: 6px 10px; }
+  .research-page .news-item-meta > span, .research-page .news-item-footer > span { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+  .research-page :is(.stock-score-copy, .stock-score-disclaimer, .stock-score-dimension, .next-day-method, .next-day-model) :is(p, li, dd),
+  .research-page .stock-score-disclaimer { overflow-wrap: anywhere; line-height: 1.7; }
+}

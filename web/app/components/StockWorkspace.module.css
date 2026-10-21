@@ -25,17 +25,20 @@
 .overviewSummary > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
 .overviewSummary span, .overviewSummary small { color: var(--apple-secondary); }
 .market { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-.market > :global(.chart-card) { min-width: 0; }
+.market > :global(.chart-card) { min-width: 0; grid-area: auto; }
 .chartSettings { flex-basis: 100%; min-width: 0; }
 .chartSettings > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 8px; }
-.analysis { min-width: 0; display: grid; gap: 12px; }
-.analysis > :global(.conclusion-card) { min-width: 0; }
+.analysis { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.analysis > :global(.conclusion-card) { min-width: 0; grid-area: auto; }
+.technicalDetails { min-width: 0; }
 .technicalGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+/* These nested cards must not inherit the legacy twelve-column page positions. */
+.technicalGrid > :global(.rail-card) { min-width: 0; grid-area: auto; }
 .technicalGrid > :global(.intent-card) { grid-column: span 2; }
-.technicalGrid > :global(.rail-card) { min-width: 0; }
 .supplement { margin-top: 16px; }
-.models { display: grid; gap: 16px; }
-.models > :global(.backtest-card) { min-width: 0; }
+.models { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+/* The professional backtest card still has legacy page-level grid coordinates. */
+.models > :is(:global(.next-day-card), :global(.backtest-card), :global(.advanced-research-panel)) { min-width: 0; grid-area: auto; margin-top: 0; }
 .newsSummary { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; font-size: 12px; }
 .workspace :global([id]) { scroll-margin-top: 156px; }
 .printing :global([role="tabpanel"][hidden]) { display: block !important; }
