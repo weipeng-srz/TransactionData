@@ -2,7 +2,7 @@
 
 TrendSight 使用公开可访问的数据接口，不附带任何第三方历史行情、新闻或财务数据，也不提供第三方服务的可用性保证。
 
-美股代码检索、日 K、延时报价与新闻由独立的新浪美股/搜索客户端获取；财务数据来自美国 SEC Company Facts。SEC Company Facts 以公司申报口径为准，不提供实时机构持仓；美股延时报价当前也不提供五档委托和分钟 K 线。所有美股金额均按 USD 展示，不与 CNY 自动合并。
+美股代码检索、日 K、延时报价与新闻由独立的新浪美股/搜索客户端获取；财务数据来自美国 SEC Company Facts。SEC Company Facts 以公司申报口径为准，不提供实时机构持仓；美股延时报价当前也不提供五档委托和分钟 K 线。原始美股金额保留 USD，组合先分币种核算；首页额外提供按界面参考汇率折算的人民币总计，参考汇率不是实时外汇数据源。
 
 生产部署建议通过 `SEC_USER_AGENT` 设置符合 SEC 要求的应用名和联系邮箱；未配置时使用项目默认标识。
 
@@ -13,9 +13,22 @@ TrendSight 使用公开可访问的数据接口，不附带任何第三方历史
 | 新浪财经公开数据 | 前复权因子、实时/历史行情和新闻检索；A 股日 K 成交量按股解析；智能选股扫描沪深京行情列表及美股涨幅榜 |
 | 东方财富、腾讯公开数据 | 证券简称、估值、分红、财务报表、A 股当前与昨日涨停池，以及带自动降级的当前交易日 Level-1 成交明细；腾讯实时行情的流通 A 股本用于计算最新交易日换手率并交叉校验成交量单位 |
 | 搜狐财经公开数据 | 上证指数日 K，以及上证与深证综指成交额按交易日求和得到的沪深两市成交额 |
-| Cloudflare D1 | 研究状态和匿名聚合遥测 |
+| 美国 SEC Company Facts | 美股申报财务数据，由 `usStockFinancials.ts` 解析 |
+| CBOE 公开数据 | VIX 历史数据，用于全球市场背景和选股上下文 |
+| Cloudflare D1 | 账户、会话、个人工作区数据、旧研究状态和匿名聚合遥测 |
 
 浏览器只访问同域 `/api/*` 路由；具体上游接口由 `web/app/lib` 中的服务端客户端模块封装，可能随数据提供方调整而变化。
+
+## 实现与验证入口
+
+| 数据链 | 客户端源码 | 对应验证 |
+| --- | --- | --- |
+| A 股历史 / 实时 / 成交 | [remoteMarket.ts](../web/app/lib/remoteMarket.ts)、[realtimeMarket.ts](../web/app/lib/realtimeMarket.ts)、[dailyTrades.ts](../web/app/lib/dailyTrades.ts) | `remote-market`、`realtime-market`、`daily-trades-fetch` 测试 |
+| A 股财务 / 新闻 | [financials.ts](../web/app/lib/financials.ts)、[remoteNews.ts](../web/app/lib/remoteNews.ts) | `financials`、`financial-analysis`、`news-parser` 测试 |
+| 美股独立链路 | [usStockMarket.ts](../web/app/lib/usStockMarket.ts)、[usStockRealtime.ts](../web/app/lib/usStockRealtime.ts)、[usStockNews.ts](../web/app/lib/usStockNews.ts)、[usStockFinancials.ts](../web/app/lib/usStockFinancials.ts) | `us-stocks`、`us-stock-news` 测试 |
+| 选股 / 全球市场 | [screenerData.ts](../web/app/lib/screenerData.ts)、[globalIndexes.ts](../web/app/lib/globalIndexes.ts)、[usMarketIndexes.ts](../web/app/lib/usMarketIndexes.ts) | `screener-data`、`global-indexes`、`fear-gauges` 测试 |
+
+表中测试位于 `web/tests/<名称>.test.mjs`。接口契约见 [数据格式](data-formats.md)，逐功能追踪顺序见 [功能研究地图](feature-research-map.md)。本页说明仓库使用方式，不保证上游目前可用；更换来源时需同时核对解析、覆盖、降级和回归夹具。
 
 ## 已知限制
 
@@ -38,8 +51,8 @@ TrendSight 使用公开可访问的数据接口，不附带任何第三方历史
 
 ## 隐私
 
-- 浏览器存储可包含最近查询、标注和视图偏好；共享设备上请主动清理。
-- 托管环境以邮箱的 SHA-256 派生值作为用户键，不把邮箱原文写入 D1。
+- 个人研究数据与偏好保存到数据库并按账户隔离；共享设备使用后请退出登录。
+- 数据库保存注册邮箱、个人资料、加盐密码哈希和会话令牌哈希；邮箱用于登录，密码和会话令牌不以明文入库。
 - 匿名遥测只记录白名单事件的每日总次数和总耗时，不记录查询股票或研究内容。
 
 ## 投资风险

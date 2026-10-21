@@ -1,0 +1,138 @@
+.editor { min-width: 0; width: 100%; color: var(--apple-text); }
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 24px; }
+.eyebrow { color: var(--apple-accent); font-size: 12px; font-weight: 600; margin-bottom: 8px; letter-spacing: .04em; }
+.header h2 { font-size: clamp(21px, 2.5vw, 29px); line-height: 1.4; letter-spacing: -.035em; margin: 0; overflow-wrap: anywhere; }
+.header p { margin: 10px 0 0; font-size: 13px; line-height: 1.8; color: var(--apple-secondary); }
+.editor button, .editor input, .editor select, .editor textarea { font: inherit; font-size: 13px; }
+.editor button { min-height: 40px; padding: 9px 14px; border: 1px solid var(--apple-border); border-radius: 8px; color: var(--apple-text); background: var(--apple-surface); cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.editor button:hover:not(:disabled) { background: var(--apple-fill); border-color: var(--apple-accent); }
+.editor button:disabled { opacity: .5; cursor: not-allowed; }
+.editor :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--apple-accent); outline-offset: 3px; }
+.editor .backButton { flex-shrink: 0; }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 7px; border: 1px solid var(--apple-border); background: var(--apple-fill); border-radius: 12px; margin-bottom: 24px; }
+.steps a { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; color: var(--apple-text); text-decoration: none; font-size: 13px; border-radius: 7px; }
+.steps a:hover { background: var(--apple-surface); }
+.steps span { font-size: 11px; color: var(--apple-secondary); font-variant-numeric: tabular-nums; }
+.errors { background: color-mix(in srgb, var(--apple-rise, #c33434) 7%, var(--apple-surface)); border: 1px solid color-mix(in srgb, var(--apple-rise, #c33434) 35%, var(--apple-border)); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px; line-height: 1.8; }
+.errors ul { margin: 7px 0 0; padding-left: 20px; }
+.section { scroll-margin-top: 24px; padding: 26px; background: var(--apple-surface); border: 1px solid var(--apple-border); border-radius: 14px; margin-bottom: 18px; }
+.sectionHeading { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 25px; }
+.sectionHeading > span { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; color: var(--apple-accent); border: 1px solid var(--apple-border); background: var(--apple-fill); border-radius: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sectionHeading h3 { margin: 0; font-size: 17px; line-height: 1.5; font-weight: 600; }
+.sectionHeading p { margin: 5px 0 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.7; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; align-items: start; }
+.wide { grid-column: 1 / -1; }
+.field { display: grid; gap: 8px; min-width: 0; }
+.label { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: 13px; font-weight: 550; }
+.label small, .editor legend small { color: var(--apple-secondary); font-size: 11px; font-weight: 400; }
+.editor input, .editor select, .editor textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 42px; padding: 10px 12px; border: 1px solid var(--apple-border); border-radius: 8px; background: var(--apple-surface); color: var(--apple-text); line-height: 1.5; }
+.editor input::placeholder, .editor textarea::placeholder { color: var(--apple-secondary); opacity: .75; }
+.editor textarea { display: block; resize: vertical; min-height: 78px; line-height: 1.7; }
+.editor :is(input, select, textarea)[data-field] { scroll-margin-block: 28px 160px; }
+.editor :is(input, select, textarea)[aria-invalid="true"] { border-color: var(--apple-red, #d72c32); background: color-mix(in srgb, var(--apple-red, #d72c32) 4%, var(--apple-surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--apple-red, #d72c32) 16%, transparent); }
+.editor :is(input, select, textarea)[aria-invalid="true"]:focus-visible { outline-color: var(--apple-red, #d72c32); }
+.fieldError { font-size: 12px; line-height: 1.6; color: var(--apple-red, #d72c32); }
+.validationStatus { margin: 0 0 18px; color: var(--apple-red, #d72c32); font-size: 13px; line-height: 1.7; }
+.hint { font-size: 11px; line-height: 1.65; color: var(--apple-secondary); }
+.researchLink { display: flex; align-items: center; align-self: stretch; font-size: 12px; line-height: 1.6; padding-top: 20px; }
+.researchLink a { display: block; text-decoration: none; color: var(--apple-accent); }
+.researchLink a:hover { text-decoration: underline; }
+.researchLink small { display: block; color: var(--apple-secondary); font-size: 11px; margin-top: 4px; }
+.researchLink p { margin: 0; color: var(--apple-secondary); }
+.inputRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.inputRow > input, .inputRow > select { flex: 1; width: 0; min-width: 0; }
+.inputRow button { flex-shrink: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.editor .tag { display: flex; align-items: center; gap: 10px; min-height: 31px; padding: 5px 10px; font-size: 11px; background: var(--apple-fill); border-radius: 6px; }
+.tag span { color: var(--apple-secondary); font-size: 15px; }
+.editor fieldset { min-width: 0; margin: 24px 0 0; border: 0; border-top: 1px solid var(--apple-border); padding: 20px 0 0; }
+.editor > .formBody { margin: 0; padding: 0; border: 0; width: 100%; }
+.formBody:disabled :is(input, select, textarea) { opacity: .65; cursor: wait; }
+.editor legend { padding: 0 10px 0 0; font-size: 13px; font-weight: 600; line-height: 1.6; }
+.editor legend small { margin-left: 8px; }
+.threeColumns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.strategyDescription { margin: -8px 0 0; padding: 12px 14px; background: var(--apple-fill); color: var(--apple-secondary); border-radius: 8px; font-size: 12px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.observationNote { margin-top: 22px; padding: 14px 16px; background: var(--apple-fill); border-radius: 8px; font-size: 12px; line-height: 1.8; color: var(--apple-secondary); }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0 0; padding: 20px; background: var(--apple-fill); border-radius: 10px; }
+.metrics dt { color: var(--apple-secondary); font-size: 11px; line-height: 1.6; }
+.metrics dd { margin: 8px 0 0; font-size: clamp(19px, 2.2vw, 25px); font-weight: 600; letter-spacing: -.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.metrics dd[data-tone="positive"] { color: var(--apple-rise, #c93c42); }
+.metrics dd[data-tone="negative"] { color: var(--apple-fall, #168565); }
+.metricNote { margin: 10px 0 0; color: var(--apple-secondary); font-size: 11px; line-height: 1.8; }
+.mistakes .inputRow { margin-top: 12px; max-width: 520px; }
+.editor .choice { min-height: 36px; padding: 7px 11px; font-size: 12px; }
+.editor .choice[aria-pressed="true"] { color: var(--apple-accent); border-color: var(--apple-accent); background: color-mix(in srgb, var(--apple-accent) 7%, var(--apple-surface)); }
+.ruleHeading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin: 28px 0 14px; }
+.ruleHeading h4 { margin: 0; font-size: 14px; }
+.ruleHeading p { margin: 5px 0 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.7; }
+.ruleHeading > span { flex-shrink: 0; color: var(--apple-secondary); font-size: 11px; padding-top: 2px; }
+.ruleTools { display: grid; justify-items: end; flex-shrink: 0; gap: 10px; }
+.ruleTools > span { color: var(--apple-secondary); font-size: 11px; }
+.editor .ruleTools button { font-size: 12px; color: var(--apple-accent); }
+.createRuleHint { margin: -2px 0 14px; color: var(--apple-secondary); font-size: 11px; line-height: 1.7; }
+.emptyRules { padding: 18px; border: 1px dashed var(--apple-border); border-radius: 8px; margin: 14px 0 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.8; }
+.ruleList { display: grid; gap: 12px; margin-top: 16px; }
+.ruleCard { border: 1px solid var(--apple-border); border-radius: 10px; padding: 18px; }
+.ruleCard > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ruleCard > header > div { min-width: 0; }
+.ruleCard strong { font-size: 13px; overflow-wrap: anywhere; }
+.ruleCard header span { display: block; margin-top: 4px; color: var(--apple-secondary); font-size: 10px; }
+.editor .removeButton { min-height: 30px; padding: 4px 8px; font-size: 11px; border-color: transparent; color: var(--apple-secondary); flex-shrink: 0; }
+.ruleSnapshot { display: grid; gap: 8px; margin: 16px 0; font-size: 12px; line-height: 1.65; }
+.ruleSnapshot > div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+.ruleSnapshot dt { color: var(--apple-secondary); }
+.ruleSnapshot dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ruleInputs { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2.4fr); gap: 14px; border-top: 1px solid var(--apple-border); padding-top: 16px; }
+.deriveBox { border-left: 2px solid var(--apple-accent); padding: 0 0 0 16px; display: grid; gap: 12px; }
+.deriveBox strong { font-size: 13px; }
+.deriveBox p { margin: 6px 0 0; color: var(--apple-secondary); line-height: 1.7; font-size: 12px; }
+.deriveBox button { justify-self: start; color: var(--apple-accent); }
+.footer { position: sticky; bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid var(--apple-border); border-radius: 12px; background: var(--apple-surface); box-shadow: 0 6px 24px #0000000d; z-index: 5; }
+.footer > div:first-child { display: grid; gap: 5px; }
+.footer strong { font-size: 13px; }
+.footer span { color: var(--apple-secondary); font-size: 11px; line-height: 1.6; }
+.footerActions { display: flex; gap: 8px; flex-shrink: 0; }
+.editor .primary { background: var(--apple-accent); border-color: var(--apple-accent); color: #fff; }
+.editor .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--apple-accent) 90%, #000); }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 740px) {
+  .header { flex-direction: column; gap: 12px; }
+  .header h2 { font-size: 22px; }
+  .header p { font-size: 12px; }
+  .steps { gap: 2px; padding: 4px; }
+  .steps a { flex-direction: column; gap: 3px; min-height: 52px; font-size: 11px; }
+  .steps span { font-size: 10px; }
+  .section { padding: 20px 16px; border-radius: 10px; }
+  .grid, .threeColumns, .ruleInputs { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .sectionHeading { margin-bottom: 22px; }
+  .researchLink { padding-top: 0; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; padding: 16px; }
+  .metrics dd { font-size: 22px; }
+  .editor button { min-height: 44px; }
+  .editor input, .editor select, .editor textarea { min-height: 44px; font-size: 16px; }
+  .editor .choice, .editor .tag, .editor .removeButton { min-height: 40px; }
+  .ruleHeading { flex-direction: column; gap: 6px; }
+  .ruleTools { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; margin-top: 8px; }
+  .ruleCard { padding: 14px; }
+  .editor legend small { display: block; margin: 4px 0 0; }
+  .footer { bottom: 0; border-radius: 10px 10px 0 0; padding: 14px; flex-direction: column; align-items: stretch; gap: 12px; }
+  .footer > div:first-child { gap: 3px; }
+  .footerActions { display: grid; grid-template-columns: 1fr 1.2fr; }
+  .deriveBox { margin-top: 3px; }
+}
+@media (prefers-reduced-motion: reduce) { .editor button { transition: none; } }
+@media print { .steps, .footer, .backButton, .inputRow button, .removeButton, .deriveBox button { display: none; } .section { break-inside: avoid; } }
+
+
+/* Mobile review M43-M44: deliberate touch targets and reachable save actions. */
+@media (max-width: 820px) {
+  .editor .choice, .editor .tag, .editor .removeButton { min-width: 44px; min-height: 44px; }
+  .chips { gap: 8px; }
+  .footer { bottom: 0; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .editor :is(input, select, textarea)[data-field] { scroll-margin-block: 28px calc(180px + env(safe-area-inset-bottom)); }
+}
+
+/* Mobile review M26: the mounted stock-notes flow edits through ReviewEditor. */
+@media (max-width: 820px) {
+  .editor textarea[data-field] { min-height: 132px; font-size: 16px; line-height: 1.7; }
+}

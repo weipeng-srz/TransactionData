@@ -18,6 +18,12 @@ import {
 import type { RealtimeMinuteCandle, RealtimeSnapshot } from "../lib/realtimeMarket";
 import { analyzeRealtimeSignals, type RealtimeGuidePoint } from "../lib/realtimeSignals";
 import type { StockMarket } from "../lib/security";
+import {
+  CN_CLOSING_AUCTION_START_MINUTE,
+  CN_TRADING_MINUTES,
+  cnTradingMinuteOffset,
+  cnTradingMinutePhase,
+} from "../lib/cnTradingSession";
 
 type LoadState = { phase: "idle" | "loading" | "success" | "error"; detail: string };
 type HoverPoint = { index: number; x: number; y: number; price: number };
@@ -28,6 +34,12 @@ type RealtimeChartQuote = {
   changePct: number;
   time: string;
   marketStatus: string;
+};
+type MinuteChartEntry = {
+  candle: RealtimeMinuteCandle;
+  guide: RealtimeGuidePoint | null;
+  index: number;
+  minuteOffset: number | null;
 };
 
 export default function RealtimeTradingPanel({
@@ -129,10 +141,10 @@ export default function RealtimeTradingPanel({
               <RealtimeMetric label="成交额" value={compact(snapshot.amount)} />
             </div>
             {snapshot.minuteCandles.length ? <div className="realtime-signal-bar">
-              <div className="realtime-signal-legend"><span className="is-buy">B</span>偏多规则 <span className="is-sell">S</span>风险规则</div>
+              <div className="realtime-signal-legend"><span className="is-buy">B</span>偏多规则 <span style={{ background: "var(--apple-warning)" }}>b</span>弱B观察 <span className="is-sell">S</span>风险规则</div>
               {signalAnalysis.latestSignal ? (
-                <strong className={signalAnalysis.latestSignal.guide.type === "buy" ? "is-up" : "is-down"}>
-                  最近 {signalAnalysis.latestSignal.guide.type === "buy" ? "B" : "S"}{signalAnalysis.latestSignal.guide.score} · {signalAnalysis.latestSignal.time}{signalAnalysis.latestSignal.guide.provisional ? " · 形成中" : ""}
+                <strong className={signalAnalysis.latestSignal.guide.confidence === "watch" ? "" : signalAnalysis.latestSignal.guide.type === "buy" ? "is-up" : "is-down"} style={signalAnalysis.latestSignal.guide.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}>
+                  最近 {signalAnalysis.latestSignal.guide.confidence === "watch" ? "b" : signalAnalysis.latestSignal.guide.type === "buy" ? "B" : "S"}{signalAnalysis.latestSignal.guide.score} · {signalAnalysis.latestSignal.time}{signalAnalysis.latestSignal.guide.provisional ? " · 形成中" : ""}
                 </strong>
               ) : <span>当前交易日暂无复合 B/S 点</span>}
               <small>规则模型辅助信号，不构成投资建议</small>
@@ -142,6 +154,7 @@ export default function RealtimeTradingPanel({
               candles={snapshot.minuteCandles}
               previousClose={snapshot.previousClose}
               guidePoints={signalAnalysis.guidePoints}
+              market={market}
               quote={{
                 price: snapshot.price,
                 change: snapshot.change,
@@ -152,8 +165,8 @@ export default function RealtimeTradingPanel({
             />
             <div className="realtime-chart-footer">
               <span>1 分钟 K 线 · {snapshot.minuteCandles.length} 根 · B/S {signalAnalysis.signalCount} 个{market === "CN" ? " · 可下载当日 L1 成交明细" : ""}</span>
-              <span title="普通滚轮滚动页面；Ctrl/⌘ + 滚轮缩放；Shift + 滚轮或横向拖动平移；双击复位；方向键定位。">
-                普通滚轮滚页面 · Ctrl/⌘ + 滚轮缩放<br />Shift + 滚轮/横拖平移 · 双击复位 · ← → 定位
+              <span title={market === "CN" ? "A 股分时固定显示 09:30–11:30 与 13:00–15:00；电脑悬停、手机点按、方向键均可查看单根分钟 K。" : "普通滚轮滚动页面；Ctrl/⌘ + 滚轮缩放；Shift + 滚轮或横向拖动平移；双击复位；方向键定位。"}>
+                {market === "CN" ? <>固定四小时交易轴 · 不缩放<br />电脑悬停 / 手机点按 · ← → 定位</> : <>普通滚轮滚页面 · Ctrl/⌘ + 滚轮缩放<br />Shift + 滚轮/横拖平移 · 双击复位 · ← → 定位</>}
               </span>
               <span title={snapshot.source}>{market === "US" ? "美股延时报价" : "新浪 L1"} · 更新：{formatFetchedAt(snapshot.fetchedAt)}</span>
             </div>
@@ -193,11 +206,13 @@ function MinuteCandlestickChart({
   previousClose,
   guidePoints,
   quote,
+  market,
 }: {
   candles: RealtimeMinuteCandle[];
   previousClose: number;
   guidePoints: Array<RealtimeGuidePoint | null>;
   quote: RealtimeChartQuote;
+  market: StockMarket;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -214,16 +229,44 @@ function MinuteCandlestickChart({
   const [hover, setHover] = useState<HoverPoint | null>(null);
   const [range, setRange] = useState(() => rangeForLatest(candles.length, 120));
   const [isDragging, setIsDragging] = useState(false);
-  const visibleCandles = useMemo(() => candles.slice(range.from, range.to + 1), [candles, range]);
-  const visibleGuides = useMemo(() => guidePoints.slice(range.from, range.to + 1), [guidePoints, range]);
+  const fixedCnSession = market === "CN";
+  const visibleEntries = useMemo<MinuteChartEntry[]>(() => {
+    if (fixedCnSession) {
+      return candles.flatMap((candle, index) => {
+        const minuteOffset = cnTradingMinuteOffset(candle.time);
+        return minuteOffset == null ? [] : [{ candle, guide: guidePoints[index] ?? null, index, minuteOffset }];
+      });
+    }
+    return candles.slice(range.from, range.to + 1).map((candle, localIndex) => {
+      const index = range.from + localIndex;
+      return { candle, guide: guidePoints[index] ?? null, index, minuteOffset: null };
+    });
+  }, [candles, fixedCnSession, guidePoints, range.from, range.to]);
+  const visibleCandles = useMemo(() => visibleEntries.map((entry) => entry.candle), [visibleEntries]);
+  const visibleGuides = useMemo(() => visibleEntries.map((entry) => entry.guide), [visibleEntries]);
+  const sessionMinuteOffsets = useMemo(
+    () => fixedCnSession ? visibleEntries.map((entry) => entry.minuteOffset ?? 0) : undefined,
+    [fixedCnSession, visibleEntries],
+  );
   const plot = useMemo(
-    () => calculatePlot(visibleCandles, previousClose, quote.price, size),
-    [previousClose, quote.price, size, visibleCandles],
+    () => calculatePlot(visibleCandles, previousClose, quote.price, size, sessionMinuteOffsets),
+    [previousClose, quote.price, sessionMinuteOffsets, size, visibleCandles],
   );
   const hoveredCandle = hover ? candles[hover.index] : null;
   const hoveredGuide = hover ? guidePoints[hover.index] : null;
+  const closingAuctionCandles = useMemo(
+    () => fixedCnSession ? candles.filter((candle) => cnTradingMinutePhase(candle.time) === "closing-auction") : [],
+    [candles, fixedCnSession],
+  );
+  const postMarketCandles = useMemo(
+    () => fixedCnSession ? candles.filter((candle) => cnTradingMinutePhase(candle.time) === "post-market") : [],
+    [candles, fixedCnSession],
+  );
+  const closingAuction = useMemo(() => summarizeMinuteWindow(closingAuctionCandles), [closingAuctionCandles]);
+  const postMarket = useMemo(() => summarizeMinuteWindow(postMarketCandles), [postMarketCandles]);
 
   useEffect(() => {
+    if (fixedCnSession) return;
     const previousTotal = previousTotalRef.current;
     setRange((current) => {
       if (!candles.length) return { from: 0, to: 0 };
@@ -234,7 +277,7 @@ function MinuteCandlestickChart({
         : normalizeKlineRange(current, candles.length);
     });
     previousTotalRef.current = candles.length;
-  }, [candles.length]);
+  }, [candles.length, fixedCnSession]);
 
   useEffect(() => {
     const node = wrapRef.current;
@@ -267,6 +310,7 @@ function MinuteCandlestickChart({
     const grid = styles.getPropertyValue("--apple-border").trim() || "rgba(0,0,0,.08)";
     const surface = styles.getPropertyValue("--apple-elevated").trim() || "#fff";
     const accent = styles.getPropertyValue("--apple-accent").trim() || "#0071e3";
+    const warning = styles.getPropertyValue("--apple-warning").trim() || "#ff9f0a";
     if (!visibleCandles.length) {
       context.fillStyle = text;
       context.font = "13px system-ui";
@@ -276,6 +320,39 @@ function MinuteCandlestickChart({
 
     const { left, right, top, priceBottom, volumeTop, bottom, plotWidth, min, max, x, y } = plot;
     const plotRight = left + plotWidth;
+    if (fixedCnSession) {
+      context.save();
+      context.globalAlpha = 0.035;
+      context.fillStyle = accent;
+      context.fillRect(left, top, plotWidth / 2, bottom - top);
+      context.globalAlpha = 0.018;
+      context.fillStyle = text;
+      context.fillRect(left + plotWidth / 2, top, plotWidth / 2, bottom - top);
+      const auctionX = left + (CN_CLOSING_AUCTION_START_MINUTE / CN_TRADING_MINUTES) * plotWidth;
+      context.globalAlpha = 0.12;
+      context.fillStyle = "#e28a18";
+      context.fillRect(auctionX, top, plotRight - auctionX, bottom - top);
+      context.restore();
+
+      context.save();
+      context.strokeStyle = grid;
+      context.setLineDash([4, 5]);
+      context.beginPath();
+      context.moveTo(left + plotWidth / 2, top);
+      context.lineTo(left + plotWidth / 2, bottom);
+      context.stroke();
+      context.setLineDash([]);
+      context.fillStyle = text;
+      context.globalAlpha = 0.72;
+      context.font = "600 9px system-ui";
+      context.textAlign = "center";
+      context.fillText("上午盘", left + plotWidth * 0.25, top + 12);
+      context.fillText("下午盘", left + plotWidth * 0.75, top + 12);
+      context.fillStyle = "#a96100";
+      context.textAlign = "right";
+      context.fillText(size.width <= 520 ? "竞价" : "尾盘竞价", plotRight - 4, top + 12);
+      context.restore();
+    }
     context.font = "11px ui-monospace, Menlo, monospace";
     context.fillStyle = text;
     context.strokeStyle = grid;
@@ -348,7 +425,8 @@ function MinuteCandlestickChart({
     context.textAlign = "left";
     context.fillText(`${quote.changePct > 0 ? "+" : ""}${quote.changePct.toFixed(2)}%`, quoteRightBadgeX + 7, quoteY + 4);
 
-    const candleWidth = Math.max(1.2, Math.min(9, (plotWidth / visibleCandles.length) * 0.64));
+    const candleStep = fixedCnSession ? plotWidth / CN_TRADING_MINUTES : plotWidth / visibleCandles.length;
+    const candleWidth = Math.max(fixedCnSession ? 0.72 : 1.2, Math.min(9, candleStep * (fixedCnSession ? 0.74 : 0.64)));
     visibleCandles.forEach((item, index) => {
       const color = item.close >= item.open ? up : down;
       const candleX = x(index);
@@ -363,6 +441,20 @@ function MinuteCandlestickChart({
       if (item.close >= item.open) context.fillRect(candleX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
       else context.strokeRect(candleX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
     });
+
+    if (fixedCnSession && visibleCandles.length > 1) {
+      context.save();
+      context.strokeStyle = accent;
+      context.globalAlpha = size.width <= 520 ? 0.64 : 0.42;
+      context.lineWidth = size.width <= 520 ? 1.15 : 0.9;
+      context.beginPath();
+      visibleCandles.forEach((item, index) => {
+        if (index) context.lineTo(x(index), y(item.close));
+        else context.moveTo(x(index), y(item.close));
+      });
+      context.stroke();
+      context.restore();
+    }
 
     const maxVolume = Math.max(...visibleCandles.map((item) => item.volume), 1);
     visibleCandles.forEach((item, index) => {
@@ -379,7 +471,8 @@ function MinuteCandlestickChart({
         ? Math.min(priceBottom - 9, y(candle.low) + 16)
         : Math.max(top + 9, y(candle.high) - 16);
       context.globalAlpha = guide.provisional ? 0.58 : 1;
-      context.fillStyle = guide.type === "buy" ? up : down;
+      const weakBuy = guide.confidence === "watch";
+      context.fillStyle = weakBuy ? warning : guide.type === "buy" ? up : down;
       context.beginPath();
       context.arc(markerX, markerY, 8, 0, Math.PI * 2);
       context.fill();
@@ -387,18 +480,32 @@ function MinuteCandlestickChart({
       context.fillStyle = "#fff";
       context.textAlign = "center";
       context.font = "800 8px ui-monospace, Menlo, monospace";
-      context.fillText(guide.type === "buy" ? "B" : "S", markerX, markerY + 3);
+      context.fillText(weakBuy ? "b" : guide.type === "buy" ? "B" : "S", markerX, markerY + 3);
     });
 
     context.fillStyle = text;
     context.textAlign = "center";
     context.font = "11px ui-monospace, Menlo, monospace";
-    [0, 0.25, 0.5, 0.75, 1].forEach((ratio) => {
-      const index = Math.min(visibleCandles.length - 1, Math.round((visibleCandles.length - 1) * ratio));
-      context.fillText(visibleCandles[index].time, x(index), size.height - 6);
-    });
+    if (fixedCnSession) {
+      [
+        { ratio: 0, label: "09:30", align: "left" as CanvasTextAlign },
+        { ratio: 0.25, label: "10:30", align: "center" as CanvasTextAlign },
+        { ratio: 0.5, label: size.width <= 420 ? "午休" : "11:30 / 13:00", align: "center" as CanvasTextAlign },
+        { ratio: 0.75, label: "14:00", align: "center" as CanvasTextAlign },
+        { ratio: 1, label: "15:00", align: "right" as CanvasTextAlign },
+      ].forEach(({ ratio, label, align }) => {
+        context.textAlign = align;
+        context.fillText(label, left + plotWidth * ratio, size.height - 6);
+      });
+    } else {
+      [0, 0.25, 0.5, 0.75, 1].forEach((ratio) => {
+        const index = Math.min(visibleCandles.length - 1, Math.round((visibleCandles.length - 1) * ratio));
+        context.fillText(visibleCandles[index].time, x(index), size.height - 6);
+      });
+    }
 
-    if (hover && candles[hover.index] && hover.index >= range.from && hover.index <= range.to) {
+    const hoverLocalIndex = hover ? visibleEntries.findIndex((entry) => entry.index === hover.index) : -1;
+    if (hover && candles[hover.index] && hoverLocalIndex >= 0) {
       context.strokeStyle = accent;
       context.lineWidth = 1;
       context.setLineDash([3, 4]);
@@ -429,11 +536,12 @@ function MinuteCandlestickChart({
       context.textAlign = "left";
       context.fillText(`${hoverChangePct > 0 ? "+" : ""}${hoverChangePct.toFixed(2)}%`, rightBadgeX + 7, hover.y + 4);
     }
-  }, [candles, hover, plot, previousClose, quote.change, quote.changePct, quote.price, range, size, visibleCandles, visibleGuides]);
+  }, [candles, fixedCnSession, hover, plot, previousClose, quote.change, quote.changePct, quote.price, size, visibleCandles, visibleEntries, visibleGuides]);
 
   const pointFromIndex = (index: number): HoverPoint => {
     const candle = candles[index];
-    return { index, x: plot.x(index - range.from), y: plot.y(candle.close), price: candle.close };
+    const localIndex = Math.max(0, visibleEntries.findIndex((entry) => entry.index === index));
+    return { index, x: plot.x(localIndex), y: plot.y(candle.close), price: candle.close };
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -441,20 +549,24 @@ function MinuteCandlestickChart({
     const rect = event.currentTarget.getBoundingClientRect();
     const pointerX = (event.clientX - rect.left) * (size.width / Math.max(rect.width, 1));
     const pointerY = (event.clientY - rect.top) * (size.height / Math.max(rect.height, 1));
-    const localIndex = Math.max(0, Math.min(visibleCandles.length - 1, Math.floor(((pointerX - plot.left) / Math.max(plot.plotWidth, 1)) * visibleCandles.length)));
-    const index = range.from + localIndex;
+    const localIndex = fixedCnSession
+      ? visibleEntries.reduce((closest, _entry, index) => Math.abs(plot.x(index) - pointerX) < Math.abs(plot.x(closest) - pointerX) ? index : closest, 0)
+      : Math.max(0, Math.min(visibleCandles.length - 1, Math.floor(((pointerX - plot.left) / Math.max(plot.plotWidth, 1)) * visibleCandles.length)));
+    const index = visibleEntries[localIndex]?.index ?? 0;
     const y = Math.max(plot.top, Math.min(plot.priceBottom, pointerY));
     const price = plot.max - ((y - plot.top) / Math.max(plot.priceBottom - plot.top, 1)) * (plot.max - plot.min);
-    setHover({ index, x: plot.x(index - range.from), y, price });
+    setHover({ index, x: plot.x(localIndex), y, price });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
-    if (!candles.length) return;
+    if (!visibleEntries.length) return;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
-      const current = hover?.index ?? range.to;
-      const index = Math.max(range.from, Math.min(range.to, current + (event.key === "ArrowRight" ? 1 : -1)));
-      setHover(pointFromIndex(index));
+      const currentLocal = hover ? visibleEntries.findIndex((entry) => entry.index === hover.index) : visibleEntries.length - 1;
+      const localIndex = Math.max(0, Math.min(visibleEntries.length - 1, currentLocal + (event.key === "ArrowRight" ? 1 : -1)));
+      setHover(pointFromIndex(visibleEntries[localIndex].index));
+    } else if (fixedCnSession) {
+      if (event.key === "Escape") setHover(null);
     } else if (event.key === "+" || event.key === "=") {
       event.preventDefault();
       setRange(zoomKlineRange({ range, total: candles.length, deltaY: -120, anchorRatio: 1, minVisible: 12 }));
@@ -473,23 +585,39 @@ function MinuteCandlestickChart({
   const quoteDirection = quote.change >= 0 ? "is-up" : "is-down";
 
   return (
-    <div className={`realtime-canvas-wrap ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
-      <div
-        className="realtime-chart-quote"
-        aria-label={`最新价 ${quote.price.toFixed(3)}，涨跌 ${quote.change >= 0 ? "+" : ""}${quote.change.toFixed(3)}，涨跌幅 ${quote.changePct >= 0 ? "+" : ""}${quote.changePct.toFixed(2)}%`}
-      >
-        <span>{quote.marketStatus} · {quote.time}</span>
-        <strong className={quoteDirection}>{quote.price.toFixed(3)}</strong>
-        <em className={quoteDirection}>{quote.change >= 0 ? "+" : ""}{quote.change.toFixed(3)} · {quote.changePct >= 0 ? "+" : ""}{quote.changePct.toFixed(2)}%</em>
-      </div>
-      <canvas
+    <div className="realtime-chart-frame">
+      <div className={`realtime-canvas-wrap ${fixedCnSession ? "is-fixed-session" : ""} ${isDragging ? "is-dragging" : ""}`} ref={wrapRef}>
+        <div
+          className="realtime-chart-quote"
+          aria-label={`最新价 ${quote.price.toFixed(3)}，涨跌 ${quote.change >= 0 ? "+" : ""}${quote.change.toFixed(3)}，涨跌幅 ${quote.changePct >= 0 ? "+" : ""}${quote.changePct.toFixed(2)}%`}
+        >
+          <span>{quote.marketStatus} · {quote.time}</span>
+          <strong className={quoteDirection}>{quote.price.toFixed(3)}</strong>
+          <em className={quoteDirection}>{quote.change >= 0 ? "+" : ""}{quote.change.toFixed(3)} · {quote.changePct >= 0 ? "+" : ""}{quote.changePct.toFixed(2)}%</em>
+        </div>
+        <canvas
         ref={canvasRef}
         role="img"
         tabIndex={0}
-        aria-label={`当前交易日1分钟K线，最新价${quote.price.toFixed(3)}，涨跌幅${quote.changePct >= 0 ? "+" : ""}${quote.changePct.toFixed(2)}%，共${candles.length}根，当前显示第${range.from + 1}至${range.to + 1}根；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，也可用键盘操作`}
+        aria-label={fixedCnSession
+          ? `A股当前交易日固定四小时1分钟K线，09:30至11:30、13:00至15:00，最新价${quote.price.toFixed(3)}，涨跌幅${quote.changePct >= 0 ? "+" : ""}${quote.changePct.toFixed(2)}%，交易时段共${visibleCandles.length}根；尾盘竞价${closingAuction.count}根，15点至16点盘后${postMarket.count}根；可悬停、点按或用左右方向键查看`
+          : `当前交易日1分钟K线，最新价${quote.price.toFixed(3)}，涨跌幅${quote.changePct >= 0 ? "+" : ""}${quote.changePct.toFixed(2)}%，共${candles.length}根，当前显示第${range.from + 1}至${range.to + 1}根；按住 Ctrl 或 Command 并滚轮缩放，Shift 加滚轮或横向拖动平移，也可用键盘操作`}
         style={{ touchAction: "pan-y pinch-zoom" }}
         onPointerDown={(event) => {
           if (event.pointerType === "mouse" && event.button !== 0) return;
+          if (fixedCnSession) {
+            if (event.pointerType === "touch") {
+              dragRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+                range,
+                pointerId: event.pointerId,
+                pointerType: event.pointerType,
+                intent: "pending",
+              };
+            }
+            return;
+          }
           const intent = event.pointerType === "touch" ? "pending" : "horizontal";
           dragRef.current = {
             x: event.clientX,
@@ -506,6 +634,17 @@ function MinuteCandlestickChart({
           }
         }}
         onPointerMove={(event) => {
+          if (fixedCnSession) {
+            if (dragRef.current?.pointerId === event.pointerId && dragRef.current.intent === "pending") {
+              dragRef.current.intent = resolveKlineDragIntent(
+                event.clientX - dragRef.current.x,
+                event.clientY - dragRef.current.y,
+              );
+              return;
+            }
+            if (event.pointerType !== "touch") handlePointerMove(event);
+            return;
+          }
           if (!dragRef.current || !visibleCandles.length) return handlePointerMove(event);
           if (dragRef.current.pointerId !== event.pointerId) return;
           if (dragRef.current.intent === "pending") {
@@ -526,6 +665,12 @@ function MinuteCandlestickChart({
           setRange(panKlineRange(dragRef.current.range, candles.length, delta));
         }}
         onPointerUp={(event) => {
+          if (fixedCnSession) {
+            const gesture = dragRef.current;
+            dragRef.current = null;
+            if (event.pointerType !== "touch" || gesture?.intent === "pending") handlePointerMove(event);
+            return;
+          }
           const pointerType = dragRef.current?.pointerType;
           dragRef.current = null;
           setIsDragging(false);
@@ -536,6 +681,7 @@ function MinuteCandlestickChart({
         onLostPointerCapture={() => { dragRef.current = null; setIsDragging(false); }}
         onPointerLeave={() => { if (!dragRef.current) setHover(null); }}
         onWheel={(event) => {
+          if (fixedCnSession) return;
           const wheelIntent = getKlineWheelIntent(event);
           if (wheelIntent === "page") return;
           event.preventDefault();
@@ -560,49 +706,99 @@ function MinuteCandlestickChart({
           }));
           setHover(null);
         }}
-        onDoubleClick={() => { setRange(rangeForLatest(candles.length, 120)); setHover(null); }}
-        onFocus={() => { if (!hover && candles.length) setHover(pointFromIndex(range.to)); }}
+        onDoubleClick={() => { if (!fixedCnSession) setRange(rangeForLatest(candles.length, 120)); setHover(null); }}
+        onFocus={() => { if (!hover && visibleEntries.length) setHover(pointFromIndex(visibleEntries.at(-1)?.index ?? 0)); }}
         onKeyDown={handleKeyDown}
-      />
-      {hover && hoveredCandle ? (
-        <div
-          className="realtime-hover-card"
-          role="status"
-          style={{
-            ...(hover.x < size.width / 2 ? { right: 90 } : { left: 8 }),
-            top: Math.min(size.height - 176, Math.max(plot.top + 8, hover.y - 48)),
-          }}
-        >
-          <header><strong>{hoveredCandle.time}</strong><span className={hoveredChange >= 0 ? "is-up" : "is-down"}>{hoveredChange >= 0 ? "+" : ""}{hoveredChange.toFixed(3)} · {hoveredChangePct >= 0 ? "+" : ""}{hoveredChangePct.toFixed(2)}%</span></header>
-          <div><span>开 <b>{hoveredCandle.open.toFixed(3)}</b></span><span>高 <b>{hoveredCandle.high.toFixed(3)}</b></span><span>低 <b>{hoveredCandle.low.toFixed(3)}</b></span><span>收 <b>{hoveredCandle.close.toFixed(3)}</b></span></div>
-          <footer><span>量 {compact(hoveredCandle.volume)}</span><span>额 {compact(hoveredCandle.amount)}</span></footer>
-          {hoveredGuide ? <p className={hoveredGuide.type === "buy" ? "is-up" : "is-down"}><b>{hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</b> {hoveredGuide.reasons.join(" · ")}{hoveredGuide.provisional ? " · 形成中" : ""}</p> : null}
+        />
+        {hover && hoveredCandle ? (
+          <div
+            className="realtime-hover-card"
+            role="status"
+            style={{
+              ...(hover.x < size.width / 2 ? { right: 90 } : { left: 8 }),
+              top: Math.min(size.height - 176, Math.max(plot.top + 8, hover.y - 48)),
+            }}
+          >
+            <header><strong>{hoveredCandle.time}</strong><span className={hoveredChange >= 0 ? "is-up" : "is-down"}>{hoveredChange >= 0 ? "+" : ""}{hoveredChange.toFixed(3)} · {hoveredChangePct >= 0 ? "+" : ""}{hoveredChangePct.toFixed(2)}%</span></header>
+            <div><span>开 <b>{hoveredCandle.open.toFixed(3)}</b></span><span>高 <b>{hoveredCandle.high.toFixed(3)}</b></span><span>低 <b>{hoveredCandle.low.toFixed(3)}</b></span><span>收 <b>{hoveredCandle.close.toFixed(3)}</b></span></div>
+            <footer><span>量 {compact(hoveredCandle.volume)}</span><span>额 {compact(hoveredCandle.amount)}</span></footer>
+            {hoveredGuide ? <p className={hoveredGuide.confidence === "watch" ? "" : hoveredGuide.type === "buy" ? "is-up" : "is-down"} style={hoveredGuide.confidence === "watch" ? { color: "var(--apple-warning)" } : undefined}><b>{hoveredGuide.confidence === "watch" ? "b" : hoveredGuide.type === "buy" ? "B" : "S"}{hoveredGuide.score}</b> {hoveredGuide.reasons.join(" · ")}{hoveredGuide.provisional ? " · 形成中" : ""}</p> : null}
+          </div>
+        ) : null}
+      </div>
+      {fixedCnSession ? (
+        <>
+          <div className="realtime-chart-control-dock is-session-fixed">
+            <div className="realtime-session-dock" aria-label="A股固定四小时交易轴">
+              <span><i className="is-morning" />上午 09:30–11:30</span>
+              <span><i className="is-afternoon" />下午 13:00–15:00</span>
+              <span><i className="is-auction" />尾盘竞价 14:57–15:00</span>
+              <strong>固定 240 分钟 · 不缩放</strong>
+            </div>
+          </div>
+          <div className="realtime-session-summary" aria-label="尾盘竞价和15点至16点盘后交易情况">
+            <article className="is-auction">
+              <span>尾盘竞价 · 14:57–15:00</span>
+              <strong>{closingAuction.last ? closingAuction.last.close.toFixed(3) : "尚无成交"}</strong>
+              <small>{closingAuction.count ? `${closingAuction.count} 根分钟 K · 量 ${compact(closingAuction.volume)} · 额 ${compact(closingAuction.amount)}` : "等待数据源返回竞价成交"}</small>
+            </article>
+            <article className="is-post-market">
+              <span>盘后观察 · 15:00–16:00</span>
+              <strong>{postMarket.last ? postMarket.last.close.toFixed(3) : "暂无逐分钟成交"}</strong>
+              <small>{postMarket.count ? `${postMarket.count} 根真实分钟 K · 量 ${compact(postMarket.volume)}` : "不补齐虚拟 K 线；仅展示数据源实际返回成交"}</small>
+            </article>
+          </div>
+        </>
+      ) : (
+        <div className="realtime-chart-control-dock">
+          <span>视窗缩放</span>
+          <KlineViewportControls className="is-inline is-apple realtime-kline-controls" range={range} total={candles.length} minVisible={12} resetVisible={120} onRangeChange={(next) => { setRange(next); setHover(null); }} />
         </div>
-      ) : null}
-      <KlineViewportControls className="is-apple realtime-kline-controls" range={range} total={candles.length} minVisible={12} resetVisible={120} onRangeChange={(next) => { setRange(next); setHover(null); }} />
+      )}
     </div>
   );
 }
 
-function calculatePlot(candles: RealtimeMinuteCandle[], previousClose: number, currentPrice: number, size: { width: number; height: number }) {
+function calculatePlot(
+  candles: RealtimeMinuteCandle[],
+  previousClose: number,
+  currentPrice: number,
+  size: { width: number; height: number },
+  sessionMinuteOffsets?: number[],
+) {
   const mobileWidth = size.width <= 520;
   const stackedHeader = size.width < 360;
-  const left = mobileWidth ? 64 : 72;
-  const right = mobileWidth ? 72 : 82;
-  const top = stackedHeader ? 142 : 74;
+  const fixedSession = Array.isArray(sessionMinuteOffsets);
+  const left = mobileWidth ? 58 : 72;
+  const right = mobileWidth ? 64 : 82;
+  const top = fixedSession ? 78 : stackedHeader ? 142 : 74;
   const priceBottom = Math.round(size.height * 0.76);
   const volumeTop = priceBottom + 22;
   const bottom = size.height - 28;
-  const plotWidth = size.width - left - right;
+  const plotWidth = Math.max(1, size.width - left - right);
   let min = Math.min(previousClose, currentPrice, ...candles.map((item) => item.low));
   let max = Math.max(previousClose, currentPrice, ...candles.map((item) => item.high));
   if (!Number.isFinite(min) || !Number.isFinite(max)) { min = previousClose * 0.99; max = previousClose * 1.01; }
   const padding = Math.max((max - min) * 0.1, max * 0.002);
   min -= padding;
   max += padding;
-  const x = (index: number) => left + ((index + 0.5) / Math.max(candles.length, 1)) * plotWidth;
+  const x = (index: number) => {
+    if (!fixedSession) return left + ((index + 0.5) / Math.max(candles.length, 1)) * plotWidth;
+    const halfMinute = plotWidth / CN_TRADING_MINUTES / 2;
+    const raw = left + ((sessionMinuteOffsets[index] ?? 0) / CN_TRADING_MINUTES) * plotWidth;
+    return Math.max(left + halfMinute, Math.min(left + plotWidth - halfMinute, raw));
+  };
   const y = (price: number) => top + ((max - price) / Math.max(max - min, 0.0001)) * (priceBottom - top);
   return { left, right, top, priceBottom, volumeTop, bottom, plotWidth, min, max, x, y };
+}
+
+function summarizeMinuteWindow(candles: RealtimeMinuteCandle[]) {
+  return {
+    count: candles.length,
+    last: candles.at(-1) ?? null,
+    volume: candles.reduce((sum, candle) => sum + candle.volume, 0),
+    amount: candles.reduce((sum, candle) => sum + candle.amount, 0),
+  };
 }
 
 function RealtimeMetric({ label, value }: { label: string; value: string }) {

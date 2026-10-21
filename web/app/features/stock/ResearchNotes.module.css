@@ -1,0 +1,60 @@
+.workspace { min-width: 0; color: var(--apple-text); }
+.heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.heading h2 { margin: 0; font-size: 18px; line-height: 1.4; }
+.scope { margin: 6px 0 0; color: var(--apple-secondary); font-size: 12px; line-height: 1.6; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.workspace button, .moreActions summary { min-height: 36px; padding: 7px 12px; border: 1px solid var(--apple-border); border-radius: 6px; color: var(--apple-text); background: var(--apple-surface); font: inherit; font-size: 12px; cursor: pointer; }
+.workspace button:disabled { opacity: .5; cursor: default; }
+.workspace :is(button, input, textarea, summary):focus-visible { outline: 2px solid var(--apple-accent); outline-offset: 2px; }
+.syncStatus { font-size: 11px; color: var(--apple-secondary); }
+.syncStatus[data-status="synced"] { color: var(--apple-accent); }
+.syncStatus[data-status="error"] { color: var(--apple-rise); }
+.moreActions { position: relative; }
+.moreActions summary { list-style: none; }
+.moreActions summary::-webkit-details-marker { display: none; }
+.moreActions summary::after { content: " ▾"; }
+.moreActions > div { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 152px; display: grid; gap: 4px; padding: 6px; background: var(--apple-surface); border: 1px solid var(--apple-border); border-radius: 8px; box-shadow: 0 6px 18px #0002; }
+.moreActions:not([open]) > div { display: none; }
+.moreActions > div button { border: 0; text-align: left; }
+.moreActions > div button:hover { background: var(--apple-fill); }
+.notice { margin: 0 0 16px; padding: 10px 12px; border-left: 2px solid var(--apple-accent); background: var(--apple-fill); font-size: 12px; line-height: 1.6; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: start; gap: 24px; }
+.grid > section { min-width: 0; }
+.grid header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.grid header strong { font-size: 14px; }
+.grid header span { color: var(--apple-secondary); font-size: 11px; }
+.annotationForm { display: flex; gap: 8px; }
+.annotationForm input { flex: 1; width: 0; min-width: 0; }
+.workspace input:not([type="checkbox"]), .workspace textarea { min-height: 38px; padding: 8px 10px; border: 1px solid var(--apple-border); border-radius: 6px; color: var(--apple-text); background: var(--apple-surface); font: inherit; font-size: 13px; }
+.annotationForm button { color: #fff; background: var(--apple-accent); }
+.annotationList article { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--apple-border); }
+.annotationList article > div { min-width: 0; }
+.annotationList strong { color: var(--apple-secondary); font-size: 11px; }
+.annotationList p { margin: 5px 0 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.annotationList article button { flex-shrink: 0; padding: 0; width: 36px; border: 0; background: transparent; }
+.empty { color: var(--apple-secondary); font-size: 12px; line-height: 1.6; }
+.workspace .expand { margin-top: 12px; color: var(--apple-accent); }
+.memo { display: grid; gap: 12px; padding-left: 24px; border-left: 1px solid var(--apple-border); }
+.memo header { margin: 0; }
+.memo > label { display: grid; gap: 6px; color: var(--apple-secondary); font-size: 12px; }
+.memo textarea { width: 100%; min-height: 74px; resize: vertical; line-height: 1.6; }
+.memo .reviewDate { grid-template-columns: auto minmax(0, 180px); align-items: center; }
+.memo fieldset { display: grid; gap: 10px; margin: 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--apple-border); }
+.memo legend { padding: 0 8px 0 0; color: var(--apple-secondary); font-size: 12px; }
+.memo fieldset label { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.5; }
+.memo input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--apple-accent); }
+.memo > p, .freshness > p { margin: 0; color: var(--apple-secondary); font-size: 11px; line-height: 1.6; }
+.freshness { grid-column: 1 / -1; padding-top: 18px; border-top: 1px solid var(--apple-border); }
+.freshness dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; margin: 0 0 14px; font-size: 12px; }
+.freshness dl div { display: grid; gap: 4px; }
+.freshness dt { color: var(--apple-secondary); }
+.freshness dd { margin: 0; overflow-wrap: anywhere; }
+.freshness .provenance { padding-top: 14px; border-top: 1px solid var(--apple-border); }
+@media print { .actions, .annotationForm, .annotationList button, .expand { display: none; } .grid { display: block; } .memo { padding: 16px 0; border-left: 0; } }
+@media (max-width: 820px) {
+  .grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .memo { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--apple-border); }
+  .workspace button, .moreActions summary { min-height: 44px; }
+  .annotationList article button { width: 44px; }
+  .freshness dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+}

@@ -14,6 +14,34 @@ export type ScreenerStrategyEvidence = {
   methodology: string;
 };
 
+export type ScreenerPhaseAssessment = {
+  score: number;
+  rawScore: number;
+  level: "强" | "中" | "弱";
+  stage: string;
+  actionable: boolean;
+  overheat: boolean;
+  gateReason: string;
+  rankPercentile: number;
+  rankLabel: string;
+  summary: string;
+  features: string[];
+  warning: string;
+};
+
+export type ScreenerResearchScore = {
+  score: number;
+  coverage: number;
+  modelVersion: string;
+  signal: "正向证据较多" | "证据大致均衡" | "风险证据较多" | "数据不足";
+  dimensions: Array<{
+    key: "trend" | "momentum" | "capital" | "profitability" | "growth" | "valuation" | "sentiment" | "risk";
+    label: string;
+    score: number;
+    coverage: number;
+  }>;
+};
+
 export type ScreenerOpportunity = {
   market: ScreenerMarket;
   symbol: string;
@@ -26,6 +54,7 @@ export type ScreenerOpportunity = {
   risk: number;
   confidence: number;
   recommendation: ScreenerRecommendation;
+  researchScore?: ScreenerResearchScore;
   signal: string;
   strategies: string[];
   sector: string;
@@ -56,6 +85,10 @@ export type ScreenerOpportunity = {
   reasons: string[];
   risks: string[];
   factorScores: Array<{ label: string; value: number }>;
+  phaseAnalysis: {
+    mainUptrend: ScreenerPhaseAssessment;
+    accumulation: ScreenerPhaseAssessment;
+  };
   plan: {
     watch: string;
     breakout: string;
@@ -72,6 +105,8 @@ export type ScreenerOpportunity = {
     rewardRisk: number;
     riskPerTradePercent: number;
     suggestedPositionPercent: number;
+    trailingStop: string;
+    exitRule: string;
   };
   chart: {
     dates: string[];

@@ -1,0 +1,66 @@
+.workspace:global(.app-shell) { display: block; }
+.content { min-width: 0; }
+.header { margin-bottom: 12px; padding: 4px 0 12px; border-bottom: 1px solid var(--apple-border); }
+.breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--apple-secondary); }
+.breadcrumb button { padding: 0; border: 0; background: transparent; color: var(--apple-accent); font: inherit; cursor: pointer; }
+.heading { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 28px; }
+.identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; }
+.identity h1 { margin: 0; font-size: 25px; line-height: 1.3; letter-spacing: -.4px; }
+.identity span, .identity small { color: var(--apple-secondary); font-size: 12px; }
+.price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-variant-numeric: tabular-nums; }
+.price strong { font-size: 26px; font-weight: 650; }
+.price span { font-size: 13px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+.actions > button { min-height: 36px; padding: 0 12px; border: 1px solid var(--apple-border); border-radius: 6px; background: var(--apple-surface); color: var(--apple-text); font: inherit; font-size: 12px; cursor: pointer; }
+.actions > button:disabled { opacity: .55; cursor: wait; }
+.quoteStats { display: flex; flex-wrap: wrap; gap: 10px 26px; margin: 16px 0 10px; font-variant-numeric: tabular-nums; }
+.quoteStats > div { display: flex; align-items: baseline; gap: 8px; }
+.quoteStats dt { color: var(--apple-secondary); font-size: 12px; }
+.quoteStats dd { margin: 0; font-size: 13px; font-weight: 600; }
+.metadata { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--apple-secondary); font-size: 11px; }
+.sources { margin-bottom: 12px; }
+.sources > summary, .chartSettings > summary, .technicalDetails > summary { width: fit-content; padding: 10px 0; color: var(--apple-secondary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.sources :global(.query-strip) { margin-top: 4px; }
+.overviewSummary { display: flex; flex-wrap: wrap; gap: 14px 30px; margin-bottom: 16px; padding: 12px 0; border-bottom: 1px solid var(--apple-border); }
+.overviewSummary > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
+.overviewSummary span, .overviewSummary small { color: var(--apple-secondary); }
+.market { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.market > :global(.chart-card) { min-width: 0; grid-area: auto; }
+.chartSettings { flex-basis: 100%; min-width: 0; }
+.chartSettings > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 8px; }
+.analysis { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.analysis > :global(.conclusion-card) { min-width: 0; grid-area: auto; }
+.technicalDetails { min-width: 0; }
+.technicalGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+/* These nested cards must not inherit the legacy twelve-column page positions. */
+.technicalGrid > :global(.rail-card) { min-width: 0; grid-area: auto; }
+.technicalGrid > :global(.intent-card) { grid-column: span 2; }
+.supplement { margin-top: 16px; }
+.models { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+/* The professional backtest card still has legacy page-level grid coordinates. */
+.models > :is(:global(.next-day-card), :global(.backtest-card), :global(.advanced-research-panel)) { min-width: 0; grid-area: auto; margin-top: 0; }
+.newsSummary { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; font-size: 12px; }
+.workspace :global([id]) { scroll-margin-top: 156px; }
+.printing :global([role="tabpanel"][hidden]) { display: block !important; }
+@media print {
+  .workspace :global([role="tabpanel"][hidden]) { display: block !important; }
+  .actions, .breadcrumb, .sources { display: none; }
+  .header { break-after: avoid; }
+  .workspace { color: #111; background: #fff; }
+}
+.actions button:focus-visible, .breadcrumb button:focus-visible { outline: 2px solid var(--apple-accent); outline-offset: 2px; }
+@media (max-width: 1280px) { .workspace :global([id]) { scroll-margin-top: 200px; } }
+@media (max-width: 900px) { .technicalGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) {
+  .heading { gap: 10px; }
+  .identity { width: 100%; }
+  .identity h1 { font-size: 22px; }
+  .price strong { font-size: 24px; }
+  .actions { width: 100%; margin-left: 0; }
+  .actions > button { min-height: 44px; }
+  .quoteStats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .quoteStats > div { display: block; }
+  .quoteStats dd { margin-top: 4px; overflow-wrap: anywhere; }
+  .technicalGrid { grid-template-columns: minmax(0, 1fr); }
+  .technicalGrid > :global(.intent-card) { grid-column: auto; }
+}

@@ -1,0 +1,99 @@
+.card {
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid var(--portfolio-border);
+  border-radius: var(--platform-panel-radius, 20px);
+  background: var(--portfolio-surface);
+  color: var(--portfolio-text);
+}
+.header { padding: 24px 26px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.eyebrow { margin: 0 0 7px; font-size: 11px; font-weight: 650; letter-spacing: .1em; color: var(--portfolio-blue); }
+.header h2 { margin: 0; font-size: 20px; letter-spacing: -.035em; }
+.header p:not(.eyebrow) { margin: 8px 0 0; font-size: 12px; line-height: 1.7; color: var(--portfolio-secondary); }
+.currencyTabs { display: flex; flex-shrink: 0; padding: 4px; gap: 3px; border-radius: 11px; background: var(--portfolio-muted-surface); border: 1px solid var(--portfolio-border); }
+.currencyTabs button { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--portfolio-secondary); cursor: pointer; font-size: 12px; }
+.currencyTabs button[aria-pressed="true"] { background: var(--portfolio-surface-solid); color: var(--portfolio-text); box-shadow: 0 1px 5px #00000010; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--portfolio-border); background: var(--portfolio-muted-surface); }
+.metric { display: grid; align-content: start; gap: 10px; padding: 22px 26px; min-width: 0; }
+.metric + .metric { border-left: 1px solid var(--portfolio-border); }
+.metric > span { font-size: 12px; color: var(--portfolio-secondary); }
+.metric > strong { font-size: clamp(21px, 2vw, 30px); letter-spacing: -.04em; overflow-wrap: anywhere; font-weight: 650; }
+.metric > small { font-size: 11px; color: var(--portfolio-secondary); line-height: 1.65; }
+.positive { color: var(--portfolio-red); }
+.negative { color: var(--portfolio-green); }
+.neutral { color: var(--portfolio-text); }
+.content { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(270px, 1fr); }
+.calendarPanel, .monthPanel { padding: 24px 26px; min-width: 0; }
+.monthPanel { border-left: 1px solid var(--portfolio-border); }
+.calendarHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
+.card h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.calendarHeader label { color: var(--portfolio-secondary); display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.calendarHeader input { width: 134px; min-height: 34px; background: var(--portfolio-surface-solid); color: var(--portfolio-text); padding: 4px 7px; border: 1px solid var(--portfolio-border-strong); border-radius: 8px; font-size: 12px; }
+.calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.weekday { text-align: center; padding: 0 0 5px; font-size: 11px; color: var(--portfolio-secondary); }
+.day { min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 7px 2px; border-radius: 9px; background: var(--portfolio-muted-surface); border: 1px solid transparent; }
+.day > span { font-size: 11px; color: var(--portfolio-secondary); }
+.day > strong { font-size: clamp(10px, 1vw, 13px); font-weight: 620; letter-spacing: -.03em; }
+.day.positive { background: color-mix(in srgb, var(--portfolio-red) 7%, transparent); }
+.day.negative { background: color-mix(in srgb, var(--portfolio-green) 7%, transparent); }
+.day[data-today="true"] { border-color: var(--portfolio-blue); }
+.day[data-future="true"] { opacity: .4; }
+.caption { margin: 13px 0 0; font-size: 11px; line-height: 1.6; color: var(--portfolio-secondary); }
+.monthList { max-height: 242px; overflow-y: auto; margin-top: 15px; }
+.monthList button { width: 100%; display: flex; justify-content: space-between; gap: 10px; align-items: center; border: 0; border-bottom: 1px solid var(--portfolio-border); padding: 12px 7px; background: transparent; color: var(--portfolio-text); text-align: left; cursor: pointer; }
+.monthList button[aria-pressed="true"] { background: var(--portfolio-muted-surface); border-radius: 8px; }
+.monthList button > span { display: grid; gap: 5px; }
+.monthList strong, .monthList b { font-size: 13px; font-weight: 620; }
+.monthList small { font-size: 10px; color: var(--portfolio-secondary); }
+.empty { min-height: 100px; margin: 20px 0; color: var(--portfolio-secondary); font-size: 12px; line-height: 1.9; }
+.extremes { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--portfolio-border); padding-top: 20px; margin-top: 18px; gap: 12px; }
+.extremes > span { display: grid; gap: 8px; font-size: 11px; color: var(--portfolio-secondary); }
+.extremes strong { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.extremes small { font-size: 10px; }
+.method { padding: 16px 26px; border-top: 1px solid var(--portfolio-border); color: var(--portfolio-secondary); font-size: 11px; line-height: 1.9; }
+.method summary { cursor: pointer; font-size: 12px; width: fit-content; }
+.method p { margin: 10px 0 0; }
+.warning { margin: 15px 26px 0; font-size: 12px; color: var(--portfolio-amber); line-height: 1.7; }
+@media (max-width: 900px) {
+  .header { align-items: flex-start; flex-direction: column; }
+  .metric { padding: 18px; }
+  .content { grid-template-columns: 1fr; }
+  .monthPanel { border-left: 0; border-top: 1px solid var(--portfolio-border); }
+  .day > strong { font-size: 12px; }
+}
+@media (max-width: 560px) {
+  .header, .calendarPanel, .monthPanel { padding: 20px 16px; }
+  .header h2 { font-size: 18px; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric:nth-child(3) { border-left: 0; }
+  .metric:nth-child(n+3) { border-top: 1px solid var(--portfolio-border); }
+  .metric { padding: 17px 16px; }
+  .metric > strong { font-size: 23px; }
+  .calendar { gap: 4px; }
+  .day { min-height: 57px; border-radius: 7px; }
+  .day > strong { font-size: 10px; }
+  .calendarHeader label { font-size: 0; }
+  .method { padding: 15px 16px; }
+}
+
+
+/* Mobile review M21-M25: comfortable controls and a calendar that contains values. */
+@media (max-width: 820px) {
+  .currencyTabs { width: 100%; }
+  .currencyTabs button { flex: 1; min-width: 0; min-height: 44px; }
+  .calendarHeader { flex-wrap: wrap; }
+  .calendarHeader input[type="month"] { min-height: 44px; min-width: 0; font-size: 16px; }
+  .day { min-width: 0; }
+  .day > strong { max-width: 100%; overflow-wrap: anywhere; text-align: center; line-height: 1.35; }
+  .extremes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .extremes > span { min-width: 0; }
+  .monthList { max-height: min(420px, 60dvh); overscroll-behavior: contain; scroll-padding-block: 8px; }
+  .monthList button { min-height: 52px; }
+  .monthList button > span { min-width: 0; }
+  .monthList b { overflow-wrap: anywhere; text-align: right; }
+  .method summary { width: 100%; min-height: 44px; padding-block: 10px; }
+}
+@media (max-width: 430px) {
+  .calendarHeader label { width: 100%; justify-content: space-between; font-size: 12px; }
+  .calendarHeader input { flex: 1; width: 0; max-width: 190px; }
+}

@@ -150,6 +150,7 @@ test("local stock data route enforces input bounds and returns cacheable CSV", a
     if (url.includes("CN_MarketDataService.getKLineData")) {
       return new Response('ticklens=([{"day":"2026-08-18","open":"10","high":"11","low":"9.5","close":"10.5","volume":"10000"}]);');
     }
+    if (url.includes("qfq.js")) return new Response('var factor={"data":[]};');
     if (url.includes("qt.gtimg.cn")) {
       const fields = Array(80).fill("");
       Object.assign(fields, { 2: "000001", 30: "20260818150000", 72: "2000000" });
@@ -211,6 +212,9 @@ test("local stock trades route returns a download contract and keeps provider fa
 
   const response = await withFetch(async (input) => {
     const url = new URL(String(input));
+    if (url.hostname === "stock.gtimg.cn" && url.searchParams.get("action") === "timeline") {
+      return new Response('v_detail_time_sz000001=[20260818,"09:30:03~09:30:03"]');
+    }
     if (url.hostname === "push2.eastmoney.com") {
       return Response.json({ rc: 0, data: { code: "000001", prePrice: 11.1, details: ["09:30:03,11.20,10,2,2"] } });
     }

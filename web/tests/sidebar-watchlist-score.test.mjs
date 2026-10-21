@@ -3,41 +3,48 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const stockSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const stockHeader = readFileSync(new URL("../app/components/StockWorkspaceHeader.tsx", import.meta.url), "utf8");
 const globalSource = readFileSync(new URL("../app/global-markets/page.tsx", import.meta.url), "utf8");
-const portfolioSource = readFileSync(new URL("../app/components/PortfolioHome.tsx", import.meta.url), "utf8");
-const portfolioStyles = readFileSync(new URL("../app/components/PortfolioHome.module.css", import.meta.url), "utf8");
+const globalOverview = readFileSync(new URL("../app/features/global-markets/MarketOverview.tsx", import.meta.url), "utf8");
+const portfolioSource = ["../app/components/PortfolioHome.tsx", "../app/features/portfolio/PortfolioStockList.tsx", "../app/features/portfolio/types.ts"]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
+const portfolioStyles = ["../app/components/PortfolioHome.module.css", "../app/features/portfolio/PortfolioStockList.module.css"]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
+const stockStyles = readFileSync(new URL("../app/components/StockWorkspace.module.css", import.meta.url), "utf8");
 const appleStyles = readFileSync(new URL("../app/apple-refinement.css", import.meta.url), "utf8");
 
-test("shows live stock and global market summaries at the top of each sidebar", () => {
-  assert.match(stockSource, /aria-label="个股实时汇总"/);
-  assert.match(stockSource, /实时价格/);
+test("shows one stock quote header and retains global market summary coverage", () => {
+  assert.match(stockHeader, /aria-label="个股实时汇总"/);
+  assert.match(stockHeader, /aria-label="个股日内行情摘要"/);
   assert.match(stockSource, /研究评分/);
   assert.match(stockSource, /近期规则证据/);
   assert.match(stockSource, /正向规则/);
   assert.match(stockSource, /风险规则/);
   assert.doesNotMatch(stockSource, /买入信号|卖出信号/);
-  assert.match(stockSource, /个股日内行情摘要/);
-  assert.match(stockSource, /快速定位/);
-  assert.match(globalSource, /aria-label="全球股指实时汇总"/);
-  assert.match(globalSource, /当前开市广度/);
-  assert.match(globalSource, /上证指数/);
-  assert.match(globalSource, /美股波动/);
-  assert.match(globalSource, /波动焦点/);
-  assert.match(globalSource, /全球市场覆盖摘要/);
-  assert.match(appleStyles, /\.sidebar-preview-card/);
-  assert.match(appleStyles, /\.sidebar-preview-strip/);
+  for (const label of ["开盘", "最高", "最低", "成交量", "成交额", "换手率"]) {
+    assert.match(stockSource, new RegExp(`label: "${label}"`));
+  }
+  assert.match(stockSource, /liveQuote\?\.amount \?\? latestDaily\?\.amount/);
+  assert.match(stockSource, /latestDaily\?\.turnoverPct/);
+  assert.match(stockSource, /label="个股研究视图"/);
+  assert.doesNotMatch(stockSource, /className="app-sidebar research-sidebar"/);
+  assert.equal((globalSource.match(/<MarketOverview/g) ?? []).length, 1);
+  assert.doesNotMatch(globalSource, /global-sidebar-summary/);
+  assert.match(globalOverview, /aria-label="全球股指实时汇总"/);
+  for (const label of ["当前开市广度", "上证指数", "美股波动", "波动焦点", "覆盖指数"]) assert.match(globalOverview, new RegExp(label));
+  assert.doesNotMatch(appleStyles, /\.sidebar-preview-(?:card|strip)/);
+  assert.match(stockStyles, /\.quoteStats \{[^}]*flex-wrap: wrap/);
+  assert.match(stockStyles, /@media \(max-width: 620px\)[\s\S]*?\.quoteStats \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 });
 
-test("calculates watchlist predictions and reveals their detail on hover or focus", () => {
+test("calculates watchlist predictions and retains their evidence and appearance contracts", () => {
   assert.match(portfolioSource, /score: StockScoreReport \| null/);
   assert.match(portfolioSource, /buildStockScore\(\{/);
   assert.match(portfolioSource, /prediction: NextDayPredictionReport \| null/);
   assert.match(portfolioSource, /buildNextDayPrediction\(candles, \{/);
   assert.match(portfolioSource, /prediction=\{quote\.prediction\}/);
   assert.match(portfolioSource, /scoreReport=\{quote\.score\}/);
-  assert.match(portfolioSource, /onMouseEnter=\{showDetails\}/);
-  assert.match(portfolioSource, /onFocusCapture=\{showDetails\}/);
-  assert.match(portfolioSource, /role="tooltip"/);
+  // Mobile tap/close and desktop hover/focus behavior are exercised in portfolio-score-popover.test.mjs.
   assert.match(portfolioSource, /prediction\.decisionSupport\.checks\.map/);
   assert.match(portfolioStyles, /\.scorePopover \{/);
   assert.match(portfolioStyles, /html\[data-appearance="dark"\]\) \.scorePopover/);

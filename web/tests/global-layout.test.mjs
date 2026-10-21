@@ -3,22 +3,29 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const pageSource = readFileSync(new URL("../app/global-markets/page.tsx", import.meta.url), "utf8");
+const mapSource = readFileSync(new URL("../app/features/global-markets/MarketMap.tsx", import.meta.url), "utf8");
+const overviewSource = readFileSync(new URL("../app/features/global-markets/MarketOverview.tsx", import.meta.url), "utf8");
 const globalStyles = readFileSync(new URL("../app/global-markets/global-markets.css", import.meta.url), "utf8");
 
-test("renders the A-share board before the global map and loads the map as an image", () => {
+test("keeps A-share quotes in regions and the complete map in its own view", () => {
   const aSharePosition = pageSource.indexOf('className="global-a-share-board"');
   const shanghaiChartPosition = pageSource.indexOf("<ShanghaiIndexPanel");
-  const mapPosition = pageSource.indexOf('className="global-map-card"');
+  const mapPosition = pageSource.indexOf('<MarketMap');
 
   assert.ok(aSharePosition >= 0);
   assert.ok(shanghaiChartPosition > aSharePosition);
   assert.ok(mapPosition > shanghaiChartPosition);
   assert.ok(mapPosition > aSharePosition);
-  assert.match(pageSource, /<img className="global-map-land" src="\/world-map-robinson\.svg"/);
-  assert.match(pageSource, /<MarketMapMarker/);
-  assert.doesNotMatch(pageSource, /global-map-region-label/);
-  assert.doesNotMatch(pageSource, /<button[^>]+global-map-marker/);
-  assert.doesNotMatch(pageSource, /global-marker-dot/);
+  assert.match(mapSource, /<img className="global-map-land" src="\/world-map-robinson\.svg"/);
+  assert.match(mapSource, /<MarketMapMarker/);
+  assert.doesNotMatch(mapSource, /global-map-region-label/);
+  assert.doesNotMatch(mapSource, /<button[^>]+global-map-marker/);
+  assert.doesNotMatch(mapSource, /global-marker-dot/);
+  assert.match(mapSource, /className="global-map-mobile-list"/);
+  assert.match(mapSource, /mappedMarkets\.map/);
+  assert.match(mapSource, /global-marker-mobile-value/);
+  assert.match(globalStyles, /@media \(max-width: 520px\)[\s\S]*?\.global-marker-label > \.global-marker-desktop-value \{ display: none; \}[\s\S]*?\.global-marker-label > \.global-marker-mobile-value \{ display: flex;[\s\S]*?\.global-map-mobile-list \{[\s\S]*?display: grid;/);
+  assert.match(globalStyles, /\.global-map-mobile-list article \{[\s\S]*?min-height: 44px;/);
 });
 
 test("shows Shanghai Composite candles, whole-market turnover states and volume analysis", () => {
@@ -52,16 +59,19 @@ test("keeps compact map values visible on mobile", () => {
 });
 
 test("keeps a touch-sized manual refresh action reachable on mobile", () => {
-  assert.match(pageSource, /className="global-mobile-refresh"[\s\S]*?disabled=\{feedState === "refreshing"\}[\s\S]*?onClick=\{\(\) => void refresh\(\)\}/);
+  assert.match(pageSource, /const loading = feedState === "loading" \|\| feedState === "refreshing"/);
+  assert.match(pageSource, /className="global-mobile-refresh"[\s\S]*?disabled=\{loading\}[\s\S]*?onClick=\{\(\) => void refresh\(\)\}/);
   assert.match(globalStyles, /\.global-mobile-refresh \{ display: none; \}/);
   assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-mobile-refresh \{[\s\S]*?min-height: 44px;[\s\S]*?width: max-content;[\s\S]*?display: flex;/);
 });
 
 test("separates current-open breadth from the asynchronous cross-market snapshot", () => {
-  assert.match(pageSource, /当前开市广度/);
-  assert.match(pageSource, /跨市场最近快照/);
+  assert.match(overviewSource, /当前开市广度/);
+  assert.match(overviewSource, /跨市场最近快照/);
   assert.match(pageSource, /openMarketMoves/);
   assert.match(pageSource, /snapshotBreadthPct/);
+  assert.match(globalStyles, /\.global-summary strong em \{[\s\S]*?flex: 0 0 auto;[\s\S]*?overflow: visible;/);
+  assert.match(globalStyles, /\.global-summary strong b \{[\s\S]*?min-width: \.72em;[\s\S]*?flex: 0 0 auto;[\s\S]*?overflow: visible;[\s\S]*?letter-spacing: 0;/);
 });
 
 test("labels the A-share gauge as a transparent pressure proxy", () => {
@@ -79,8 +89,15 @@ test("keeps the spot index primary and reduces extended-hours proxies to directi
   assert.match(globalStyles, /\.global-us-close-row\.is-proxy/);
 });
 
-test("uses a mobile section picker and a route-specific document title", () => {
+test("uses URL-backed views on every screen and retains legacy anchor access", () => {
   assert.match(pageSource, /document\.title = "全球市场 · TrendSight"/);
-  assert.match(pageSource, /aria-label="跳转到市场章节"/);
-  assert.match(globalStyles, /@media \(max-width: 820px\)[\s\S]*?\.global-navigation-sidebar \.global-workspace-nav \{ display: none !important; \}/);
+  assert.match(pageSource, /useWorkspaceView\(globalViews, "overview", "view", globalAnchors\)/);
+  assert.match(pageSource, /label="全球市场视图"/);
+  for (const view of ["overview", "regions", "trend", "map"]) {
+    assert.match(pageSource, new RegExp(`view="${view}" active=\\{globalView\\}`));
+  }
+  assert.match(pageSource, /"a-share-indexes": "regions"/);
+  assert.match(pageSource, /"shanghai-index": "trend"/);
+  assert.match(pageSource, /"global-map": "map"/);
+  assert.doesNotMatch(pageSource, /mobileChapter|platform-mobile-(chapter|visibility)|global-navigation-sidebar/);
 });

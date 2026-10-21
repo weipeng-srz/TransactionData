@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { parseNewsCsv } from "../app/lib/news.ts";
 import { normalizeRemoteMarketRequest } from "../app/lib/remoteMarket.ts";
-import { normalizeRemoteNewsRequest } from "../app/lib/remoteNews.ts";
+import { fetchRemoteNewsCsv, normalizeRemoteNewsRequest } from "../app/lib/remoteNews.ts";
 import {
   normalizeStockLookupRequest,
   parseStockLookupResponse,
@@ -57,4 +58,34 @@ test("parses both JSON and JSONP stock lookup responses", () => {
   assert.deepEqual(parseStockLookupResponse(json, "贵州茅台"), { code: "600519", name: "贵州茅台" });
   assert.deepEqual(parseStockLookupResponse(`ticklensLookup(${json})`, "贵州茅台"), { code: "600519", name: "贵州茅台" });
   assert.throws(() => parseStockLookupResponse("<html>blocked</html>", "贵州茅台"), /异常页面/);
+});
+
+test("falls back to Eastmoney stock news when the primary A-share news source is rate limited", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "searchapi.eastmoney.com") {
+      return Response.json({ QuotationCodeTable: { Data: [{ Code: "000001", Name: "平安银行", Classify: "AStock", QuoteID: "0.000001" }] } });
+    }
+    if (url.hostname === "search.sina.com.cn") return new Response("rate limited", { status: 429 });
+    if (url.hostname === "np-listapi.eastmoney.com") {
+      assert.equal(url.searchParams.get("mTypeAndCode"), "0.000001");
+      return Response.json({ code: 1, data: { list: [{
+        Art_Title: "平安银行发布2026年半年度报告",
+        Art_Url: "http://finance.eastmoney.com/a/202608243851370091.html",
+        Art_ShowTime: "2026-08-24 19:41:01",
+        Author: "东方财富",
+      }] } });
+    }
+    throw new Error(`unexpected request ${url}`);
+  };
+  try {
+    const dataset = parseNewsCsv(await fetchRemoteNewsCsv("000001", 30));
+    assert.equal(dataset.items.length, 1);
+    assert.equal(dataset.items[0].stockName, "平安银行");
+    assert.equal(dataset.items[0].portal, "东方财富个股资讯");
+    assert.equal(dataset.items[0].publishedAt, "2026-08-24 19:41:01");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

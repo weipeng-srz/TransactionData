@@ -58,3 +58,36 @@
 @media (prefers-reduced-motion: reduce) {
   .switch button { transition-duration: .01ms; }
 }
+
+/* Apple Design craft pass: compact segmented control with an anchored selection. */
+.switch {
+  border-color: color-mix(in srgb, var(--apple-text) 8%, transparent);
+  background: color-mix(in srgb, var(--apple-text) 5%, transparent);
+  box-shadow: none;
+}
+
+.switch button {
+  transition:
+    color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve),
+    transform var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.switch button[aria-pressed="true"] {
+  color: var(--apple-text);
+  background: var(--apple-surface);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 4px 12px rgba(16, 24, 40, .055);
+}
+
+.switch button:focus-visible {
+  outline: 2px solid var(--apple-accent);
+  outline-offset: 3px;
+  box-shadow: var(--apple-focus-ring);
+}
+
+.switch button:active { transform: scale(var(--apple-press-scale, .97)); }
+
+@media (prefers-reduced-transparency: reduce) {
+  .switch { background: var(--apple-surface); backdrop-filter: none; }
+}

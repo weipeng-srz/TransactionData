@@ -1,5 +1,7 @@
 "use client";
 
+import { accountStorage, subscribeAccountStorageChanges } from "../lib/accountStorage";
+
 import { useMemo, useSyncExternalStore } from "react";
 import type { StockScoreReport } from "../lib/stockScore";
 import styles from "./BeginnerGuideCard.module.css";
@@ -10,7 +12,7 @@ const riskProfileEvent = "ticklens:risk-profile-change";
 
 function readRiskProfile(): RiskProfile {
   try {
-    const stored = localStorage.getItem(riskProfileStorageKey);
+    const stored = accountStorage.getItem(riskProfileStorageKey);
     return stored === "conservative" || stored === "growth" ? stored : "balanced";
   } catch {
     return "balanced";
@@ -18,10 +20,10 @@ function readRiskProfile(): RiskProfile {
 }
 
 function subscribeRiskProfile(listener: () => void) {
-  window.addEventListener("storage", listener);
+  const unsubscribe = subscribeAccountStorageChanges(listener);
   window.addEventListener(riskProfileEvent, listener);
   return () => {
-    window.removeEventListener("storage", listener);
+    unsubscribe();
     window.removeEventListener(riskProfileEvent, listener);
   };
 }
@@ -42,7 +44,7 @@ export default function BeginnerGuideCard({
   const weakest = useMemo(() => [...report.dimensions].sort((left, right) => left.score - right.score)[0], [report.dimensions]);
 
   const updateRiskProfile = (value: RiskProfile) => {
-    try { localStorage.setItem(riskProfileStorageKey, value); } catch { /* The selection remains available for this page. */ }
+    try { accountStorage.setItem(riskProfileStorageKey, value); } catch { /* The selection remains available for this page. */ }
     window.dispatchEvent(new Event(riskProfileEvent));
   };
 

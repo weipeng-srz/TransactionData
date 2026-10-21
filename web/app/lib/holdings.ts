@@ -11,6 +11,7 @@ import {
 
 export type StockHolding = {
   code: string;
+  name?: string;
   market?: StockMarket;
   currency?: StockCurrency;
   shares: number;
@@ -65,6 +66,7 @@ export function normalizeHolding(value: unknown): StockHolding | null {
   const currency = currencyOf(candidate);
   const rawCode = String(candidate.code ?? "").trim();
   const code = market === "US" ? normalizeUSSymbol(rawCode) : rawCode;
+  const name = typeof candidate.name === "string" ? candidate.name.trim().slice(0, 40) : "";
   const shares = Number(candidate.shares);
   const cost = Number(candidate.cost);
   const updatedAt = String(candidate.updatedAt ?? "");
@@ -79,8 +81,8 @@ export function normalizeHolding(value: unknown): StockHolding | null {
     || Number.isNaN(Date.parse(updatedAt))
   ) return null;
   return market === "US"
-    ? { code, market, currency, shares, cost, updatedAt }
-    : { code, shares, cost, updatedAt };
+    ? { code, ...(name ? { name } : {}), market, currency, shares, cost, updatedAt }
+    : { code, ...(name ? { name } : {}), shares, cost, updatedAt };
 }
 
 export function exportHoldingsCsv(
@@ -93,7 +95,7 @@ export function exportHoldingsCsv(
     .sort((left, right) => stockStorageKey(left).localeCompare(stockStorageKey(right)))
     .map((holding) => [
       holding.code,
-      names.get(stockStorageKey(holding)) ?? "",
+      names.get(stockStorageKey(holding))?.trim() || holding.name || holding.code,
       String(holding.shares),
       String(holding.cost),
       ...(includeMarket ? [marketOf(holding), currencyOf(holding)] : []),
@@ -138,7 +140,7 @@ export function parseHoldingsCsv(content: string, updatedAt = new Date().toISOSt
     if (!name || name.length > 40) throw new Error(`第 ${line} 行股票名称不能为空且不能超过 40 个字符`);
     const key = stockStorageKey({ code, market });
     if (seen.has(key)) throw new Error(`第 ${line} 行股票代码 ${code} 重复`);
-    const holding = normalizeHolding({ code, market, currency, shares, cost, updatedAt });
+    const holding = normalizeHolding({ code, name, market, currency, shares, cost, updatedAt });
     if (!holding) throw new Error(`第 ${line} 行的持股数量或平均成本价无效`);
     seen.add(key);
     holdings[key] = holding;

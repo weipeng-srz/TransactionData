@@ -1,4 +1,5 @@
 import { lookupStock } from "./stockLookup.ts";
+import { fetchEastmoneyStockNews, type StockNewsFallbackItem } from "./stockNewsFallback.ts";
 
 const endpointBase = "https://search.sina.com.cn/api/news";
 const maxResponseBytes = 4 * 1024 * 1024;
@@ -26,37 +27,64 @@ export function normalizeRemoteNewsRequest(value: unknown): { code: string; limi
 export async function fetchRemoteNewsCsv(code: string, limit: number): Promise<string> {
   let name = code;
   try { name = (await lookupStock(code)).name; } catch { /* use code */ }
-  const endpoint = new URL(endpointBase);
-  endpoint.searchParams.set("q", name);
-  const response = await fetch(endpoint, {
-    headers: { Accept: "application/json", Referer: "https://search.sina.com.cn/", "User-Agent": "Mozilla/5.0 (compatible; TickLens/2.0)" },
-    signal: AbortSignal.timeout(14_000),
-  });
-  if (!response.ok) throw new Error(`新闻服务请求失败：HTTP ${response.status}`);
-  const body = await response.text();
-  if (body.length > maxResponseBytes) throw new Error("新闻响应超过安全上限");
-  let payload: unknown;
-  try { payload = JSON.parse(body); } catch { throw new Error("新闻服务返回了异常内容"); }
-  const items = (payload as { data?: { list?: unknown } } | null)?.data?.list;
+  const { items, portal } = await fetchNewsItems(code, name, limit);
   const fetchedAt = formatChinaTime(Date.now());
   const seen = new Set<string>();
-  const rows = (Array.isArray(items) ? items : []).flatMap((raw) => {
-    const item = raw as Record<string, unknown>;
-    const title = cleanText(String(item.title ?? ""));
-    const summary = cleanText(String(item.searchSummary ?? item.intro ?? ""));
-    const url = safeUrl(String(item.url ?? ""));
+  const rows = items.flatMap((item) => {
+    const title = cleanText(item.title);
+    const summary = cleanText(item.summary);
+    const url = safeUrl(item.url);
     const folded = title.replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
     if (!title || !url || seen.has(folded) || (!title.includes(name) && !summary.includes(name))) return [];
     seen.add(folded);
     const sentiment = analyzeSentiment(title, summary);
-    const publishedAt = Number(item.ctime) > 0 ? formatChinaTime(Number(item.ctime) * 1000) : "";
+    const publishedAt = item.publishedAt != null ? formatChinaTime(item.publishedAt) : "";
     return [[
-      code, name, "新浪搜索", "新闻/财经", cleanText(String(item.media_show ?? "新浪")), publishedAt, title.includes(name) ? "1.00" : "0.85",
+      code, name, portal, "新闻/财经", cleanText(item.media), publishedAt, title.includes(name) ? "1.00" : "0.85",
       sentiment.label, sentiment.score.toFixed(3), sentiment.positiveTerms.join("；"), sentiment.negativeTerms.join("；"), title, summary, url, fetchedAt,
     ]];
   }).slice(0, limit);
   const header = ["股票代码", "股票名称", "检索入口", "频道", "媒体来源", "发布时间", "相关性得分", "情绪倾向", "情绪得分", "正向词", "负向词", "新闻标题", "新闻摘要", "原文链接", "采集时间"];
   return `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n")}`;
+}
+
+async function fetchNewsItems(code: string, name: string, limit: number): Promise<{ items: StockNewsFallbackItem[]; portal: string }> {
+  try {
+    const endpoint = new URL(endpointBase);
+    endpoint.searchParams.set("q", name);
+    const response = await fetch(endpoint, {
+      headers: { Accept: "application/json", Referer: "https://search.sina.com.cn/", "User-Agent": "Mozilla/5.0 (compatible; TickLens/2.0)" },
+      signal: AbortSignal.timeout(14_000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maxResponseBytes) throw new Error("响应超过安全上限");
+    let payload: unknown;
+    try { payload = JSON.parse(body); } catch { throw new Error("返回了异常内容"); }
+    const rows = (payload as { data?: { list?: unknown } } | null)?.data?.list;
+    return {
+      portal: "新浪搜索",
+      items: (Array.isArray(rows) ? rows : []).map((raw) => {
+        const item = raw as Record<string, unknown>;
+        const ctime = Number(item.ctime);
+        return {
+          title: String(item.title ?? ""),
+          summary: String(item.searchSummary ?? item.intro ?? ""),
+          url: String(item.url ?? ""),
+          media: String(item.media_show ?? "新浪"),
+          publishedAt: ctime > 0 ? ctime * 1000 : null,
+        };
+      }),
+    };
+  } catch (primaryReason) {
+    try {
+      return { items: await fetchEastmoneyStockNews(code, "CN", limit), portal: "东方财富个股资讯" };
+    } catch (fallbackReason) {
+      const primaryMessage = primaryReason instanceof Error ? primaryReason.message : "网络异常";
+      const fallbackMessage = fallbackReason instanceof Error ? fallbackReason.message : "网络异常";
+      throw new Error(`新闻服务暂不可用（主源：${primaryMessage}；备用源：${fallbackMessage}）`);
+    }
+  }
 }
 
 function analyzeSentiment(title: string, summary: string) {

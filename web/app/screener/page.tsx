@@ -1,17 +1,22 @@
 "use client";
 
+import { accountStorage } from "../lib/accountStorage";
+
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAppearance } from "../components/AppearanceProvider";
 import SiteBanner from "../components/SiteBanner";
+import { WorkspacePanel, WorkspaceTabs } from "../components/WorkspaceTabs";
+import { useWorkspaceView } from "../hooks/useWorkspaceView";
+import ResearchPoolView, { type ResearchPoolEntry } from "../features/screener/ResearchPoolView";
+import StrategyEvidenceView from "../features/screener/StrategyEvidenceView";
 import { stockRouteKey, stockStorageKey } from "../lib/security";
 import type { ScreenerFeed, ScreenerMarket, ScreenerOpportunity, ScreenerRecommendation, ScreenerSecurityType, ScreenerStrategyEvidence } from "../lib/screenerTypes";
 import { parseWatchlist, upsertWatchlistStock, type WatchlistStock } from "../lib/watchlist";
 import styles from "./screener.module.css";
 
-type Appearance = "light" | "dark";
-type SortKey = "score" | "change" | "confidence" | "volume" | "relativeStrength" | "rewardRisk";
+type SortKey = "score" | "change" | "confidence" | "volume" | "relativeStrength" | "rewardRisk" | "mainUptrend" | "accumulation";
 type MarketCapFilter = "all" | "small" | "mid" | "large";
-type ResearchPoolEntry = Pick<ScreenerOpportunity, "market" | "symbol" | "name" | "sector" | "risk" | "score"> & { addedAt: string };
 type FilterSnapshot = {
   minimumScore: number;
   maximumRisk: number;
@@ -25,18 +30,20 @@ type SavedPreset = FilterSnapshot & { id: string; market: ScreenerMarket; name: 
 type CoverageStage = "universe" | "scan" | "quality" | "prefilter" | "history";
 
 const watchlistStorageKey = "ticklens.watchlist.v1";
-const appearanceStorageKey = "ticklens.appearance.v1";
 const researchPoolStorageKey = "ticklens.screener-research-pool.v1";
 const screenerPresetStorageKey = "ticklens.screener-professional-preset.v1";
 const screenerModeStorageKey = "ticklens.screener-mode.v1";
 const researchRetentionDays = 30;
+const screenerViews = ["candidates", "pool", "evidence"] as const;
+const screenerAnchors = { "research-pool": "pool", "research-pool-title": "pool", "evidence-title": "evidence", "stock-pool-title": "candidates", "featured-title": "candidates", "decision-deck-title": "candidates", "research-score-board-title": "candidates", "phase-scanner-title": "candidates" } as const;
 
 const strategyTabs: Record<ScreenerMarket, string[]> = {
-  CN: ["今日精选", "昨日涨停", "连板股", "趋势突破", "放量上涨"],
-  US: ["今日精选", "强势股", "Gap Up", "突破新高", "放量上涨", "Momentum"],
+  CN: ["今日精选", "主升扫描", "建仓观察", "昨日涨停", "连板股", "趋势突破", "放量上涨"],
+  US: ["今日精选", "主升扫描", "建仓观察", "强势股", "Gap Up", "突破新高", "放量上涨", "Momentum"],
 };
 
 export default function ScreenerPage() {
+  const { appearance, toggleAppearance } = useAppearance();
   const [market, setMarket] = useState<ScreenerMarket>("CN");
   const [strategy, setStrategy] = useState("今日精选");
   const [sort, setSort] = useState<SortKey>("score");
@@ -50,7 +57,7 @@ export default function ScreenerPage() {
   const [qualityGate, setQualityGate] = useState(true);
   const [professionalMode, setProfessionalMode] = useState(true);
   const [showFeatured, setShowFeatured] = useState(false);
-  const [showEvidence, setShowEvidence] = useState(false);
+  const [showDetailedResults, setShowDetailedResults] = useState(false);
   const [coverageStage, setCoverageStage] = useState<CoverageStage | null>(null);
   const [evidenceMethod, setEvidenceMethod] = useState<ScreenerStrategyEvidence | null>(null);
   const [compareKeys, setCompareKeys] = useState<string[]>([]);
@@ -59,7 +66,6 @@ export default function ScreenerPage() {
   const [presetName, setPresetName] = useState("");
   const [marketFilters, setMarketFilters] = useState<Partial<Record<ScreenerMarket, FilterSnapshot>>>({});
   const [researchUndo, setResearchUndo] = useState<{ stock: ScreenerOpportunity; wasObserved: boolean } | null>(null);
-  const [appearance, setAppearance] = useState<Appearance>("light");
   const [selected, setSelected] = useState<ScreenerOpportunity | null>(null);
   const [watchlistKeys, setWatchlistKeys] = useState<string[]>([]);
   const [researchPool, setResearchPool] = useState<ResearchPoolEntry[]>([]);
@@ -68,39 +74,39 @@ export default function ScreenerPage() {
   const [loadingMarket, setLoadingMarket] = useState<ScreenerMarket | null>("CN");
   const [errors, setErrors] = useState<Partial<Record<ScreenerMarket, string>>>({});
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [screenerView, setScreenerView] = useWorkspaceView(screenerViews, "candidates", "view", screenerAnchors);
+  const [mobileVisibleStockCount, setMobileVisibleStockCount] = useState(4);
+  const refreshRequestedRef = useRef<ScreenerMarket | null>(null);
 
   useEffect(() => {
-    const storedAppearance = localStorage.getItem(appearanceStorageKey) === "dark" ? "dark" : "light";
-    document.documentElement.dataset.appearance = storedAppearance;
     document.title = "智能选股 · TrendSight";
     let storedWatchlistKeys: string[] = [];
     let storedResearchPool: ResearchPoolEntry[] = [];
     let storedPresets: SavedPreset[] = [];
     try {
-      const parsed = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]"));
+      const parsed = parseWatchlist(JSON.parse(accountStorage.getItem(watchlistStorageKey) ?? "[]"));
       storedWatchlistKeys = parsed.map(stockStorageKey);
     } catch {
-      localStorage.removeItem(watchlistStorageKey);
+      accountStorage.removeItem(watchlistStorageKey);
     }
     try {
-      const value = JSON.parse(localStorage.getItem(researchPoolStorageKey) ?? "[]");
+      const value = JSON.parse(accountStorage.getItem(researchPoolStorageKey) ?? "[]");
       storedResearchPool = Array.isArray(value) ? value.filter((item): item is ResearchPoolEntry => Boolean(item && typeof item === "object" && "symbol" in item && "market" in item && withinResearchWindow(String(item.addedAt ?? "")))).slice(0, 30) : [];
     } catch {
-      localStorage.removeItem(researchPoolStorageKey);
+      accountStorage.removeItem(researchPoolStorageKey);
     }
     try {
-      const cn = JSON.parse(localStorage.getItem(`${screenerPresetStorageKey}.named.CN`) ?? "[]");
-      const us = JSON.parse(localStorage.getItem(`${screenerPresetStorageKey}.named.US`) ?? "[]");
+      const cn = JSON.parse(accountStorage.getItem(`${screenerPresetStorageKey}.named.CN`) ?? "[]");
+      const us = JSON.parse(accountStorage.getItem(`${screenerPresetStorageKey}.named.US`) ?? "[]");
       storedPresets = [...(Array.isArray(cn) ? cn : []), ...(Array.isArray(us) ? us : [])].filter((item): item is SavedPreset => Boolean(item && typeof item === "object" && "id" in item && "name" in item));
     } catch {
-      localStorage.removeItem(`${screenerPresetStorageKey}.named.CN`);
-      localStorage.removeItem(`${screenerPresetStorageKey}.named.US`);
+      accountStorage.removeItem(`${screenerPresetStorageKey}.named.CN`);
+      accountStorage.removeItem(`${screenerPresetStorageKey}.named.US`);
     }
-    const storedProfessionalMode = localStorage.getItem(screenerModeStorageKey) !== "simple";
+    const storedProfessionalMode = accountStorage.getItem(screenerModeStorageKey) !== "simple";
     let mounted = true;
     Promise.resolve().then(() => {
       if (!mounted) return;
-      setAppearance(storedAppearance);
       setWatchlistKeys(storedWatchlistKeys);
       setResearchPool(storedResearchPool);
       setSavedPresets(storedPresets);
@@ -111,7 +117,10 @@ export default function ScreenerPage() {
   }, []);
 
   useEffect(() => {
-    if (feeds[market]) return;
+    const hadFeed = Boolean(feeds[market]);
+    const forceRefresh = refreshRequestedRef.current === market;
+    if (hadFeed && !forceRefresh) return;
+    if (forceRefresh) refreshRequestedRef.current = null;
     const controller = new AbortController();
     let mounted = true;
     Promise.resolve().then(() => {
@@ -122,14 +131,18 @@ export default function ScreenerPage() {
     fetch(`/api/screener?market=${market}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json() as ScreenerFeed | { error?: string };
+        if (controller.signal.aborted) return;
         if (!response.ok || !("opportunities" in payload)) throw new Error("error" in payload && payload.error ? payload.error : "行情服务暂不可用");
+        setLoadingMarket((current) => current === market ? null : current);
         setFeeds((current) => ({ ...current, [market]: payload }));
       })
       .catch((reason) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") return;
-        setErrors((current) => ({ ...current, [market]: reason instanceof Error ? reason.message : "行情服务暂不可用" }));
+        if (controller.signal.aborted || (reason instanceof DOMException && reason.name === "AbortError")) return;
+        const message = reason instanceof Error ? reason.message : "行情服务暂不可用";
+        setErrors((current) => ({ ...current, [market]: message }));
+        if (hadFeed) setToast(`${message}；已保留上次成功数据`);
       })
-      .finally(() => setLoadingMarket((current) => current === market ? null : current));
+      .finally(() => { if (!controller.signal.aborted) setLoadingMarket((current) => current === market ? null : current); });
     return () => { mounted = false; controller.abort(); };
   }, [feeds, market, reloadNonce]);
 
@@ -152,9 +165,16 @@ export default function ScreenerPage() {
     .filter((stock) => stock.plan.rewardRisk >= minimumRewardRisk)
     .filter((stock) => securityType === "全部" || stock.securityType === securityType)
     .filter((stock) => matchesMarketCap(stock, marketCapFilter))
-    .sort((left, right) => sort === "score" ? right.score - left.score : sort === "change" ? right.change - left.change : sort === "confidence" ? right.confidence - left.confidence : sort === "relativeStrength" ? right.relativeStrength20 - left.relativeStrength20 : sort === "rewardRisk" ? right.plan.rewardRisk - left.plan.rewardRisk : right.volumeRatio - left.volumeRatio),
+    .sort((left, right) => sort === "score" ? right.score - left.score : sort === "change" ? right.change - left.change : sort === "confidence" ? right.confidence - left.confidence : sort === "relativeStrength" ? right.relativeStrength20 - left.relativeStrength20 : sort === "rewardRisk" ? right.plan.rewardRisk - left.plan.rewardRisk : sort === "mainUptrend" ? right.phaseAnalysis.mainUptrend.score - left.phaseAnalysis.mainUptrend.score : sort === "accumulation" ? right.phaseAnalysis.accumulation.score - left.phaseAnalysis.accumulation.score : right.volumeRatio - left.volumeRatio),
   [eligibleStocks, marketCapFilter, maximumRisk, minimumAmount, minimumRewardRisk, minimumScore, securityType, sort, strategy, theme]);
+  const mobileVisibleStocks = visibleStocks.slice(0, mobileVisibleStockCount);
   const featured = eligibleStocks.filter((stock) => stock.strategies.includes("今日精选")).slice(0, 3);
+  const highResearchStocks = [...eligibleStocks]
+    .filter((stock) => stock.researchScore && stock.researchScore.coverage >= 50)
+    .sort((left, right) => (right.researchScore?.score ?? 0) - (left.researchScore?.score ?? 0) || (right.researchScore?.coverage ?? 0) - (left.researchScore?.coverage ?? 0))
+    .slice(0, 8);
+  const mainUptrendStocks = [...eligibleStocks].filter((stock) => stock.strategies.includes("主升扫描")).sort((left, right) => right.phaseAnalysis.mainUptrend.score - left.phaseAnalysis.mainUptrend.score);
+  const accumulationStocks = [...eligibleStocks].filter((stock) => stock.strategies.includes("建仓观察")).sort((left, right) => right.phaseAnalysis.accumulation.score - left.phaseAnalysis.accumulation.score);
   const availableThemes = feed?.themes.map((item) => item.name) ?? [];
   const marketResearchPool = researchPool.filter((item) => item.market === market);
   const compareStocks = compareKeys.flatMap((key) => marketStocks.find((stock) => `${stock.market}:${stock.symbol}` === key) ?? []);
@@ -164,6 +184,8 @@ export default function ScreenerPage() {
   })).filter((item) => item.count > 0) : [];
   const industryThemes = market === "US" ? (feed?.themes.filter((item) => !["股票", "ETF", "信托", "杠杆ETF"].includes(item.name)) ?? []) : (feed?.themes ?? []);
   const isLoading = loadingMarket === market && !feed;
+  const isRefreshing = loadingMarket === market;
+  const detailedResults = professionalMode || showDetailedResults;
   const error = errors[market];
 
   const currentFilters = (): FilterSnapshot => ({ minimumScore, maximumRisk, minimumAmount, minimumRewardRisk, marketCapFilter, securityType, qualityGate });
@@ -176,9 +198,14 @@ export default function ScreenerPage() {
     setMarketCapFilter(snapshot.marketCapFilter);
     setSecurityType(snapshot.securityType);
     setQualityGate(snapshot.qualityGate);
+    setMobileVisibleStockCount(4);
   };
 
   const clearFilters = () => {
+    setStrategy("今日精选");
+    setSort("score");
+    setSelectedPresetId("");
+    setPresetName("");
     setTheme("全部题材");
     setMinimumScore(60);
     setMaximumRisk(100);
@@ -187,23 +214,28 @@ export default function ScreenerPage() {
     setMarketCapFilter("all");
     setSecurityType("全部");
     setQualityGate(true);
-    setToast("筛选条件已清空");
+    setMobileVisibleStockCount(4);
+    setToast("已恢复默认策略、排序与筛选门槛");
   };
 
   const switchMode = (nextProfessionalMode: boolean) => {
     setProfessionalMode(nextProfessionalMode);
     setShowFeatured(!nextProfessionalMode);
-    localStorage.setItem(screenerModeStorageKey, nextProfessionalMode ? "professional" : "simple");
+    accountStorage.setItem(screenerModeStorageKey, nextProfessionalMode ? "professional" : "simple");
   };
 
   const switchMarket = (nextMarket: ScreenerMarket) => {
     if (nextMarket === market) return;
+    refreshRequestedRef.current = null;
     setMarketFilters((current) => ({ ...current, [market]: currentFilters() }));
     setMarket(nextMarket);
+    setSelectedPresetId("");
+    setPresetName("");
     setStrategy("今日精选");
     setTheme("全部题材");
     setSelected(null);
     setCompareKeys([]);
+    setMobileVisibleStockCount(4);
     setCoverageStage(null);
     setEvidenceMethod(null);
     const remembered = marketFilters[nextMarket];
@@ -212,25 +244,19 @@ export default function ScreenerPage() {
   };
 
   const retry = () => {
-    setFeeds((current) => ({ ...current, [market]: undefined }));
+    refreshRequestedRef.current = market;
+    setLoadingMarket(market);
     setReloadNonce((value) => value + 1);
     setToast("正在刷新真实行情");
-  };
-
-  const toggleAppearance = () => {
-    const next = appearance === "light" ? "dark" : "light";
-    setAppearance(next);
-    document.documentElement.dataset.appearance = next;
-    localStorage.setItem(appearanceStorageKey, next);
   };
 
   const addToWatchlist = (stock: ScreenerOpportunity) => {
     const nextStock: WatchlistStock = { code: stock.symbol, name: stock.name, market: stock.market, currency: stock.currency, addedAt: new Date().toISOString() };
     let current: WatchlistStock[] = [];
-    try { current = parseWatchlist(JSON.parse(localStorage.getItem(watchlistStorageKey) ?? "[]")); } catch { /* Start a clean local list. */ }
+    try { current = parseWatchlist(JSON.parse(accountStorage.getItem(watchlistStorageKey) ?? "[]")); } catch { /* Start a clean local list. */ }
     const existed = current.some((item) => stockStorageKey(item) === stockStorageKey(nextStock));
     const updated = upsertWatchlistStock(current, nextStock);
-    localStorage.setItem(watchlistStorageKey, JSON.stringify(updated));
+    accountStorage.setItem(watchlistStorageKey, JSON.stringify(updated));
     setWatchlistKeys(updated.map(stockStorageKey));
     window.dispatchEvent(new CustomEvent("ticklens:watchlist-change", { detail: nextStock }));
     setToast(existed ? `${stock.name} 已在自选中，并已置顶` : `${stock.name} 已加入自选`);
@@ -245,7 +271,7 @@ export default function ScreenerPage() {
       ? researchPool.filter((item) => `${item.market}:${item.symbol}` !== key)
       : [{ market: stock.market, symbol: stock.symbol, name: stock.name, sector: stock.sector, risk: stock.risk, score: stock.score, addedAt: new Date().toISOString() }, ...researchPool].slice(0, 30);
     setResearchPool(next);
-    localStorage.setItem(researchPoolStorageKey, JSON.stringify(next));
+    accountStorage.setItem(researchPoolStorageKey, JSON.stringify(next));
     setResearchUndo({ stock, wasObserved: existed });
     setToast(existed ? `${stock.name} 已移出研究观察池` : `${stock.name} 已加入研究观察池`);
   };
@@ -258,7 +284,7 @@ export default function ScreenerPage() {
       ? [{ market: stock.market, symbol: stock.symbol, name: stock.name, sector: stock.sector, risk: stock.risk, score: stock.score, addedAt: new Date().toISOString() }, ...researchPool.filter((item) => `${item.market}:${item.symbol}` !== key)].slice(0, 30)
       : researchPool.filter((item) => `${item.market}:${item.symbol}` !== key);
     setResearchPool(restored);
-    localStorage.setItem(researchPoolStorageKey, JSON.stringify(restored));
+    accountStorage.setItem(researchPoolStorageKey, JSON.stringify(restored));
     setResearchUndo(null);
     setToast("已撤销观察池变更");
   };
@@ -274,6 +300,9 @@ export default function ScreenerPage() {
   };
 
   const applyProfessionalPreset = () => {
+    setSelectedPresetId("");
+    setPresetName("");
+    setMobileVisibleStockCount(4);
     setMinimumScore(70);
     setMaximumRisk(70);
     setMinimumAmount(market === "CN" ? 100_000_000 : 20_000_000);
@@ -294,7 +323,7 @@ export default function ScreenerPage() {
     setSavedPresets(next);
     setSelectedPresetId(id);
     setPresetName(name);
-    localStorage.setItem(`${screenerPresetStorageKey}.named.${market}`, JSON.stringify(next.filter((preset) => preset.market === market)));
+    accountStorage.setItem(`${screenerPresetStorageKey}.named.${market}`, JSON.stringify(next.filter((preset) => preset.market === market)));
     setToast(selectedPresetId ? `已更新筛选方案“${name}”` : `已保存筛选方案“${name}”`);
   };
 
@@ -312,7 +341,7 @@ export default function ScreenerPage() {
     const preset = savedPresets.find((item) => item.id === selectedPresetId);
     const next = savedPresets.filter((item) => item.id !== selectedPresetId);
     setSavedPresets(next);
-    localStorage.setItem(`${screenerPresetStorageKey}.named.${market}`, JSON.stringify(next.filter((item) => item.market === market)));
+    accountStorage.setItem(`${screenerPresetStorageKey}.named.${market}`, JSON.stringify(next.filter((item) => item.market === market)));
     setSelectedPresetId("");
     setPresetName("");
     setToast(preset ? `已删除筛选方案“${preset.name}”` : "筛选方案已删除");
@@ -330,16 +359,26 @@ export default function ScreenerPage() {
     market === "US" && !qualityGate ? { key: "quality", label: "扩展池：含高风险证券", clear: () => setQualityGate(true) } : null,
   ].filter((item): item is { key: string; label: string; clear: () => void } => Boolean(item));
 
+  const goToChapter = (chapter: (typeof screenerViews)[number], targetId: string) => {
+    setScreenerView(chapter);
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      target?.scrollIntoView({ block: "start" });
+      target?.focus({ preventScroll: true });
+    });
+  };
+
   return (
     <div className={styles.page}>
-      <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : "正在连接公开行情"} />
+      <SiteBanner activePage="screener" appearance={appearance} onToggleAppearance={toggleAppearance} statusText={isRefreshing && feed ? `正在刷新${market === "CN" ? "A股" : "美股"} · 保留上次快照` : feed ? `${feed.quoteStatus} · ${feed.diagnostics.delayed ? "公开延时" : "实时"}` : error ? "行情暂不可用 · 可重新获取" : "正在连接真实市场行情"} />
 
       <main className={styles.shell}>
-        <section className={styles.hero} aria-labelledby="screener-title">
-          <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>SMART OPPORTUNITY RADAR</p>
-            <h1 id="screener-title">智能选股</h1>
-            <p>从真实市场行情、趋势和量价结构中，筛选值得进一步研究的交易线索。</p>
+        <section className={styles.commandBar} aria-label="智能选股视图与行情操作">
+          <div className={styles.commandContext}>
+            <h1>智能选股</h1>
+            <p>发现候选，核对证据，再制定研究计划。</p>
+            <strong>{market === "CN" ? "A股" : "美股"} · {strategy}</strong>
+            <small>{feed ? `${visibleStocks.length} 只符合当前条件 · ${relativeFreshness(feed.fetchedAt)}` : error ? "连接失败，可重新获取" : "正在连接真实市场行情"}</small>
           </div>
           <div className={styles.heroControls}>
             <div className={styles.viewSwitch} role="group" aria-label="选择选股视图">
@@ -350,15 +389,190 @@ export default function ScreenerPage() {
               <button className={market === "CN" ? styles.active : ""} aria-pressed={market === "CN"} onClick={() => switchMarket("CN")} type="button">A股</button>
               <button className={market === "US" ? styles.active : ""} aria-pressed={market === "US"} onClick={() => switchMarket("US")} type="button">美股</button>
             </div>
-            <div className={styles.tradeDate}><span>交易日</span><strong>{feed?.tradeDate ?? "—"}</strong><small>{feed ? `${relativeFreshness(feed.fetchedAt)} · ${feed.quoteStatus}` : "加载中"}</small><button type="button" onClick={retry} disabled={isLoading}>↻ 刷新</button></div>
-            <a className={styles.researchShortcut} href="#research-pool" aria-label={`研究观察池 ${marketResearchPool.length} 只`}>研究池 <strong>{marketResearchPool.length}</strong></a>
+            <div className={styles.tradeDate}><span>交易日</span><strong>{feed?.tradeDate ?? "—"}</strong><small>{feed ? `${relativeFreshness(feed.fetchedAt)} · ${isRefreshing ? "刷新中，保留当前快照" : feed.quoteStatus}` : error ? "获取失败" : "加载中"}</small><button type="button" onClick={retry} disabled={isRefreshing}>{isRefreshing ? "刷新中…" : "↻ 刷新"}</button></div>
+
           </div>
         </section>
 
-        {isLoading ? <LoadingState market={market} /> : null}
-        {!isLoading && error && !feed ? <ErrorState message={error} onRetry={retry} /> : null}
+        <WorkspaceTabs id="screener" label="选股中心视图" value={screenerView} onChange={setScreenerView} tabs={[
+          { id: "candidates", label: "候选发现" },
+          { id: "pool", label: "研究观察池", count: marketResearchPool.length },
+          { id: "evidence", label: "策略证据" },
+        ]} />
+
+        <WorkspacePanel id="screener" view="pool" active={screenerView}>
+          <ResearchPoolView entries={marketResearchPool} averageRisk={Math.round(averageNumber(marketResearchPool.map((item) => item.risk)))} sector={dominantSector(marketResearchPool)} dateLabel={researchDateLabel} onOpen={(item) => {
+            const stock = marketStocks.find((candidate) => candidate.symbol === item.symbol);
+            if (!stock) return false;
+            setSelected(stock);
+            return true;
+          }} />
+        </WorkspacePanel>
+
+        {screenerView !== "pool" && isLoading ? <LoadingState market={market} /> : null}
+        {screenerView !== "pool" && !isLoading && error && !feed ? <ErrorState message={error} onRetry={retry} /> : null}
 
         {feed ? <>
+          {error ? <div className={styles.refreshError} role="status"><div><strong>刷新未完成，当前仍为上次快照</strong><span>{error}</span></div><button type="button" onClick={retry} disabled={isRefreshing}>{isRefreshing ? "重试中…" : "重试刷新"}</button></div> : null}
+          <WorkspacePanel id="screener" view="candidates" active={screenerView}>
+          <p className={styles.coverageSummary}>{market === "CN" ? "A 股全市场行情扫描" : "美股涨幅榜采样，并非全市场筛选"}<span>本次完成 {feed.diagnostics.analyzedCount} 只日 K 分析 · {feed.diagnostics.delayed ? "公开延时行情" : feed.quoteStatus}</span></p>
+              <section className={styles.stockPool} aria-labelledby="stock-pool-title">
+                <header className={styles.poolHeader}>
+                  <div><span>STRATEGY POOL</span><h2 id="stock-pool-title" tabIndex={-1}>策略股票池</h2></div>
+                  <p>按当前条件筛选候选 · 点击“详情”查看因子、风险与模型区间</p>
+                </header>
+
+                <div className={styles.strategyTabs} role="group" aria-label="选股策略">
+                  {strategyTabs[market].map((tab) => {
+                    const count = eligibleStocks.filter((stock) => stock.strategies.includes(tab)).length;
+                    return <button key={tab} className={strategy === tab ? styles.activeTab : ""} type="button" aria-pressed={strategy === tab} onClick={() => { setStrategy(tab); setMobileVisibleStockCount(4); }}>{tab}<small>{count}</small></button>;
+                  })}
+                </div>
+
+                <div className={styles.filters}>
+                  <label><span>板块/题材</span><select value={theme} onChange={(event) => setTheme(event.target.value)}><option>全部题材</option>{availableThemes.map((item) => <option key={item}>{item}</option>)}</select></label>
+                  <label><span>最低评分</span><select value={minimumScore} onChange={(event) => setMinimumScore(Number(event.target.value))}><option value={60}>60+</option><option value={70}>70+</option><option value={80}>80+</option><option value={90}>90+</option></select></label>
+                  <label><span>最高风险</span><select value={maximumRisk} onChange={(event) => setMaximumRisk(Number(event.target.value))}><option value={100}>不限</option><option value={70}>≤ 70</option><option value={55}>≤ 55</option><option value={40}>≤ 40</option></select></label>
+                  <label><span>排序</span><select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">机会评分</option><option value="mainUptrend">主升迹象</option><option value="accumulation">建仓迹象</option><option value="confidence">信号一致性</option><option value="relativeStrength">相对强弱</option><option value="rewardRisk">计划盈亏比</option><option value="change">涨幅</option><option value="volume">量能</option></select></label>
+                  <div className={styles.filterActions}><button type="button" onClick={applyProfessionalPreset}>专业预设</button><button type="button" onClick={clearFilters}>恢复默认</button></div>
+                  <span className={styles.resultCount} role="status" aria-live="polite">{visibleStocks.length} 只符合条件</span>
+                </div>
+
+                <details className={styles.advancedFilters}>
+                  <summary><span><strong>更多筛选与方案</strong><small>成交额、市值、盈亏比、证券类型与自定义方案</small></span><em>{activeFilterChips.length ? `${activeFilterChips.length} 个条件已调整` : "默认门槛"}</em></summary>
+                  <div className={styles.advancedFilterBody}>
+                    <div className={styles.advancedFilterGrid}>
+                      <label><span>最低成交额</span><select value={minimumAmount} onChange={(event) => setMinimumAmount(Number(event.target.value))}><option value={0}>不限</option><option value={market === "CN" ? 50_000_000 : 10_000_000}>{market === "CN" ? "0.5亿+" : "$10M+"}</option>{market === "US" ? <option value={20_000_000}>$20M+</option> : null}<option value={market === "CN" ? 100_000_000 : 50_000_000}>{market === "CN" ? "1亿+" : "$50M+"}</option><option value={market === "CN" ? 500_000_000 : 200_000_000}>{market === "CN" ? "5亿+" : "$200M+"}</option></select></label>
+                      <label><span>市值范围</span><select value={marketCapFilter} onChange={(event) => setMarketCapFilter(event.target.value as MarketCapFilter)}><option value="all">全部市值</option><option value="small">中小盘</option><option value="mid">中盘</option><option value="large">大盘</option></select></label>
+                      <label><span>最低盈亏比</span><select value={minimumRewardRisk} onChange={(event) => setMinimumRewardRisk(Number(event.target.value))}><option value={0}>不限</option><option value={1.2}>1.2R+</option><option value={1.5}>1.5R+</option><option value={2}>2.0R+</option></select></label>
+                      {market === "US" ? <label><span>证券类型</span><select value={securityType} onChange={(event) => setSecurityType(event.target.value as "全部" | ScreenerSecurityType)}><option>全部</option><option>股票</option><option>ETF</option><option>信托</option><option>杠杆ETF</option></select></label> : null}
+                      {market === "US" ? <button className={`${styles.qualityToggle} ${qualityGate ? styles.qualityToggleActive : styles.qualityToggleRisk}`} type="button" onClick={() => setQualityGate((value) => !value)} aria-pressed={qualityGate}><i />{qualityGate ? "标准质量门槛" : "扩展池 · 含高风险证券"}</button> : null}
+                    </div>
+                    <div className={styles.presetManager}>
+                      <select aria-label="已保存筛选方案" value={selectedPresetId} onChange={(event) => loadNamedPreset(event.target.value)}><option value="">选择保存方案</option>{marketPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
+                      <input aria-label="筛选方案名称" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="方案名称" />
+                      <button type="button" onClick={saveNamedPreset}>{selectedPresetId ? "更新/重命名" : "保存方案"}</button>
+                      <button type="button" onClick={deleteNamedPreset} disabled={!selectedPresetId}>删除</button>
+                    </div>
+                  </div>
+                </details>
+
+                <div className={styles.filterStateBar} aria-label="当前筛选条件">
+                  <div className={styles.activeFilters}><strong>当前条件 {activeFilterChips.length ? `(${activeFilterChips.length})` : ""}</strong>{activeFilterChips.length ? activeFilterChips.map((item) => <button key={item.key} type="button" aria-label={`移除条件：${item.label}`} onClick={item.clear}>{item.label}<span aria-hidden="true">×</span></button>) : <span>默认：今日精选 · 评分 60+{market === "US" ? " · 标准质量" : ""}</span>}</div>
+                </div>
+
+                {market === "US" && !qualityGate ? <div className={styles.expandedPoolWarning} role="status"><strong>扩展池已开启</strong><span>结果可能包含低流动性、小市值、信托或杠杆ETF；每只扩展证券都会标记风险层级。</span><button type="button" onClick={() => setQualityGate(true)}>恢复标准门槛</button></div> : null}
+
+                {compareStocks.length ? <ComparePanel stocks={compareStocks} onRemove={toggleCompare} onOpen={setSelected} /> : null}
+
+                {!professionalMode ? <div className={styles.resultDepthControl}>
+                  <span>{detailedResults ? "完整指标" : "核心指标 · 评分、风险与计划"}</span>
+                  <button type="button" aria-expanded={detailedResults} onClick={() => setShowDetailedResults((value) => !value)}>{detailedResults ? "收起扩展指标" : "展开完整指标"}</button>
+                </div> : null}
+                <div className={`${styles.tableWrap} ${!detailedResults ? styles.compactResults : ""}`} tabIndex={0} role="region" aria-label="策略股票池，可横向滚动查看更多指标">
+                  <table aria-label="策略股票池桌面表格">
+                    <thead><tr><th className={styles.stockSticky}>股票</th><th>核心信号</th><th>价格 / 涨幅</th>{detailedResults ? <><th>量能 / 市值</th><th>20日相对强弱</th></> : null}<th>机会评分</th><th className={styles.decisionSticky}>风险 · 计划 · 操作</th></tr></thead>
+                    <tbody>{visibleStocks.map((stock) => (
+                      <tr key={`${stock.market}-${stock.symbol}`} className={stock.qualityTier === "expanded" ? styles.expandedRow : ""}>
+                        <td className={styles.stockSticky}><div className={styles.stockCell}><span>{stock.name.slice(0, 1)}</span><div><strong title={stock.name}>{shortStockName(stock)}</strong><small>{stock.symbol} · {stock.exchange} · {stock.securityType}</small>{stock.qualityTier === "expanded" ? <em>扩展池</em> : null}</div></div></td>
+                        <td><strong className={styles.signalLabel}>{stock.signal}</strong><small className={styles.sectorLabel}>{stock.sector}</small>{detailedResults ? <div className={styles.phasePills}><span data-level={stock.phaseAnalysis.mainUptrend.level}>主升 {stock.phaseAnalysis.mainUptrend.score} · {stock.phaseAnalysis.mainUptrend.stage}</span><span data-level={stock.phaseAnalysis.accumulation.level}>建仓 {stock.phaseAnalysis.accumulation.score} · {stock.phaseAnalysis.accumulation.stage}</span></div> : null}{detailedResults && stock.limitDetail ? <small className={styles.limitMeta}>封 {stock.limitDetail.first} · 炸 {stock.limitDetail.burstCount} · {stock.limitDetail.shape}</small> : null}</td>
+                        <td><strong>{currencySymbol(stock)}{stock.price.toFixed(2)}</strong><small className={changeClass(stock.change, styles)}>{signedPercent(stock.change)}</small></td>
+                        {detailedResults ? <><td><strong>{stock.volumeRatio.toFixed(2)}x · 换手 {stock.turnover.toFixed(1)}%</strong><small>{stock.amount} · {formatMarketCap(stock.marketCap, stock.market)}</small></td>
+                        <td><strong className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</strong><small>个股 {signedPercent(stock.return20)} / 基准 {signedPercent(stock.benchmarkReturn20)}</small></td></> : null}
+                        <td><div className={styles.tableScore}><strong>{stock.score}</strong><span><i style={{ width: `${stock.score}%` }} /></span></div></td>
+                        <td className={styles.decisionSticky}><div className={styles.decisionCell}><div><strong className={riskClass(stock.risk, styles)}>风险 {stock.risk}</strong><span>{stock.plan.rewardRisk.toFixed(2)}R · 仓位≤{stock.plan.suggestedPositionPercent.toFixed(1)}%</span></div><strong>{recommendationIcon(stock.recommendation)} {stock.recommendation}<small>{stock.confidence}% 一致性</small></strong><div className={styles.rowTools}><button type="button" onClick={() => setSelected(stock)} aria-label={`查看${stock.name}机会详情`}>详情</button><button type="button" aria-pressed={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onClick={() => toggleCompare(stock)}>{compareKeys.includes(`${stock.market}:${stock.symbol}`) ? "已对比" : "对比"}</button><button type="button" onClick={() => addToWatchlist(stock)} aria-label={`${isWatched(stock) ? "置顶" : "加入"}${stock.name}自选`}>{isWatched(stock) ? "★" : "☆"}</button></div></div></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+                <div className={styles.mobileOpportunityList} aria-label="策略股票池移动端卡片">
+                  {mobileVisibleStocks.map((stock) => <MobileOpportunityCard key={`${stock.market}-${stock.symbol}`} stock={stock} detailed={detailedResults} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
+                </div>
+                {visibleStocks.length > 4 ? <div className={styles.mobilePoolPager}>
+                  <span>已显示 {mobileVisibleStocks.length}/{visibleStocks.length} 只</span>
+                  <div>
+                    {mobileVisibleStockCount > 4 ? <button type="button" onClick={() => setMobileVisibleStockCount(4)}>收起</button> : null}
+                    {mobileVisibleStocks.length < visibleStocks.length ? <button type="button" onClick={() => setMobileVisibleStockCount((count) => Math.min(count + 4, visibleStocks.length))}>再显示 {Math.min(4, visibleStocks.length - mobileVisibleStocks.length)} 只</button> : null}
+                  </div>
+                </div> : null}
+                {!visibleStocks.length ? <div className={styles.emptyState}><strong>当前条件下没有真实行情候选</strong><span>恢复今日精选与默认筛选门槛，或切换策略继续查看。</span><button type="button" onClick={clearFilters}>恢复默认筛选</button></div> : null}
+              </section>
+            <section className={`${styles.decisionDeck} ${!showFeatured ? styles.collapsedDecisionDeck : ""}`} id="featured-title" aria-labelledby="decision-deck-title">
+            <header><div><span>NEXT RESEARCH ACTION</span><h2 id="decision-deck-title">先看候选，再看证据</h2></div><button type="button" aria-expanded={showFeatured} onClick={() => setShowFeatured((value) => !value)}>{showFeatured ? "收起精选" : "展开精选"}</button></header>
+            <div className={styles.decisionDeckGrid} hidden={!showFeatured}>
+              {featured.map((stock, index) => <CompactCandidateCard key={`${stock.market}-${stock.symbol}`} stock={stock} rank={index + 1} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
+              {!featured.length ? <div className={styles.emptyState}><strong>当前没有达到精选门槛的候选</strong><span>可进入策略池查看其他信号，或刷新获取最新快照。</span></div> : null}
+            </div>
+            <a hidden={!showFeatured} className={styles.jumpToPool} href="#stock-pool-title" onClick={(event) => { event.preventDefault(); goToChapter("candidates", "stock-pool-title"); }}>进入完整策略池 ↓</a>
+          </section>
+                <details className={styles.poolDisclosure}>
+                  <summary><span><strong>更多研究视图</strong><small>八维研究榜 · 主升与建仓阶段扫描</small></span><em>{highResearchStocks.length} 只高覆盖 · {mainUptrendStocks.length + accumulationStocks.length} 条阶段线索</em></summary>
+                  <div className={styles.poolInsightStack}>
+                <section className={styles.researchScoreBoard} aria-labelledby="research-score-board-title">
+                  <header>
+                    <div><span>CALIBRATED RESEARCH SCORE</span><h3 id="research-score-board-title">八维高分股票榜</h3></div>
+                    <p>1000 股样本校准 · 按候选池研究分排序</p>
+                  </header>
+                  <div className={styles.researchScoreGrid}>
+                    {highResearchStocks.map((stock, index) => {
+                      const score = stock.researchScore!;
+                      const leaders = [...score.dimensions].filter((dimension) => dimension.coverage > 0).sort((left, right) => right.score - left.score).slice(0, 2);
+                      return <article key={`${stock.market}-${stock.symbol}-research-score`}>
+                        <div className={styles.researchScoreRank}><span>#{index + 1}</span><b>{score.score}<small>/100</small></b></div>
+                        <div className={styles.researchScoreIdentity}><strong>{stock.name}</strong><span>{stock.symbol} · {stock.sector}</span></div>
+                        <dl><div><dt>证据覆盖</dt><dd>{score.coverage}%</dd></div><div><dt>证据状态</dt><dd>{score.signal}</dd></div></dl>
+                        <p>{leaders.map((dimension) => `${dimension.label} ${dimension.score}`).join(" · ") || "等待更多研究数据"}</p>
+                        <div><button type="button" onClick={() => setSelected(stock)}>查看机会计划</button><Link href={`/?stock=${encodeURIComponent(stockRouteKey({ code: stock.symbol, market: stock.market }))}`}>完整八维分析 <span>→</span></Link></div>
+                      </article>;
+                    })}
+                    {!highResearchStocks.length ? <div className={styles.researchScoreEmpty}><strong>高分榜正在补齐研究数据</strong><span>财务或行情源暂不可用时不会用低覆盖分数凑榜。</span></div> : null}
+                  </div>
+                  <p className={styles.researchScoreNote}>实测显示原等权分与收益不成正比；当前版本提高估值、盈利与成长的有效权重，并对趋势/动量同时过热扣分。高分表示候选池内证据排序靠前，不是收益率或买入建议。</p>
+                </section>
+
+                <section className={styles.phaseScanner} aria-labelledby="phase-scanner-title">
+                  <header><div><span>MARKET PHASE SCANNER</span><h3 id="phase-scanner-title">行情阶段扫描</h3></div><p>市场门槛 + 防追高 + 分阶段横向排名</p></header>
+                  <div className={styles.phaseScannerGrid}>
+                    <article className={styles.mainPhaseCard}>
+                      <header><div><strong>主升行情</strong><span>只保留顺势且不过热的启动结构</span></div><b>{mainUptrendStocks.length}<small>只候选</small></b></header>
+                      <ul><li>短中期均线多头，A 股要求沪深300近 20 日收益为正</li><li>近 5 日涨幅、MA5 乖离与量比提前降温，风险需低于 68</li><li>仅保留本次有效主升候选的前 20%</li></ul>
+                      <div className={styles.phaseLeaders}>{mainUptrendStocks.slice(0, 3).map((stock) => <button type="button" key={`${stock.market}-${stock.symbol}-main`} onClick={() => setSelected(stock)}><span><strong>{stock.name}</strong><small>{stock.symbol} · {stock.phaseAnalysis.mainUptrend.stage} · {stock.phaseAnalysis.mainUptrend.rankLabel}</small></span><b>{stock.phaseAnalysis.mainUptrend.score}</b></button>)}{!mainUptrendStocks.length ? <p>市场门槛、过热过滤或横向排名后暂无候选。</p> : null}</div>
+                      <button className={styles.phaseAction} type="button" onClick={() => { setStrategy("主升扫描"); setSort("mainUptrend"); setMobileVisibleStockCount(4); }}>查看主升候选</button>
+                    </article>
+                    <article className={styles.accumulationPhaseCard}>
+                      <header><div><strong>建仓观察</strong><span>早期平台 → 平台确认 → 突破准备</span></div><b>{accumulationStocks.length}<small>只候选</small></b></header>
+                      <ul><li>弱市暂缓，A 股换手要求 0.3%–10%</li><li>平台振幅收窄、低点抬高与涨跌日量能共同确认</li><li>早期/确认结构且有效建仓池前 50% 才入选；突破准备只作状态提示</li></ul>
+                      <div className={styles.phaseLeaders}>{accumulationStocks.slice(0, 3).map((stock) => <button type="button" key={`${stock.market}-${stock.symbol}-accumulation`} onClick={() => setSelected(stock)}><span><strong>{stock.name}</strong><small>{stock.symbol} · {stock.phaseAnalysis.accumulation.stage} · {stock.phaseAnalysis.accumulation.rankLabel}</small></span><b>{stock.phaseAnalysis.accumulation.score}</b></button>)}{!accumulationStocks.length ? <p>环境、换手与横向排名后暂无候选。</p> : null}</div>
+                      <button className={styles.phaseAction} type="button" onClick={() => { setStrategy("建仓观察"); setSort("accumulation"); setMobileVisibleStockCount(4); }}>查看建仓观察</button>
+                    </article>
+                  </div>
+                  <p className={styles.phaseDisclaimer}>阶段分数不是上涨概率；主升前 20% / 建仓前 50%只针对本次深度分析候选，不代表全市场排名。“建仓观察”无法识别账户身份，也不能证明机构或所谓主力正在买入。</p>
+                </section>
+                  </div>
+                </details>
+
+
+          <details className={styles.poolDisclosure}>
+            <summary><span><strong>市场结构与热门板块</strong><small>市场分层、行业热度与证券类型</small></span></summary>
+            <div className={styles.marketStructureGrid}>
+              <section className={styles.ladderCard}>
+                <header><div><span>{market === "CN" ? "LIMIT-UP LADDER" : "US QUALITY GATE"}</span><h2>{feed.structure.title}</h2></div><strong>{feed.structure.badge}</strong></header>
+                {market === "CN" ? <div className={styles.ladder}>{feed.structure.rows.map((row) => <div key={row.level}><strong>{row.level}</strong><span>{row.names.map((name) => <span className={styles.ladderName} key={name}>{name}</span>)}</span></div>)}</div>
+                  : <div className={styles.qualityRules}>{feed.structure.rows.map((row) => <span key={row.level}><i />{row.level} {row.names.join(" · ")}</span>)}</div>}
+                <dl className={styles.ladderStats}>{feed.structure.stats.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
+                <p>{feed.structure.note}</p>
+              </section>
+
+              <section className={styles.themeCard}>
+                <header><div><span>MARKET THEMES</span><h2>{market === "CN" ? "涨停板块热度" : "行业热度"}</h2></div><small>真实样本聚合</small></header>
+                {market === "US" ? <div className={styles.securityTypeHeat}><strong>证券类型热度</strong><div>{securityTypeThemes.map((item) => <button type="button" key={item.name} aria-pressed={securityType === item.name} onClick={() => { setSecurityType(item.name); goToChapter("candidates", "stock-pool-title"); }}><span>{item.name}</span><b>{item.count}</b></button>)}</div></div> : null}
+                <ol>{industryThemes.map((item, index) => <li key={item.name}><button type="button" aria-pressed={theme === item.name} onClick={() => { setTheme(item.name); goToChapter("candidates", "stock-pool-title"); }}><b>{index + 1}</b><span><strong>{item.name}</strong><small>{"●".repeat(item.heat)}<i>{"●".repeat(5 - item.heat)}</i></small></span><em className={changeClass(item.change, styles)}>{signedPercent(item.change)}<small>{item.count} 个样本</small></em></button></li>)}</ol>
+              </section>
+
+            </div>
+          </details>
+          <details className={styles.marketContext}>
+            <summary><strong>市场背景与策略建议</strong><span>{feed.snapshot.mood} · {feed.snapshot.primary}</span></summary>
           <section className={styles.marketStrip} aria-label={`${market === "CN" ? "A股" : "美股"}市场概览`}>
             <article className={styles.sentimentMetric}><span>市场情绪</span><strong><i />{feed.snapshot.mood}</strong><div className={styles.sentimentBar}><i style={{ width: `${feed.snapshot.moodScore}%` }} /></div></article>
             <article><span>核心指数</span><strong>{feed.snapshot.primary}</strong><small>{feed.snapshot.secondary}</small></article>
@@ -367,15 +581,20 @@ export default function ScreenerPage() {
             <article className={styles.riskBudget}><span>模型风险预算</span><strong>{feed.snapshot.riskBudget}</strong><small>{feed.snapshot.riskNote}</small></article>
           </section>
 
-          <section className={styles.decisionDeck} aria-labelledby="decision-deck-title">
-            <header><div><span>NEXT RESEARCH ACTION</span><h2 id="decision-deck-title">先看候选，再看证据</h2></div><p>{professionalMode ? "专业模式 · 风险与计划优先" : "简洁模式 · 聚焦前三条线索"}</p></header>
-            <div className={styles.decisionDeckGrid}>
-              {featured.map((stock, index) => <CompactCandidateCard key={`${stock.market}-${stock.symbol}`} stock={stock} rank={index + 1} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
-            </div>
-            <a className={styles.jumpToPool} href="#stock-pool-title">进入完整策略池 ↓</a>
+          <section className={styles.strategyBrief} aria-label="今日选股建议">
+            <div className={styles.briefMark} aria-hidden="true"><span /><i /></div>
+            <div className={styles.briefLead}><span>规则模型策略</span><strong>{feed.brief.priority}</strong></div>
+            <p>{feed.brief.summary}</p>
+            <div className={styles.briefTags}><span>{feed.brief.positiveTag}</span><span>{feed.brief.warningTag}</span></div>
           </section>
 
-          <section className={styles.coveragePanel} aria-label="数据覆盖与模型审计">
+          </details>
+          </WorkspacePanel>
+          <WorkspacePanel id="screener" view="evidence" active={screenerView}>
+            <StrategyEvidenceView items={feed.strategyEvidence} onMethod={setEvidenceMethod} formatReturn={signedPercent} returnClass={(value) => changeClass(value, styles)} />
+          <details className={styles.informationDisclosure}>
+            <summary><span><strong>数据覆盖与模型审计</strong><small>{market === "CN" ? "全市场扫描链路" : "涨幅榜采样链路"} · 规则版本 {feed.diagnostics.modelVersion}</small></span><em>{feed.diagnostics.analyzedCount} 只完成分析</em></summary>
+            <section className={styles.coveragePanel} aria-label="数据覆盖与模型审计">
             <div className={styles.coverageIntro}>
               <span>DATA COVERAGE</span>
               <strong>{market === "CN" ? "全市场覆盖链路" : "涨幅榜采样链路"}</strong>
@@ -398,149 +617,8 @@ export default function ScreenerPage() {
               <small>{market === "US" ? `其中 ${feed.diagnostics.qualityCount} 只通过标准质量门槛` : feed.diagnostics.failedHistoryCount ? `${feed.diagnostics.failedHistoryCount} 只历史数据不完整，已排除` : "候选历史数据均已通过完整性检查"}</small>
             </div>
             {coverageStage ? <div className={styles.coverageExplanation} role="status"><strong>{coverageStageLabel(coverageStage)}</strong><span>{coverageStageDescription(coverageStage, market, feed)}</span></div> : null}
-          </section>
-
-          <section className={styles.strategyBrief} aria-label="今日选股建议">
-            <div className={styles.briefMark} aria-hidden="true"><span /><i /></div>
-            <div className={styles.briefLead}><span>规则模型策略</span><strong>{feed.brief.priority}</strong></div>
-            <p>{feed.brief.summary}</p>
-            <div className={styles.briefTags}><span>{feed.brief.positiveTag}</span><span>{feed.brief.warningTag}</span></div>
-          </section>
-
-          <section className={`${styles.evidenceSection} ${!showEvidence ? styles.evidenceCollapsed : ""}`} aria-labelledby="evidence-title">
-            <header>
-              <div><span>ROLLING SIGNAL EVIDENCE</span><h2 id="evidence-title">策略历史表现</h2></div>
-              <div className={styles.evidenceHeaderAction}><p>事件次数并非独立证券数 · 未扣佣金与滑点</p><button type="button" aria-expanded={showEvidence} onClick={() => setShowEvidence((value) => !value)}>{showEvidence ? "收起证据" : "展开证据"}</button></div>
-            </header>
-            {showEvidence ? <div className={styles.evidenceGrid}>
-              {feed.strategyEvidence.map((item) => <article key={item.strategy}>
-                <div><strong>{item.strategy}</strong><span>{item.sampleSize} 次样本</span></div>
-                <dl>
-                  <div><dt>次日上涨</dt><dd>{item.winRate1D.toFixed(1)}%</dd></div>
-                  <div><dt>次日中位</dt><dd className={changeClass(item.medianReturn1D, styles)}>{signedPercent(item.medianReturn1D)}</dd></div>
-                  <div><dt>3日平均</dt><dd className={changeClass(item.averageReturn3D, styles)}>{signedPercent(item.averageReturn3D)}</dd></div>
-                  <div><dt>3日MFE / MAE</dt><dd>{signedPercent(item.averageMfe3D)} / {signedPercent(item.averageMae3D)}</dd></div>
-                </dl>
-                <button className={styles.methodButton} type="button" onClick={() => setEvidenceMethod(item)}>{item.window} · 查看方法</button>
-              </article>)}
-              {!feed.strategyEvidence.length ? <div className={styles.evidenceEmpty}>当前候选日K中没有足够的历史信号样本，系统不会生成模拟胜率。</div> : null}
-            </div> : <p className={styles.evidenceSummary}>当前有 {feed.strategyEvidence.length} 类真实日K滚动信号证据；专业模式默认收起，避免历史指标遮挡今日候选。</p>}
-          </section>
-
-          <div className={styles.workspace}>
-            <div className={styles.primaryColumn}>
-              <section className={`${styles.featuredSection} ${professionalMode && !showFeatured ? styles.collapsedFeatured : ""}`} aria-labelledby="featured-title">
-                <header className={styles.sectionHeader}>
-                  <div><span>DAILY SHORTLIST</span><h2 id="featured-title">今日模型精选</h2></div>
-                  <div className={styles.featuredHeaderActions}><p>已分析 <strong>{feed.diagnostics.analyzedCount}</strong> 只候选 · 评分由真实日K因子计算</p><button type="button" onClick={() => setShowFeatured((value) => !value)}>{showFeatured ? "收起精选" : "展开精选"}</button></div>
-                </header>
-                <div className={styles.featuredGrid}>
-                  {featured.map((stock, index) => (
-                    <article className={`${styles.featuredCard} ${index === 0 ? styles.leadingCard : ""}`} key={`${stock.market}-${stock.symbol}`}>
-                      <div className={styles.cardTopline}><span>{stock.signal}</span><em>{stock.sector}</em><small>#{index + 1}</small></div>
-                      <div className={styles.stockHeadline}>
-                        <div><strong>{stock.name}</strong><span>{stock.symbol} · {stock.exchange}</span></div>
-                        <div><b>{currencySymbol(stock)}{stock.price.toFixed(2)}</b><em className={changeClass(stock.change, styles)}>{signedPercent(stock.change)}</em></div>
-                      </div>
-                      <div className={styles.scoreLine}>
-                        <div className={styles.scoreOrb}><strong>{stock.score}</strong><span>机会评分</span></div>
-                        <div><strong>{recommendationIcon(stock.recommendation)} {stock.recommendation}</strong><span>信号一致性 {stock.confidence}%</span></div>
-                      </div>
-                      <div className={styles.cardMetrics}>
-                        <span><small>量能</small><strong>{stock.volumeRatio.toFixed(2)}x</strong></span>
-                        <span><small>价格位置</small><strong>{stock.closePosition.toFixed(1)}%</strong></span>
-                        <span><small>风险</small><strong className={riskClass(stock.risk, styles)}>{stock.risk}</strong></span>
-                      </div>
-                      <p className={styles.cardReason}>{stock.reasons[0]}</p>
-                      <div className={styles.cardActions}>
-                        <button type="button" onClick={() => addToWatchlist(stock)}>{isWatched(stock) ? "★ 已自选" : "☆ 加入自选"}</button>
-                        <button type="button" onClick={() => toggleResearchPool(stock)}>{isObserved(stock) ? "✓ 已观察" : "+ 观察池"}</button>
-                        <button type="button" onClick={() => setSelected(stock)}>查看机会计划 <span>→</span></button>
-                      </div>
-                    </article>
-                  ))}
-                  {!featured.length ? <div className={styles.emptyState}><strong>当前没有达到精选阈值的标的</strong><span>可在策略股票池中降低评分门槛继续查看。</span></div> : null}
-                </div>
-              </section>
-
-              <section className={styles.stockPool} aria-labelledby="stock-pool-title">
-                <header className={styles.poolHeader}>
-                  <div><span>STRATEGY POOL</span><h2 id="stock-pool-title">策略股票池</h2></div>
-                  <p>默认按机会评分排序 · 点击股票查看因子、风险与模型区间</p>
-                </header>
-
-                <div className={styles.strategyTabs} role="tablist" aria-label="选股策略">
-                  {strategyTabs[market].map((tab) => {
-                    const count = eligibleStocks.filter((stock) => stock.strategies.includes(tab)).length;
-                    return <button key={tab} className={strategy === tab ? styles.activeTab : ""} type="button" role="tab" aria-selected={strategy === tab} onClick={() => setStrategy(tab)}>{tab}<small>{count}</small></button>;
-                  })}
-                </div>
-
-                <div className={styles.filters}>
-                  <label><span>板块/题材</span><select value={theme} onChange={(event) => setTheme(event.target.value)}><option>全部题材</option>{availableThemes.map((item) => <option key={item}>{item}</option>)}</select></label>
-                  <label><span>最低评分</span><select value={minimumScore} onChange={(event) => setMinimumScore(Number(event.target.value))}><option value={60}>60+</option><option value={70}>70+</option><option value={80}>80+</option><option value={90}>90+</option></select></label>
-                  <label><span>最高风险</span><select value={maximumRisk} onChange={(event) => setMaximumRisk(Number(event.target.value))}><option value={100}>不限</option><option value={70}>≤ 70</option><option value={55}>≤ 55</option><option value={40}>≤ 40</option></select></label>
-                  <label><span>最低成交额</span><select value={minimumAmount} onChange={(event) => setMinimumAmount(Number(event.target.value))}><option value={0}>不限</option><option value={market === "CN" ? 50_000_000 : 10_000_000}>{market === "CN" ? "0.5亿+" : "$10M+"}</option><option value={market === "CN" ? 100_000_000 : 50_000_000}>{market === "CN" ? "1亿+" : "$50M+"}</option><option value={market === "CN" ? 500_000_000 : 200_000_000}>{market === "CN" ? "5亿+" : "$200M+"}</option></select></label>
-                  <label><span>市值范围</span><select value={marketCapFilter} onChange={(event) => setMarketCapFilter(event.target.value as MarketCapFilter)}><option value="all">全部市值</option><option value="small">中小盘</option><option value="mid">中盘</option><option value="large">大盘</option></select></label>
-                  <label><span>最低盈亏比</span><select value={minimumRewardRisk} onChange={(event) => setMinimumRewardRisk(Number(event.target.value))}><option value={0}>不限</option><option value={1.2}>1.2R+</option><option value={1.5}>1.5R+</option><option value={2}>2.0R+</option></select></label>
-                  {market === "US" ? <label><span>证券类型</span><select value={securityType} onChange={(event) => setSecurityType(event.target.value as "全部" | ScreenerSecurityType)}><option>全部</option><option>股票</option><option>ETF</option><option>信托</option><option>杠杆ETF</option></select></label> : null}
-                  <label><span>排序</span><select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">机会评分</option><option value="confidence">信号一致性</option><option value="relativeStrength">相对强弱</option><option value="rewardRisk">计划盈亏比</option><option value="change">涨幅</option><option value="volume">量能</option></select></label>
-                  {market === "US" ? <button className={`${styles.qualityToggle} ${qualityGate ? styles.qualityToggleActive : styles.qualityToggleRisk}`} type="button" onClick={() => setQualityGate((value) => !value)} aria-pressed={qualityGate}><i />{qualityGate ? "标准质量门槛" : "扩展池 · 含高风险证券"}</button> : null}
-                  <div className={styles.filterActions}><button type="button" onClick={applyProfessionalPreset}>专业预设</button><button type="button" onClick={clearFilters}>清空条件</button></div>
-                  <span className={styles.resultCount}>{visibleStocks.length} 只符合条件</span>
-                </div>
-
-                <div className={styles.filterStateBar} aria-label="当前筛选条件">
-                  <div className={styles.activeFilters}><strong>当前条件 {activeFilterChips.length ? `(${activeFilterChips.length})` : ""}</strong>{activeFilterChips.length ? activeFilterChips.map((item) => <button key={item.key} type="button" onClick={item.clear}>{item.label}<span aria-hidden="true">×</span></button>) : <span>使用默认门槛</span>}</div>
-                  <div className={styles.presetManager}>
-                    <select aria-label="已保存筛选方案" value={selectedPresetId} onChange={(event) => loadNamedPreset(event.target.value)}><option value="">选择保存方案</option>{marketPresets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
-                    <input aria-label="筛选方案名称" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="方案名称" />
-                    <button type="button" onClick={saveNamedPreset}>{selectedPresetId ? "更新/重命名" : "保存方案"}</button>
-                    <button type="button" onClick={deleteNamedPreset} disabled={!selectedPresetId}>删除</button>
-                  </div>
-                </div>
-
-                {market === "US" && !qualityGate ? <div className={styles.expandedPoolWarning} role="status"><strong>扩展池已开启</strong><span>结果可能包含低流动性、小市值、信托或杠杆ETF；每只扩展证券都会标记风险层级。</span><button type="button" onClick={() => setQualityGate(true)}>恢复标准门槛</button></div> : null}
-
-                {compareStocks.length ? <ComparePanel stocks={compareStocks} onRemove={toggleCompare} onOpen={setSelected} /> : null}
-
-                <div className={styles.tableWrap}>
-                  <table aria-label="策略股票池桌面表格">
-                    <thead><tr><th className={styles.stockSticky}>股票</th><th>核心信号</th><th>价格 / 涨幅</th><th>量能 / 市值</th><th>20日相对强弱</th><th>机会评分</th><th className={styles.decisionSticky}>风险 · 计划 · 操作</th></tr></thead>
-                    <tbody>{visibleStocks.map((stock) => (
-                      <tr key={`${stock.market}-${stock.symbol}`} className={stock.qualityTier === "expanded" ? styles.expandedRow : ""}>
-                        <td className={styles.stockSticky}><div className={styles.stockCell}><span>{stock.name.slice(0, 1)}</span><div><strong title={stock.name}>{shortStockName(stock)}</strong><small>{stock.symbol} · {stock.exchange} · {stock.securityType}</small>{stock.qualityTier === "expanded" ? <em>扩展池</em> : null}</div></div></td>
-                        <td><strong className={styles.signalLabel}>{stock.signal}</strong><small className={styles.sectorLabel}>{stock.sector}</small>{stock.limitDetail ? <small className={styles.limitMeta}>封 {stock.limitDetail.first} · 炸 {stock.limitDetail.burstCount} · {stock.limitDetail.shape}</small> : null}</td>
-                        <td><strong>{currencySymbol(stock)}{stock.price.toFixed(2)}</strong><small className={changeClass(stock.change, styles)}>{signedPercent(stock.change)}</small></td>
-                        <td><strong>{stock.volumeRatio.toFixed(2)}x · 换手 {stock.turnover.toFixed(1)}%</strong><small>{stock.amount} · {formatMarketCap(stock.marketCap, stock.market)}</small></td>
-                        <td><strong className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</strong><small>个股 {signedPercent(stock.return20)} / 基准 {signedPercent(stock.benchmarkReturn20)}</small></td>
-                        <td><div className={styles.tableScore}><strong>{stock.score}</strong><span><i style={{ width: `${stock.score}%` }} /></span></div></td>
-                        <td className={styles.decisionSticky}><div className={styles.decisionCell}><div><strong className={riskClass(stock.risk, styles)}>风险 {stock.risk}</strong><span>{stock.plan.rewardRisk.toFixed(2)}R · 仓位≤{stock.plan.suggestedPositionPercent.toFixed(1)}%</span></div><strong>{recommendationIcon(stock.recommendation)} {stock.recommendation}<small>{stock.confidence}% 一致性</small></strong><div className={styles.rowTools}><button type="button" onClick={() => setSelected(stock)} aria-label={`查看${stock.name}机会详情`}>详情</button><button type="button" aria-pressed={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onClick={() => toggleCompare(stock)}>对比</button><button type="button" onClick={() => addToWatchlist(stock)} aria-label={`${isWatched(stock) ? "置顶" : "加入"}${stock.name}自选`}>{isWatched(stock) ? "★" : "☆"}</button></div></div></td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-                <div className={styles.mobileOpportunityList} aria-label="策略股票池移动端卡片">
-                  {visibleStocks.map((stock) => <MobileOpportunityCard key={`${stock.market}-${stock.symbol}`} stock={stock} watched={isWatched(stock)} observed={isObserved(stock)} compared={compareKeys.includes(`${stock.market}:${stock.symbol}`)} onOpen={() => setSelected(stock)} onWatch={() => addToWatchlist(stock)} onObserve={() => toggleResearchPool(stock)} onCompare={() => toggleCompare(stock)} />)}
-                </div>
-                {!visibleStocks.length ? <div className={styles.emptyState}><strong>当前条件下没有真实行情候选</strong><span>可一键恢复默认门槛，或保留当前条件切换策略。</span><button type="button" onClick={clearFilters}>一键放宽条件</button></div> : null}
-              </section>
-            </div>
-
-            <aside className={styles.insightRail} aria-label="市场结构与热门板块">
-              <section className={styles.ladderCard}>
-                <header><div><span>{market === "CN" ? "LIMIT-UP LADDER" : "US QUALITY GATE"}</span><h2>{feed.structure.title}</h2></div><strong>{feed.structure.badge}</strong></header>
-                {market === "CN" ? <div className={styles.ladder}>{feed.structure.rows.map((row) => <div key={row.level}><strong>{row.level}</strong><span>{row.names.map((name) => <button type="button" key={name}>{name}</button>)}</span></div>)}</div>
-                  : <div className={styles.qualityRules}>{feed.structure.rows.map((row) => <span key={row.level}><i />{row.level} {row.names.join(" · ")}</span>)}</div>}
-                <dl className={styles.ladderStats}>{feed.structure.stats.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>
-                <p>{feed.structure.note}</p>
-              </section>
-
-              <section className={styles.themeCard}>
-                <header><div><span>MARKET THEMES</span><h2>{market === "CN" ? "涨停板块热度" : "行业热度"}</h2></div><small>真实样本聚合</small></header>
-                {market === "US" ? <div className={styles.securityTypeHeat}><strong>证券类型热度</strong><div>{securityTypeThemes.map((item) => <button type="button" key={item.name} onClick={() => setSecurityType(item.name)}><span>{item.name}</span><b>{item.count}</b></button>)}</div></div> : null}
-                <ol>{industryThemes.map((item, index) => <li key={item.name}><button type="button" onClick={() => setTheme(item.name)}><b>{index + 1}</b><span><strong>{item.name}</strong><small>{"●".repeat(item.heat)}<i>{"●".repeat(5 - item.heat)}</i></small></span><em className={changeClass(item.change, styles)}>{signedPercent(item.change)}<small>{item.count} 个样本</small></em></button></li>)}</ol>
-              </section>
+            </section>
+          </details>
 
               <section className={styles.scaleCard}>
                 <span>SCORE GUIDE</span><h2>机会评分说明</h2>
@@ -550,23 +628,10 @@ export default function ScreenerPage() {
                 <p>机会评分衡量价格结构质量；信号一致性衡量因子闭环程度；最终建议还会被风险、乖离和流动性降级，因此高评分不必然等于“强烈关注”。两者都不是上涨概率，也不代表公司长期价值。</p>
               </section>
 
-              <section className={styles.researchPoolCard} id="research-pool">
-                <header><div><span>RESEARCH POOL</span><h2>研究观察池</h2></div><strong>{marketResearchPool.length}</strong></header>
-                <div className={styles.researchPoolList}>
-                  {marketResearchPool.slice(0, 8).map((item) => <button key={`${item.market}-${item.symbol}`} type="button" onClick={() => {
-                    const stock = marketStocks.find((candidate) => candidate.symbol === item.symbol);
-                    if (stock) setSelected(stock);
-                  }}><span><strong>{item.name}</strong><small>{item.symbol} · {item.sector} · {researchDateLabel(item.addedAt)}</small></span><em>{item.score}<small>风险 {item.risk}</small></em></button>)}
-                  {!marketResearchPool.length ? <p>从候选卡片或机会详情加入。线索保留 30 天，过期后自动归档，不与持仓自选混用。</p> : null}
-                </div>
-                {marketResearchPool.length ? <dl><div><dt>平均风险</dt><dd>{Math.round(averageNumber(marketResearchPool.map((item) => item.risk)))}</dd></div><div><dt>集中方向</dt><dd>{dominantSector(marketResearchPool)}</dd></div></dl> : null}
-              </section>
-            </aside>
-          </div>
-
+          </WorkspacePanel>
           <footer className={styles.disclaimer}>
             <strong>数据说明</strong>
-            <span>行情来自{feed.source}，采集时间 {formatFetchedAt(feed.fetchedAt)}；公开免费行情可能延时、缺失或在休市时停留于最近交易日。评分、信号一致性、历史滚动样本与机会区间由规则模型基于真实行情计算，不是上涨概率或交易指令；仓位按单笔账户风险 {defaultRiskPerTradeLabel()} 估算，不构成投资建议。 {feed.sourceLinks.map((link, index) => <span key={link.url}>{index ? " · " : ""}<a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></span>)}</span>
+            <span>行情来自{feed.source}，采集时间 {formatFetchedAt(feed.fetchedAt)}；公开免费行情可能延时、缺失或在休市时停留于最近交易日。评分、信号一致性、主升/建仓迹象、历史滚动样本与机会区间由规则模型基于真实行情计算，不是上涨概率、资金账户识别或交易指令；仓位按单笔账户风险 {defaultRiskPerTradeLabel()} 估算，不构成投资建议。 {feed.sourceLinks.map((link, index) => <span key={link.url}>{index ? " · " : ""}<a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></span>)}</span>
           </footer>
         </> : null}
       </main>
@@ -588,17 +653,28 @@ function CompactCandidateCard({ stock, rank, watched, observed, compared, onOpen
       <span><small>计划盈亏比</small><strong>{stock.plan.rewardRisk.toFixed(2)}R</strong></span>
     </div>
     <p>{recommendationIcon(stock.recommendation)} {stock.recommendation} · {stock.confidence}% 一致性；{recommendationReason(stock)}</p>
-    <div className={styles.compactCandidateActions}><button type="button" onClick={onOpen}>查看计划</button><button type="button" aria-pressed={compared} onClick={onCompare}>{compared ? "已对比" : "+ 对比"}</button><button type="button" onClick={onObserve}>{observed ? "✓ 已观察" : "+ 观察"}</button><button type="button" onClick={onWatch} aria-label={`${watched ? "置顶" : "加入"}${stock.name}自选`}>{watched ? "★" : "☆"}</button></div>
+    <div className={styles.compactCandidateActions}><button type="button" onClick={onOpen}>查看计划</button><button type="button" aria-pressed={compared} onClick={onCompare}>{compared ? "已对比" : "+ 对比"}</button><button type="button" aria-pressed={observed} onClick={onObserve}>{observed ? "✓ 已观察" : "+ 观察"}</button><button type="button" onClick={onWatch} aria-label={`${watched ? "置顶" : "加入"}${stock.name}自选`}>{watched ? "★" : "☆"}</button></div>
   </article>;
 }
 
-function MobileOpportunityCard({ stock, watched, observed, compared, onOpen, onWatch, onObserve, onCompare }: { stock: ScreenerOpportunity; watched: boolean; observed: boolean; compared: boolean; onOpen: () => void; onWatch: () => void; onObserve: () => void; onCompare: () => void }) {
+function MobileOpportunityCard({ stock, detailed, watched, observed, compared, onOpen, onWatch, onObserve, onCompare }: { stock: ScreenerOpportunity; detailed: boolean; watched: boolean; observed: boolean; compared: boolean; onOpen: () => void; onWatch: () => void; onObserve: () => void; onCompare: () => void }) {
   return <article className={`${styles.mobileOpportunityCard} ${stock.qualityTier === "expanded" ? styles.expandedRow : ""}`}>
     <header><div><strong title={stock.name}>{stock.symbol}</strong><span title={stock.name}>{shortStockName(stock)}</span></div><div><strong>{currencySymbol(stock)}{stock.price.toFixed(2)}</strong><em className={changeClass(stock.change, styles)}>{signedPercent(stock.change)}</em></div></header>
     <div className={styles.mobileBadges}><span>{stock.signal}</span><span>{stock.securityType}</span>{stock.qualityTier === "expanded" ? <span className={styles.expandedBadge}>扩展池</span> : null}<span>{stock.sector}</span></div>
-    <dl><div><dt>机会评分</dt><dd>{stock.score}</dd></div><div><dt>风险</dt><dd className={riskClass(stock.risk, styles)}>{stock.risk}</dd></div><div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div><div><dt>盈亏比</dt><dd>{stock.plan.rewardRisk.toFixed(2)}R</dd></div><div><dt>成交/量能</dt><dd>{stock.amount} · {stock.volumeRatio.toFixed(2)}x</dd></div><div><dt>建议仓位</dt><dd>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</dd></div></dl>
+    <dl>
+      <div><dt>机会评分</dt><dd>{stock.score}</dd></div>
+      <div><dt>风险</dt><dd className={riskClass(stock.risk, styles)}>{stock.risk}</dd></div>
+      <div><dt>盈亏比</dt><dd>{stock.plan.rewardRisk.toFixed(2)}R</dd></div>
+      <div><dt>建议仓位</dt><dd>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</dd></div>
+      {detailed ? <>
+        <div><dt>主升阶段</dt><dd>{stock.phaseAnalysis.mainUptrend.score} · {stock.phaseAnalysis.mainUptrend.stage}</dd></div>
+        <div><dt>建仓阶段</dt><dd>{stock.phaseAnalysis.accumulation.score} · {stock.phaseAnalysis.accumulation.stage}</dd></div>
+        <div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div>
+        <div><dt>成交/量能</dt><dd>{stock.amount} · {stock.volumeRatio.toFixed(2)}x</dd></div>
+      </> : null}
+    </dl>
     <p><strong>{recommendationIcon(stock.recommendation)} {stock.recommendation}</strong><span>{stock.confidence}% 一致性 · {recommendationReason(stock)}</span></p>
-    <footer><button type="button" onClick={onOpen}>查看详情</button><button type="button" aria-pressed={compared} onClick={onCompare}>{compared ? "移出对比" : "+ 对比"}</button><button type="button" onClick={onObserve}>{observed ? "✓ 已观察" : "+ 观察"}</button><button type="button" onClick={onWatch}>{watched ? "★ 已自选" : "☆ 自选"}</button></footer>
+    <footer><button type="button" onClick={onOpen}>查看详情</button><button type="button" aria-pressed={compared} onClick={onCompare}>{compared ? "移出对比" : "+ 对比"}</button><button type="button" aria-pressed={observed} onClick={onObserve}>{observed ? "✓ 已观察" : "+ 观察"}</button><button type="button" onClick={onWatch}>{watched ? "★ 已自选" : "☆ 自选"}</button></footer>
   </article>;
 }
 
@@ -614,9 +690,58 @@ function ComparePanel({ stocks, onRemove, onOpen }: { stocks: ScreenerOpportunit
   </section>;
 }
 
+function useScreenerDialog(onClose: () => void) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const backdrop = dialog.parentElement;
+    const siblings = Array.from(backdrop?.parentElement?.children ?? [])
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== backdrop);
+    const previousInert = siblings.map((element) => element.inert);
+    siblings.forEach((element) => { element.inert = true; });
+    document.body.style.overflow = "hidden";
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex="0"]'))
+      .filter((element) => element.getClientRects().length > 0);
+    (focusable()[0] ?? dialog).focus({ preventScroll: true });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeRef.current();
+      }
+      if (event.key === "Tab") {
+        const elements = focusable();
+        const first = elements[0];
+        const last = elements.at(-1);
+        if (!first || !last) { event.preventDefault(); dialog.focus(); return; }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+          event.preventDefault(); first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.body.style.overflow = previousOverflow;
+      siblings.forEach((element, index) => { element.inert = previousInert[index]; });
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, []);
+  return dialogRef;
+}
+
 function EvidenceMethodDialog({ item, market, onClose }: { item: ScreenerStrategyEvidence; market: ScreenerMarket; onClose: () => void }) {
+  const dialogRef = useScreenerDialog(onClose);
   return <div className={styles.methodBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className={styles.methodDialog} role="dialog" aria-modal="true" aria-labelledby="method-title">
+    <section ref={dialogRef} tabIndex={-1} className={styles.methodDialog} role="dialog" aria-modal="true" aria-labelledby="method-title">
       <header><div><span>METHOD DISCLOSURE</span><h2 id="method-title">{item.strategy} · 证据口径</h2></div><button type="button" onClick={onClose} aria-label="关闭证据口径">×</button></header>
       <p>{item.methodology}</p>
       <dl><div><dt>观察窗口</dt><dd>{item.window}</dd></div><div><dt>事件样本</dt><dd>{item.sampleSize} 次信号触发</dd></div><div><dt>市场基准</dt><dd>{market === "CN" ? "沪深300" : "SPY"}（用于个股相对强弱，不参与本卡收益计算）</dd></div><div><dt>交易成本</dt><dd>未扣佣金、税费、滑点与冲击成本</dd></div></dl>
@@ -627,7 +752,7 @@ function EvidenceMethodDialog({ item, market, onClose }: { item: ScreenerStrateg
 }
 
 function LoadingState({ market }: { market: ScreenerMarket }) {
-  return <section className={styles.dataState} aria-live="polite"><div className={styles.spinner} /><strong>正在扫描{market === "CN" ? "沪深京全市场" : "美股涨幅榜与日K"}</strong><span>公开行情接口返回速度会随市场时段变化，首次加载通常需要数秒。</span></section>;
+  return <section className={styles.dataState} role="status" aria-live="polite"><div className={styles.spinner} aria-hidden="true" /><strong>正在扫描{market === "CN" ? "沪深京全市场" : "美股涨幅榜与日K"}</strong><span>公开行情接口返回速度会随市场时段变化，首次加载通常需要数秒。</span></section>;
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -636,9 +761,10 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 function OpportunityDrawer({ stock, watched, observed, onClose, onAdd, onObserve }: { stock: ScreenerOpportunity; watched: boolean; observed: boolean; onClose: () => void; onAdd: () => void; onObserve: () => void }) {
   const [activeSection, setActiveSection] = useState<"structure" | "evidence" | "plan">("structure");
+  const dialogRef = useScreenerDialog(onClose);
   return (
     <div className={styles.drawerBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <aside className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <aside ref={dialogRef} tabIndex={-1} className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="drawer-title">
         <header className={styles.drawerHeader}>
           <div><span>{stock.exchange} · {stock.signal}</span><h2 id="drawer-title">{stock.name} <small>{stock.symbol}</small></h2></div>
           <button type="button" onClick={onClose} aria-label="关闭机会详情">×</button>
@@ -652,25 +778,29 @@ function OpportunityDrawer({ stock, watched, observed, onClose, onAdd, onObserve
 
         {activeSection === "structure" ? <>
           <MiniOpportunityChart stock={stock} />
-          {stock.risk >= 60 ? <div className={styles.chaseWarning}><strong>⚠ 强势，但不建议当前位置追高</strong><span>风险评分 {stock.risk}，等待价格回落或突破确认后再评估风险收益比。</span></div> : null}
+          {stock.risk >= 60 || stock.phaseAnalysis.mainUptrend.overheat ? <div className={styles.chaseWarning}><strong>⚠ 强势，但不建议当前位置追高</strong><span>{stock.phaseAnalysis.mainUptrend.overheat ? stock.phaseAnalysis.mainUptrend.gateReason : `风险评分 ${stock.risk}`}，等待价格回落或突破确认后再评估风险收益比。</span></div> : null}
           <section className={styles.drawerSection}><header><h3>因子拆解</h3><span>信号一致性 <strong>{stock.confidence}%</strong> · 风险 <strong className={riskClass(stock.risk, styles)}>{stock.risk}</strong></span></header><div className={styles.factorGrid}>{stock.factorScores.map((factor) => <div key={factor.label}><span>{factor.label}<strong>{factor.value}</strong></span><i><b style={{ width: `${factor.value}%` }} /></i></div>)}</div><p className={styles.recommendationExplanation}>{recommendationReason(stock)}</p></section>
-          <section className={styles.drawerSection}><header><h3>相对强弱与交易参数</h3><span>基准：{stock.market === "CN" ? "沪深300" : "SPY"}</span></header><dl className={styles.professionalMetrics}><div><dt>20日个股</dt><dd className={changeClass(stock.return20, styles)}>{signedPercent(stock.return20)}</dd></div><div><dt>20日基准</dt><dd className={changeClass(stock.benchmarkReturn20, styles)}>{signedPercent(stock.benchmarkReturn20)}</dd></div><div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div><div><dt>ATR / 波幅</dt><dd>{currencySymbol(stock)}{stock.plan.atr.toFixed(2)} / {stock.plan.atrPercent.toFixed(2)}%</dd></div></dl></section>
+          <section className={styles.drawerSection}><header><h3>相对强弱与交易参数</h3><span>基准：{stock.market === "CN" ? "沪深300" : "SPY"}</span></header><dl className={styles.professionalMetrics}><div><dt>20日个股</dt><dd className={changeClass(stock.return20, styles)}>{signedPercent(stock.return20)}</dd></div><div><dt>20日基准</dt><dd className={changeClass(stock.benchmarkReturn20, styles)}>{signedPercent(stock.benchmarkReturn20)}</dd></div><div><dt>相对强弱</dt><dd className={changeClass(stock.relativeStrength20, styles)}>{signedPercent(stock.relativeStrength20)}</dd></div><div><dt>价格位置</dt><dd>{stock.closePosition.toFixed(1)}%</dd></div><div><dt>ATR / 波幅</dt><dd>{currencySymbol(stock)}{stock.plan.atr.toFixed(2)} / {stock.plan.atrPercent.toFixed(2)}%</dd></div></dl></section>
         </> : null}
 
         {activeSection === "evidence" ? <>
+          <section className={styles.drawerSection}><header><h3>主升与建仓迹象</h3><span>规则迹象评分 · 非统计概率</span></header><div className={styles.phaseAssessmentGrid}>
+            <article><header><div><strong>主升行情 · {stock.phaseAnalysis.mainUptrend.stage}</strong><span>{stock.phaseAnalysis.mainUptrend.summary}</span></div><b>{stock.phaseAnalysis.mainUptrend.score}<small>原始 {stock.phaseAnalysis.mainUptrend.rawScore}</small></b></header><i><b style={{ width: `${stock.phaseAnalysis.mainUptrend.score}%` }} /></i><p>{stock.phaseAnalysis.mainUptrend.gateReason} · {stock.phaseAnalysis.mainUptrend.rankLabel}</p><ul>{stock.phaseAnalysis.mainUptrend.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><p>{stock.phaseAnalysis.mainUptrend.warning}</p></article>
+            <article><header><div><strong>建仓观察 · {stock.phaseAnalysis.accumulation.stage}</strong><span>{stock.phaseAnalysis.accumulation.summary}</span></div><b>{stock.phaseAnalysis.accumulation.score}<small>原始 {stock.phaseAnalysis.accumulation.rawScore}</small></b></header><i><b style={{ width: `${stock.phaseAnalysis.accumulation.score}%` }} /></i><p>{stock.phaseAnalysis.accumulation.gateReason} · {stock.phaseAnalysis.accumulation.rankLabel}</p><ul>{stock.phaseAnalysis.accumulation.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><p>{stock.phaseAnalysis.accumulation.warning}</p></article>
+          </div></section>
           {stock.limitDetail ? <section className={styles.drawerSection}><header><h3>涨停质量</h3><span>东方财富涨停池字段</span></header><dl className={styles.professionalMetrics}><div><dt>板型</dt><dd>{stock.limitDetail.shape}</dd></div><div><dt>首次 / 最终封板</dt><dd>{stock.limitDetail.first} / {stock.limitDetail.last}</dd></div><div><dt>炸板次数</dt><dd>{stock.limitDetail.burstCount}</dd></div><div><dt>封单 / 流通市值</dt><dd>{stock.limitDetail.sealFund} / {stock.limitDetail.sealFundRatio.toFixed(2)}%</dd></div><div><dt>封板强度</dt><dd>{stock.limitDetail.strength} / 100</dd></div></dl></section> : null}
           <section className={styles.drawerSection}><header><h3>为什么进入候选池</h3><span>{stock.themes.join(" · ")}</span></header><ul className={styles.reasonList}>{stock.reasons.map((reason) => <li key={reason}><i>✓</i>{reason}</li>)}</ul></section>
           <section className={styles.drawerSection}><header><h3>主要风险</h3><span>先看风险，再看空间</span></header><ul className={styles.riskList}>{stock.risks.map((risk) => <li key={risk}><i>!</i>{risk}</li>)}</ul></section>
         </> : null}
 
         {activeSection === "plan" ? <>
-          <section className={`${styles.drawerSection} ${styles.tradePlan}`}><header><h3>机会计划</h3><span>规则模型区间 · 非交易指令</span></header><dl><div><dt>建议关注</dt><dd>{stock.plan.watch}</dd></div><div><dt>突破确认</dt><dd>{stock.plan.breakout}</dd></div><div><dt>风险失效</dt><dd>{stock.plan.stop}</dd></div><div><dt>观察目标</dt><dd>{stock.plan.targets}</dd></div></dl><div className={styles.positionPlan}><span><small>计划止损距离</small><strong>{stock.plan.stopDistancePercent.toFixed(2)}%</strong></span><span><small>目标1盈亏比</small><strong>{stock.plan.rewardRisk.toFixed(2)}R</strong></span><span><small>单笔账户风险</small><strong>{stock.plan.riskPerTradePercent.toFixed(1)}%</strong></span><span><small>建议仓位上限</small><strong>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</strong></span></div></section>
+          <section className={`${styles.drawerSection} ${styles.tradePlan}`}><header><h3>机会计划</h3><span>规则模型区间 · 非交易指令</span></header><dl><div><dt>建议关注</dt><dd>{stock.plan.watch}</dd></div><div><dt>突破确认</dt><dd>{stock.plan.breakout}</dd></div><div><dt>风险失效 / 初始风险位</dt><dd>{stock.plan.stop}</dd></div><div><dt>观察目标</dt><dd>{stock.plan.targets}</dd></div><div><dt>移动保护</dt><dd>{stock.plan.trailingStop}</dd></div><div><dt>退出纪律</dt><dd>{stock.plan.exitRule}</dd></div></dl><div className={styles.positionPlan}><span><small>计划止损距离</small><strong>{stock.plan.stopDistancePercent.toFixed(2)}%</strong></span><span><small>目标1盈亏比</small><strong>{stock.plan.rewardRisk.toFixed(2)}R</strong></span><span><small>单笔账户风险</small><strong>{stock.plan.riskPerTradePercent.toFixed(1)}%</strong></span><span><small>建议仓位上限</small><strong>≤ {stock.plan.suggestedPositionPercent.toFixed(1)}%</strong></span></div></section>
           <div className={styles.drawerAudit}>日K截止 {stock.audit.lastBarDate} · {stock.audit.barCount} 条样本 · 完整度 {stock.audit.completeness}% · 规则版本 {stock.audit.modelVersion}</div>
         </> : null}
 
         <div className={styles.drawerActions}>
           <button type="button" onClick={onAdd}>{watched ? "★ 已在自选 · 置顶" : "☆ 加入自选"}</button>
-          <button type="button" onClick={onObserve}>{observed ? "✓ 移出研究观察池" : "+ 加入研究观察池"}</button>
+          <button type="button" aria-pressed={observed} onClick={onObserve}>{observed ? "✓ 移出研究观察池" : "+ 加入研究观察池"}</button>
           <Link href={`/?stock=${encodeURIComponent(stockRouteKey({ code: stock.symbol, market: stock.market }))}`}>查看完整个股分析 <span>→</span></Link>
         </div>
       </aside>

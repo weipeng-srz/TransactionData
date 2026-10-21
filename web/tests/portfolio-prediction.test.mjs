@@ -4,7 +4,10 @@ import test from "node:test";
 
 import { buildPortfolioPredictionConclusion } from "../app/lib/portfolioPrediction.ts";
 
-const portfolioSource = readFileSync(new URL("../app/components/PortfolioHome.tsx", import.meta.url), "utf8");
+const portfolioSource = [
+  "../app/components/PortfolioHome.tsx",
+  "../app/features/portfolio/PortfolioStockList.tsx",
+].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
 
 test("maps detailed model decisions to the four portfolio actions", () => {
   const cases = [

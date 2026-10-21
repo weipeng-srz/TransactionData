@@ -5,6 +5,53 @@
   gap: 4px;
 }
 
+.regimeBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--apple-border);
+  border-radius: 999px;
+  color: var(--apple-secondary);
+  background: var(--apple-surface-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.active { color: var(--apple-fall); }
+.watch { color: var(--apple-warning); }
+.weak { color: var(--apple-rise); }
+.insufficient { color: var(--apple-tertiary); }
+
+.directionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.directionHero {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--apple-accent) 28%, var(--apple-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--apple-accent) 5%, var(--apple-surface));
+}
+
+.directionHero > span,
+.directionHero small { color: var(--apple-secondary); }
+.directionHero strong { font: 760 24px var(--apple-mono); }
+.directionHero small { line-height: 1.45; }
+
+.warningHero {
+  border-color: color-mix(in srgb, var(--apple-warning) 28%, var(--apple-border));
+  background: color-mix(in srgb, var(--apple-warning) 5%, var(--apple-surface));
+}
+
+.warningRow { background: color-mix(in srgb, var(--apple-warning) 4%, transparent); }
+
 .headingControls + div {
   min-width: 0;
   display: flex;
@@ -24,7 +71,7 @@
   border-radius: 10px;
   color: var(--apple-secondary);
   background: color-mix(in srgb, var(--apple-surface-soft) 78%, transparent);
-  font-size: 10px;
+  font-size: 11px;
   box-shadow: inset 0 1px color-mix(in srgb, #fff 34%, transparent);
 }
 
@@ -51,6 +98,7 @@
 }
 
 @media (max-width: 560px) {
+  .directionGrid { grid-template-columns: 1fr; }
   .headingControls + div {
     width: 100%;
     justify-content: space-between;
@@ -58,4 +106,27 @@
 
   .costControl { min-height: 44px; }
   .costControl input { min-height: 36px; }
+}
+
+/* Apple Design craft pass: make cost assumptions clear and tactile. */
+.costControl {
+  border-color: var(--apple-control-stroke);
+  background: var(--apple-control-fill);
+  box-shadow: none;
+  transition:
+    border-color var(--apple-motion-fast) var(--apple-motion-curve),
+    background-color var(--apple-motion-fast) var(--apple-motion-curve),
+    box-shadow var(--apple-motion-fast) var(--apple-motion-curve);
+}
+
+.costControl:focus-within {
+  border-color: color-mix(in srgb, var(--apple-accent) 60%, var(--apple-control-stroke));
+  background: var(--apple-control-fill-hover);
+  box-shadow: var(--apple-focus-ring);
+}
+
+.costControl input:focus-visible {
+  outline: 2px solid var(--apple-accent);
+  outline-offset: 2px;
+  box-shadow: var(--apple-focus-ring);
 }

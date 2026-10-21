@@ -4,7 +4,7 @@ import test from "node:test";
 import { emptyFinancialDataset } from "../app/lib/financials.ts";
 import { aggregateCandles, calculateIndicators, createDemoDataset } from "../app/lib/market.ts";
 import { backtestGuideSignals } from "../app/lib/research.ts";
-import { buildStockScore } from "../app/lib/stockScore.ts";
+import { aggregateStockScore, buildStockScore } from "../app/lib/stockScore.ts";
 
 const dataset = createDemoDataset();
 const code = dataset.codes[0];
@@ -156,4 +156,17 @@ test("does not reward negative PEG values or institutional ownership as growth",
   assert.equal(growth?.coverage, 0);
   assert.equal(growth?.score, 50);
   assert.ok(valuation?.reasons.some((reason) => reason.text.includes("负值不支持常规成长估值")));
+});
+
+test("uses calibrated research weights and penalizes simultaneous trend-momentum overheating", () => {
+  const neutral = ["trend", "momentum", "capital", "profitability", "growth", "valuation", "sentiment", "risk"]
+    .map((key) => ({ key, score: 50 }));
+  const valuationLed = neutral.map((item) => ({ ...item, score: item.key === "valuation" ? 90 : item.score }));
+  const trendLed = neutral.map((item) => ({ ...item, score: item.key === "trend" ? 90 : item.score }));
+  const overheated = neutral.map((item) => ({ ...item, score: item.key === "trend" || item.key === "momentum" ? 80 : item.score }));
+  const notOverheated = neutral.map((item) => ({ ...item, score: item.key === "trend" || item.key === "momentum" ? 71 : item.score }));
+
+  assert.ok(aggregateStockScore(valuationLed, 100) > aggregateStockScore(trendLed, 100));
+  assert.ok(aggregateStockScore(overheated, 100) < aggregateStockScore(notOverheated, 100));
+  assert.ok(aggregateStockScore(valuationLed, 40) < aggregateStockScore(valuationLed, 100));
 });

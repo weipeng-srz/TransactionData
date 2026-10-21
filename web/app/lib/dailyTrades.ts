@@ -43,6 +43,10 @@ export function normalizeDailyTradesRequest(value: unknown): DailyTradesRequest 
 }
 
 export async function fetchDailyTradesCsv(request: DailyTradesRequest): Promise<string> {
+  // The primary feed contains times only. Confirm the requested trading day
+  // against the dated public timeline before fetching either latest-day feed.
+  const timeline = await fetchTencentTradeTimeline(request.code);
+  if (timeline.date !== request.date) throw new Error(`成交明细日期为 ${timeline.date}，请先刷新单日行情后再下载`);
   let parsed: ParsedDailyTrades;
   let primaryError: unknown;
   try {
@@ -50,7 +54,7 @@ export async function fetchDailyTradesCsv(request: DailyTradesRequest): Promise<
   } catch (reason) {
     primaryError = reason;
     try {
-      parsed = await fetchTencentDailyTrades(request);
+      parsed = await fetchTencentDailyTrades(request, timeline);
     } catch (fallbackError) {
       throw new Error(`逐笔成交主备服务均不可用：主源 ${errorMessage(primaryError)}；备用源 ${errorMessage(fallbackError)}`);
     }
@@ -73,15 +77,17 @@ async function fetchEastmoneyDailyTrades(code: string): Promise<ParsedDailyTrade
   return parseDailyTradesResponse(await fetchProviderText(endpoint, "https://quote.eastmoney.com/", "东方财富逐笔成交"));
 }
 
-async function fetchTencentDailyTrades(request: DailyTradesRequest): Promise<ParsedDailyTrades> {
-  const symbol = `${/^[569]/.test(request.code) ? "sh" : "sz"}${request.code}`;
+async function fetchTencentTradeTimeline(code: string): Promise<ReturnType<typeof parseTencentTradeTimeline>> {
+  const symbol = `${/^[569]/.test(code) ? "sh" : "sz"}${code}`;
   const timelineEndpoint = new URL(tencentDailyTradesEndpoint);
   timelineEndpoint.searchParams.set("appn", "detail");
   timelineEndpoint.searchParams.set("action", "timeline");
   timelineEndpoint.searchParams.set("c", symbol);
-  const timeline = parseTencentTradeTimeline(await fetchProviderText(timelineEndpoint, "https://gu.qq.com/", "腾讯成交时间线"));
-  if (timeline.date !== request.date) throw new Error(`成交明细日期为 ${timeline.date}，请先刷新单日行情后再下载`);
+  return parseTencentTradeTimeline(await fetchProviderText(timelineEndpoint, "https://gu.qq.com/", "腾讯成交时间线"));
+}
 
+async function fetchTencentDailyTrades(request: DailyTradesRequest, timeline: ReturnType<typeof parseTencentTradeTimeline>): Promise<ParsedDailyTrades> {
+  const symbol = `${/^[569]/.test(request.code) ? "sh" : "sz"}${request.code}`;
   const trades: DailyTrade[] = [];
   const concurrency = 8;
   for (let start = 0; start < timeline.pageCount; start += concurrency) {

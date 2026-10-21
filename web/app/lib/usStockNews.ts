@@ -1,4 +1,5 @@
 import { isUSStockSymbol, normalizeUSSymbol } from "./security.ts";
+import { fetchEastmoneyStockNews, type StockNewsFallbackItem } from "./stockNewsFallback.ts";
 import { lookupUSStock } from "./usStockLookup.ts";
 
 const newsEndpoint = "https://search.sina.com.cn/api/news";
@@ -52,26 +53,14 @@ export function normalizeUSNewsRequest(value: unknown): { code: string; limit: n
 export async function fetchUSNewsCsv(code: string, limit: number): Promise<string> {
   const request = normalizeUSNewsRequest({ code, limit });
   const identity = await lookupUSStock(request.code).catch(() => ({ code: request.code, name: request.code, market: "US" as const, currency: "USD" as const }));
-  const endpoint = new URL(newsEndpoint);
-  endpoint.searchParams.set("q", buildNewsSearchQuery(request.code, identity.name));
-  const response = await fetch(endpoint, {
-    headers: { Accept: "application/json", Referer: "https://search.sina.com.cn/", "User-Agent": "Mozilla/5.0 (compatible; TrendSight/2.0)" },
-    signal: AbortSignal.timeout(14_000),
-  });
-  if (!response.ok) throw new Error(`美股新闻服务请求失败：HTTP ${response.status}`);
-  const body = await response.text();
-  if (new TextEncoder().encode(body).byteLength > maxResponseBytes) throw new Error("美股新闻响应超过安全上限");
-  let payload: unknown;
-  try { payload = JSON.parse(body); } catch { throw new Error("美股新闻服务返回了异常内容"); }
-  const items = (payload as { data?: { list?: unknown } } | null)?.data?.list;
+  const { items, portal } = await fetchNewsItems(request.code, identity.name, request.limit);
   const fetchedAt = formatNewYorkTime(Date.now());
   const seenTitles = new Set<string>();
   const seenUrls = new Set<string>();
-  const rows = (Array.isArray(items) ? items : []).flatMap((raw) => {
-    const item = raw as Record<string, unknown>;
-    const title = cleanText(String(item.title ?? ""));
-    const summary = cleanText(String(item.searchSummary ?? item.intro ?? ""));
-    const url = safeUrl(String(item.url ?? ""));
+  const rows = items.flatMap((item) => {
+    const title = cleanText(item.title);
+    const summary = cleanText(item.summary);
+    const url = safeUrl(item.url);
     const titleKey = normalizeTitleKey(title);
     const urlKey = normalizeArticleUrl(url);
     const relevance = matchEntityRelevance(request.code, identity.name, title, summary);
@@ -79,15 +68,54 @@ export async function fetchUSNewsCsv(code: string, limit: number): Promise<strin
     seenTitles.add(titleKey);
     seenUrls.add(urlKey);
     const sentiment = analyzeSentiment(title, summary);
-    const publishedAt = Number(item.ctime) > 0 ? formatNewYorkTime(Number(item.ctime) * 1000) : "";
+    const publishedAt = item.publishedAt != null ? formatNewYorkTime(item.publishedAt) : "";
     return [[
-      request.code, identity.name, "新浪搜索", "美股/财经", cleanText(String(item.media_show ?? "新浪")), publishedAt,
+      request.code, identity.name, portal, "美股/财经", cleanText(item.media), publishedAt,
       relevance.toFixed(2),
       sentiment.label, sentiment.score.toFixed(3), sentiment.positiveTerms.join("；"), sentiment.negativeTerms.join("；"), title, summary, url, fetchedAt,
     ]];
   }).slice(0, request.limit);
   const header = ["股票代码", "股票名称", "检索入口", "频道", "媒体来源", "发布时间", "相关性得分", "情绪倾向", "情绪得分", "正向词", "负向词", "新闻标题", "新闻摘要", "原文链接", "采集时间"];
   return `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n")}`;
+}
+
+async function fetchNewsItems(code: string, name: string, limit: number): Promise<{ items: StockNewsFallbackItem[]; portal: string }> {
+  try {
+    const endpoint = new URL(newsEndpoint);
+    endpoint.searchParams.set("q", buildNewsSearchQuery(code, name));
+    const response = await fetch(endpoint, {
+      headers: { Accept: "application/json", Referer: "https://search.sina.com.cn/", "User-Agent": "Mozilla/5.0 (compatible; TrendSight/2.0)" },
+      signal: AbortSignal.timeout(14_000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > maxResponseBytes) throw new Error("响应超过安全上限");
+    let payload: unknown;
+    try { payload = JSON.parse(body); } catch { throw new Error("返回了异常内容"); }
+    const rows = (payload as { data?: { list?: unknown } } | null)?.data?.list;
+    return {
+      portal: "新浪搜索",
+      items: (Array.isArray(rows) ? rows : []).map((raw) => {
+        const item = raw as Record<string, unknown>;
+        const ctime = Number(item.ctime);
+        return {
+          title: String(item.title ?? ""),
+          summary: String(item.searchSummary ?? item.intro ?? ""),
+          url: String(item.url ?? ""),
+          media: String(item.media_show ?? "新浪"),
+          publishedAt: ctime > 0 ? ctime * 1000 : null,
+        };
+      }),
+    };
+  } catch (primaryReason) {
+    try {
+      return { items: await fetchEastmoneyStockNews(code, "US", limit), portal: "东方财富个股资讯" };
+    } catch (fallbackReason) {
+      const primaryMessage = primaryReason instanceof Error ? primaryReason.message : "网络异常";
+      const fallbackMessage = fallbackReason instanceof Error ? fallbackReason.message : "网络异常";
+      throw new Error(`美股新闻服务暂不可用（主源：${primaryMessage}；备用源：${fallbackMessage}）`);
+    }
+  }
 }
 
 function buildNewsSearchQuery(code: string, name: string): string {

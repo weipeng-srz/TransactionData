@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db/index.ts";
 import { researchStates } from "../../../db/schema.ts";
 import { cnStockCodePattern, isUSStockSymbol, normalizeUSSymbol } from "../../lib/security.ts";
@@ -40,13 +40,18 @@ export function createResearchStateHandlers(overrides: Partial<ResearchStateDepe
 
     try {
       const db = await dependencies.getDatabase();
-      const [row] = await db.select().from(researchStates).where(eq(researchStates.userKey, userKey)).limit(1);
+      let [row] = await db.select().from(researchStates).where(eq(researchStates.userKey, userKey)).limit(1);
       const storedState = row ? safeParse(row.payload) : null;
       const state = sanitizeStoredState(storedState);
       if (row && hasStoredHoldings(storedState)) {
-        await db.update(researchStates).set({ payload: JSON.stringify(state) }).where(eq(researchStates.userKey, userKey));
+        await db.update(researchStates).set({ payload: JSON.stringify(state) }).where(and(
+          eq(researchStates.userKey, userKey),
+          eq(researchStates.payload, row.payload),
+          eq(researchStates.updatedAt, row.updatedAt),
+        ));
+        [row] = await db.select().from(researchStates).where(eq(researchStates.userKey, userKey)).limit(1);
       }
-      return Response.json({ state, updatedAt: row?.updatedAt ?? "" }, { headers: noStoreHeaders });
+      return Response.json({ state: sanitizeStoredState(row ? safeParse(row.payload) : null), updatedAt: row?.updatedAt ?? "" }, { headers: noStoreHeaders });
     } catch (reason) {
       return dbError("read", reason, dependencies.logServiceError);
     }

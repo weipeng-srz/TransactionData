@@ -34,6 +34,25 @@ export type StockScoreReport = {
   dimensions: StockScoreDimension[];
 };
 
+export const stockScoreModelVersion = "eight-dimension-2026.08.27";
+
+export const stockScoreWeights: Record<StockScoreDimension["key"], number> = {
+  trend: 0.0704,
+  momentum: 0.0856,
+  capital: 0.0932,
+  profitability: 0.1396,
+  growth: 0.1432,
+  valuation: 0.2925,
+  sentiment: 0.0626,
+  risk: 0.1129,
+};
+
+export const stockScoreOverheatRule = {
+  trendThreshold: 72,
+  momentumThreshold: 72,
+  penalty: 12,
+} as const;
+
 export type StockScoreInput = {
   candles: Candle[];
   indicators: IndicatorSet;
@@ -81,8 +100,9 @@ export function buildStockScore(input: StockScoreInput): StockScoreReport {
   const snapshot = input.financials.snapshot;
   const holder = input.financials.holderStructure;
   const newsSummary = summarizeNews(input.newsItems);
-  const backtestHorizon = input.backtest.horizons.find((item) => item.periods === 20)
-    ?? input.backtest.horizons.at(-1);
+  const buyBacktestHorizons = input.backtest.directions?.buy.horizons ?? input.backtest.horizons;
+  const backtestHorizon = buyBacktestHorizons.find((item) => item.periods === 20)
+    ?? buyBacktestHorizons.at(-1);
 
   const maAlignmentScore = price != null && ma5 != null && ma10 != null && ma20 != null
     ? price > ma5 && ma5 > ma10 && ma10 > ma20
@@ -246,9 +266,25 @@ export function buildStockScore(input: StockScoreInput): StockScoreReport {
     }),
   ];
 
-  const score = Math.round(dimensions.reduce((sum, item) => sum + item.score, 0) / dimensions.length);
   const coverage = Math.round(dimensions.reduce((sum, item) => sum + item.coverage, 0) / dimensions.length);
+  const score = aggregateStockScore(dimensions, coverage);
   return { score, coverage, signal: scoreSignal(score, coverage), dimensions };
+}
+
+export function aggregateStockScore(
+  dimensions: Array<Pick<StockScoreDimension, "key" | "score">>,
+  coverage: number,
+): number {
+  const byKey = new Map(dimensions.map((item) => [item.key, clamp(item.score, 0, 100)]));
+  const totalWeight = Object.values(stockScoreWeights).reduce((sum, value) => sum + value, 0);
+  const weighted = Object.entries(stockScoreWeights).reduce(
+    (sum, [key, weight]) => sum + (byKey.get(key as StockScoreDimension["key"]) ?? 50) * weight,
+    0,
+  ) / totalWeight;
+  const coverageAdjusted = 50 + (weighted - 50) * (0.55 + 0.45 * clamp(coverage, 0, 100) / 100);
+  const overheated = (byKey.get("trend") ?? 50) >= stockScoreOverheatRule.trendThreshold
+    && (byKey.get("momentum") ?? 50) >= stockScoreOverheatRule.momentumThreshold;
+  return Math.round(clamp(coverageAdjusted - (overheated ? stockScoreOverheatRule.penalty : 0), 0, 100));
 }
 
 function dimension(input: DimensionInput): StockScoreDimension {
@@ -343,7 +379,7 @@ function scoreSignal(score: number, coverage: number): StockScoreSignal {
 function latestGuide(indicators: IndicatorSet, latestIndex: number) {
   for (let index = latestIndex; index >= Math.max(0, latestIndex - 4); index -= 1) {
     const guide = indicators.guidePoints[index];
-    if (guide) return guide;
+    if (guide && guide.confidence !== "watch") return guide;
   }
   return null;
 }
